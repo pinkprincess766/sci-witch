@@ -1,0 +1,16 @@
+schema_version: 1
+description: >
+  Spoken math grammar. Simple expressions use natural speech.
+  Nested expressions MUST use boundary commands.
+natural:
+  - "икс в квадрате плюс два икс минус три равно нулю"
+boundary_commands:
+  fraction: [начало дроби, числитель, знаменатель, конец дроби]
+  power: [начало степени, конец степени]
+  group: [открыть скобку, закрыть скобку]
+  root: [начало корня, конец корня, корень из]
+  sum: [сумма от, до, конец суммы]
+  integral: [интеграл от, до, по, конец интеграла]
+implicit_multiplication: true
+root_without_end: "binds to the next atom; plus does not enter the radicand"
+ambiguity: "unclosed constructs yield alternatives or linear fallback"

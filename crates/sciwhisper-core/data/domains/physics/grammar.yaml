@@ -1,0 +1,12 @@
+schema_version: 1
+description: >
+  Physics uses the math AST plus quantities, vectors, SI units and prefixes.
+  Unit conversion and problem solving are out of MVP.
+vector: [вектор]
+delta: [дельта]
+units_follow_numbers: true
+per: [на]
+examples:
+  - "вектор эф равен эм умножить на вектор а"
+  - "же равно девять целых восемьдесят одна метра на секунду в квадрате"
+  - "лямбда равно шестьсот тридцать два нанометра"

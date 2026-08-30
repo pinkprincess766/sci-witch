@@ -1,0 +1,26 @@
+schema_version: 1
+arrows:
+  forward: [превращается в, превращаются в, превращается, превращаются, переходит в, переходят в, окисляется до, окисляются до, восстанавливается до, восстанавливаются до, дает, даёт, стрелка]
+  equilibrium: [равновесная стрелка, обратимо, в равновесии]
+states:
+  gas: [газ, газообразный]
+  precipitate: [осадок]
+conditions:
+  heat: [при нагревании, при нагреве]
+  light: [на свету]
+  electrolysis: [электролиз, при электролизе]
+grouping:
+  twice: [дважды]
+  thrice: [трижды]
+ion:
+  markers: [ион, иона]
+  plus: [плюс, плюс заряд]
+  minus: [минус, минус заряд]
+acid_suffix: [кислота, кислоты]
+# Spelled formulas are sequences of element names and numbers.
+# A leading number is a stoichiometric coefficient.
+# A number after an element is a subscript.
+# «дважды» groups the preceding radical, typically OH.
+notes: >
+  Systematic names: <anion_class> <cation> <oxidation?>.
+  Example: гидроксид меди два → Cu(OH)2.

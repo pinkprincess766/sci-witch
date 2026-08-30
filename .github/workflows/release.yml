@@ -1,0 +1,109 @@
+name: Preview release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: ${{ matrix.artifact }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: macos-latest
+            artifact: SciWhisper-macos
+            binary: sciwhisper
+            launcher: packaging/macos/SciWhisper-Test.command
+          - os: ubuntu-latest
+            artifact: SciWhisper-linux-x64
+            binary: sciwhisper
+            launcher: packaging/linux/SciWhisper-Test.sh
+          - os: windows-latest
+            artifact: SciWhisper-windows-x64
+            binary: sciwhisper.exe
+            launcher: packaging/windows/SciWhisper-Test.cmd
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Linux desktop dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libgtk-3-dev libayatana-appindicator3-dev libx11-dev libxtst-dev libxi-dev
+
+      - name: Build release binary
+        run: cargo build --release -p sciwhisper-cli
+
+      - name: Smoke-test Windows executable
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          target/release/sciwhisper.exe self-test
+          $bytes = [System.IO.File]::ReadAllBytes("target/release/sciwhisper.exe")
+          $peOffset = [BitConverter]::ToInt32($bytes, 0x3C)
+          $machine = [BitConverter]::ToUInt16($bytes, $peOffset + 4)
+          if ($machine -ne 0x8664) { throw "Expected x64 PE machine 0x8664, got 0x$($machine.ToString('X4'))" }
+
+      - name: Assemble Unix bundle
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "bundle/${{ matrix.artifact }}/docs/images"
+          cp "target/release/${{ matrix.binary }}" "bundle/${{ matrix.artifact }}/"
+          cp "${{ matrix.launcher }}" "bundle/${{ matrix.artifact }}/"
+          cp README.md LICENSE NOTICE DATA_LICENSE.md CHANGELOG.md "bundle/${{ matrix.artifact }}/"
+          cp docs/TESTING_RU.md docs/PRIVACY.md docs/KNOWN_LIMITATIONS.md "bundle/${{ matrix.artifact }}/docs/"
+          cp docs/images/si-witch-windows-settings-mockup.png "bundle/${{ matrix.artifact }}/docs/images/"
+          launcher_name="$(basename "${{ matrix.launcher }}")"
+          chmod +x "bundle/${{ matrix.artifact }}/${{ matrix.binary }}" "bundle/${{ matrix.artifact }}/$launcher_name"
+          cd bundle
+          zip -r "${{ matrix.artifact }}-${{ github.ref_name }}.zip" "${{ matrix.artifact }}"
+
+      - name: Assemble Windows bundle
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $root = "bundle/${{ matrix.artifact }}"
+          New-Item -ItemType Directory -Force "$root/docs/images" | Out-Null
+          Copy-Item "target/release/${{ matrix.binary }}" $root
+          Copy-Item "${{ matrix.launcher }}" $root
+          Copy-Item packaging/windows/SciWhisper.cmd, packaging/windows/SciWhisper-App.ps1 $root
+          Copy-Item packaging/windows/SciWhisper-Settings.cmd, packaging/windows/SciWhisper-Settings.ps1 $root
+          Copy-Item packaging/windows/README-WINDOWS.txt $root
+          Copy-Item assets/branding/SciWhisper-wink-broom-sand-v1.ico "$root/SciWhisper.ico"
+          Copy-Item README.md, LICENSE, NOTICE, DATA_LICENSE.md, CHANGELOG.md, SECURITY.md, CONTRIBUTING.md $root
+          Copy-Item docs/TESTING_RU.md, docs/PRIVACY.md, docs/KNOWN_LIMITATIONS.md, docs/grammar.md, docs/RELEASE_CHECKLIST.md "$root/docs"
+          Copy-Item docs/images/si-witch-windows-settings-mockup.png "$root/docs/images"
+          foreach ($script in @("SciWhisper-App.ps1", "SciWhisper-Settings.ps1")) {
+            $path = Join-Path $root $script
+            $content = Get-Content -Raw -Encoding UTF8 $path
+            Set-Content -Encoding UTF8 -Path $path -Value $content
+          }
+          Compress-Archive -Path $root -DestinationPath "bundle/${{ matrix.artifact }}-${{ github.ref_name }}.zip"
+          $zip = "bundle/${{ matrix.artifact }}-${{ github.ref_name }}.zip"
+          $hash = (Get-FileHash -Algorithm SHA256 $zip).Hash.ToLowerInvariant()
+          "$hash  $(Split-Path -Leaf $zip)" | Set-Content -Encoding ASCII "$zip.sha256"
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: |
+            bundle/*.zip
+            bundle/*.sha256
+
+      - name: Attach to GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          prerelease: true
+          generate_release_notes: true
+          files: |
+            bundle/*.zip
+            bundle/*.sha256

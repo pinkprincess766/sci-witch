@@ -1,0 +1,236 @@
+schema_version: 1
+sources:
+  iupac_bluebook_p12: https://iupac.qmul.ac.uk/BlueBook/P1.html
+  iupac_bluebook_p34: https://iupac.qmul.ac.uk/BlueBook/P3.html
+  iupac_bluebook_p61_p65: https://iupac.qmul.ac.uk/BlueBook/P6.html
+  iupac_bluebook_p107: https://iupac.qmul.ac.uk/BlueBook/P10.html
+  iupac_redbook_2005: https://publications.iupac.org/books/rbook/Red_Book_2005.pdf
+  pubchem_zinc_ferrite: https://pubchem.ncbi.nlm.nih.gov/compound/Iron-zinc-oxide-_Fe2ZnO4
+substances:
+  - names: [вода, воды, водой, воду]
+    formula: H2O
+  - names: [ледяная вода]
+    formula: H2O
+  - names: [кислород]
+    formula: O2
+    note: "standalone diatomic; spelled 'о' remains O"
+  - names: [водород]
+    formula: H2
+  - names: [азот]
+    formula: N2
+  - names: [озон]
+    formula: O3
+  - names: [аммиак, аммиака]
+    formula: NH3
+  - names: [серная кислота, серной кислоты]
+    formula: H2SO4
+  - names: [сернистая кислота]
+    formula: H2SO3
+  - names: [соляная кислота, хлороводородная кислота, хлороводород]
+    formula: HCl
+  - names: [азотная кислота]
+    formula: HNO3
+  - names: [азотистая кислота]
+    formula: HNO2
+  - names: [угольная кислота]
+    formula: H2CO3
+  - names: [фосфорная кислота]
+    formula: H3PO4
+  - names: [уксусная кислота, уксусной кислоты, уксусную кислоту]
+    formula: CH3COOH
+    canonical_name: acetic acid
+    nomenclature_status: retained_pin
+    source: iupac_bluebook_p61_p65
+  - names: [муравьиная кислота, муравьиной кислоты, муравьиную кислоту]
+    formula: HCOOH
+    canonical_name: formic acid
+    nomenclature_status: retained_pin
+    source: iupac_bluebook_p61_p65
+  - names: [щавелевая кислота, щавелевой кислоты, щавелевую кислоту]
+    formula: H2C2O4
+    canonical_name: oxalic acid
+    nomenclature_status: retained_pin
+    source: iupac_bluebook_p61_p65
+  - names: [бензойная кислота, бензойной кислоты, бензойную кислоту]
+    formula: C6H5COOH
+    canonical_name: benzoic acid
+    nomenclature_status: retained_pin
+    source: iupac_bluebook_p61_p65
+  - names: [акриловая кислота, акриловой кислоты, акриловую кислоту]
+    formula: C3H4O2
+    canonical_name: acrylic acid
+    nomenclature_status: retained_general
+    source: iupac_bluebook_p61_p65
+  - names: [адипиновая кислота, адипиновой кислоты, адипиновую кислоту]
+    formula: C6H10O4
+    canonical_name: adipic acid
+    nomenclature_status: retained_general
+    source: iupac_bluebook_p61_p65
+  - names: [масляная кислота, масляной кислоты, масляную кислоту]
+    formula: C4H8O2
+    canonical_name: butyric acid
+    nomenclature_status: retained_general
+    source: iupac_bluebook_p61_p65
+  - names: [малоновая кислота, малоновой кислоты, малоновую кислоту]
+    formula: C3H4O4
+    canonical_name: malonic acid
+    nomenclature_status: retained_general
+    source: iupac_bluebook_p61_p65
+  - names: [пропионовая кислота, пропионовой кислоты, пропионовую кислоту]
+    formula: C3H6O2
+    canonical_name: propionic acid
+    nomenclature_status: retained_general
+    source: iupac_bluebook_p61_p65
+  - names: [янтарная кислота, янтарной кислоты, янтарную кислоту]
+    formula: C4H6O4
+    canonical_name: succinic acid
+    nomenclature_status: retained_general
+    source: iupac_bluebook_p61_p65
+  - names: [лимонная кислота, лимонной кислоты, лимонную кислоту]
+    formula: C6H8O7
+    canonical_name: citric acid
+    nomenclature_status: retained_natural_product
+    source: iupac_bluebook_p61_p65
+  - names: [молочная кислота, молочной кислоты, молочную кислоту]
+    formula: C3H6O3
+    canonical_name: lactic acid
+    nomenclature_status: retained_natural_product
+    source: iupac_bluebook_p61_p65
+  - names: [пировиноградная кислота, пировиноградной кислоты, пировиноградную кислоту]
+    formula: C3H4O3
+    canonical_name: pyruvic acid
+    nomenclature_status: retained_natural_product
+    source: iupac_bluebook_p61_p65
+  - names: [винная кислота, винной кислоты, винную кислоту]
+    formula: C4H6O6
+    canonical_name: tartaric acid
+    nomenclature_status: retained_natural_product
+    source: iupac_bluebook_p61_p65
+  - names: [сероводородная кислота, сероводород]
+    formula: H2S
+  - names: [кремниевая кислота]
+    formula: H2SiO3
+  - names: [плавиковая кислота, плавиковой кислоты, плавиковую кислоту, фтороводород, фтороводородная кислота]
+    asr_aliases: [плавикова кислота, павликова кислота, павликовая кислота, кавликовая кислота, кавликова кислота]
+    formula: HF
+    canonical_name: hydrogen fluoride
+    nomenclature_status: localized_common_name
+    source: iupac_redbook_2005
+  - names: [углекислый газ, диоксид углерода]
+    formula: CO2
+  - names: [угарный газ, оксид углерода, монооксид углерода]
+    formula: CO
+  - names: [негашеная известь, оксид кальция]
+    formula: CaO
+  - names: [гашеная известь, гашёная известь, гидроксид кальция]
+    formula: Ca(OH)2
+  - names: [едкий натр, гидроксид натрия, каустик]
+    formula: NaOH
+  - names: [едкое кали, гидроксид калия]
+    formula: KOH
+  - names: [медный купорос]
+    formula: CuSO4·5H2O
+  - names: [железный купорос]
+    formula: FeSO4·7H2O
+  - names: [поваренная соль, каменная соль]
+    formula: NaCl
+  - names: [кварц, кремнезем, кремнезём]
+    formula: SiO2
+  - names: [пирит, серный колчедан]
+    formula: FeS2
+  - names: [феррит цинка, феррита цинка, ферритом цинка, ферриту цинка, цинковый феррит]
+    asr_aliases: [феррит Zn, феррита Zn]
+    formula: ZnFe2O4
+    canonical_name: zinc ferrite
+    nomenclature_status: materials_common_name
+    source: pubchem_zinc_ferrite
+  - names: [метан]
+    formula: CH4
+  - names: [этан]
+    formula: C2H6
+  - names: [пропан]
+    formula: C3H8
+  - names: [бутан]
+    formula: C4H10
+  - names: [этилен, этен]
+    formula: C2H4
+  - names: [ацетилен, этин]
+    formula: C2H2
+  - names: [бензол]
+    formula: C6H6
+  - names: [стирол, винилбензол]
+    formula: C8H8
+    canonical_name: styrene
+    nomenclature_status: retained_general
+    source: iupac_bluebook_p12
+  - names: [фенол]
+    formula: C6H5OH
+    canonical_name: phenol
+    nomenclature_status: retained_pin
+    source: iupac_bluebook_p34
+  - names: [анилин]
+    formula: C6H5NH2
+    canonical_name: aniline
+    nomenclature_status: retained_name
+    source: iupac_bluebook_p34
+  - names: [анизол]
+    formula: C6H5OCH3
+    canonical_name: anisole
+    nomenclature_status: retained_name
+    source: iupac_bluebook_p34
+  - names: [ацетон, ацетона]
+    formula: CH3COCH3
+    canonical_name: acetone
+    nomenclature_status: retained_general_pin_propan_2_one
+    source: iupac_bluebook_p12
+  - names: [мочевина, карбамид]
+    formula: CO(NH2)2
+    canonical_name: urea
+    nomenclature_status: retained_pin
+    source: iupac_bluebook_p34
+  - names: [глицерин, глицерина, глицерол]
+    formula: C3H8O3
+    canonical_name: glycerol
+    nomenclature_status: retained_general
+    source: iupac_bluebook_p107
+  - names: [хлороформ]
+    formula: CHCl3
+    canonical_name: chloroform
+    nomenclature_status: retained_general
+    source: iupac_bluebook_p61_p65
+  - names: [бромоформ]
+    formula: CHBr3
+    canonical_name: bromoform
+    nomenclature_status: retained_general
+    source: iupac_bluebook_p61_p65
+  - names: [иодоформ, йодоформ]
+    formula: CHI3
+    canonical_name: iodoform
+    nomenclature_status: retained_general
+    source: iupac_bluebook_p61_p65
+  - names: [глюкоза]
+    formula: C6H12O6
+  - names: [этанол, этиловый спирт]
+    formula: C2H5OH
+  - names: [пероксид водорода, перекись водорода]
+    formula: H2O2
+  - names: [марганцовка, перманганат калия]
+    asr_aliases: [пермангнат калия]
+    formula: KMnO4
+  - names: [бертолетова соль, хлорат калия]
+    formula: KClO3
+  - names: [нашатырь]
+    formula: NH4Cl
+  - names: [нашатырный спирт]
+    formula: NH3
+  - names: [питьевая сода, пищевая сода]
+    formula: NaHCO3
+  - names: [кальцинированная сода]
+    formula: Na2CO3
+  - names: [гипс]
+    formula: CaSO4·2H2O
+  - names: [мел, мрамор, известняк]
+    formula: CaCO3
+  - names: [едкий газ, хлор]
+    formula: Cl2
+    only_if: standalone-element-handled-separately

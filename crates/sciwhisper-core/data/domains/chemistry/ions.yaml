@@ -1,0 +1,171 @@
+schema_version: 1
+anion_classes:
+  - id: oxide
+    names: [оксид, оксида, оксидом]
+    charge: -2
+    group: false
+    formula: O
+  - id: peroxide
+    names: [пероксид, пероксида]
+    charge: -2
+    group: true
+    formula: O2
+  - id: hydroxide
+    names: [гидроксид, гидроксида, гидроксидом]
+    charge: -1
+    group: true
+    formula: OH
+  - id: fluoride
+    names: [фторид, фторида]
+    charge: -1
+    formula: F
+  - id: chloride
+    names: [хлорид, хлорида, хлоридом]
+    charge: -1
+    formula: Cl
+  - id: bromide
+    names: [бромид, бромида]
+    charge: -1
+    formula: Br
+  - id: iodide
+    names: [иодид, йодид, иодида, йодида]
+    charge: -1
+    formula: I
+  - id: sulfide
+    names: [сульфид, сульфида]
+    charge: -2
+    formula: S
+  - id: nitride
+    names: [нитрид, нитрида]
+    charge: -3
+    formula: N
+  - id: phosphide
+    names: [фосфид, фосфида]
+    charge: -3
+    formula: P
+  - id: hydride
+    names: [гидрид, гидрида]
+    charge: -1
+    formula: H
+  - id: carbide
+    names: [карбид, карбида]
+    charge: -4
+    formula: C
+  - id: sulfate
+    names: [сульфат, сульфата, сульфатом]
+    charge: -2
+    group: true
+    formula: SO4
+  - id: sulfite
+    names: [сульфит, сульфита]
+    charge: -2
+    group: true
+    formula: SO3
+  - id: nitrate
+    names: [нитрат, нитрата]
+    charge: -1
+    group: true
+    formula: NO3
+  - id: nitrite
+    names: [нитрит, нитрита]
+    charge: -1
+    group: true
+    formula: NO2
+  - id: carbonate
+    names: [карбонат, карбоната]
+    charge: -2
+    group: true
+    formula: CO3
+  - id: phosphate
+    names: [фосфат, фосфата]
+    charge: -3
+    group: true
+    formula: PO4
+  - id: silicate
+    names: [силикат, силиката]
+    charge: -2
+    group: true
+    formula: SiO3
+  - id: acetate
+    names: [ацетат, ацетата]
+    charge: -1
+    group: true
+    formula: CH3COO
+  - id: permanganate
+    names: [перманганат, перманганата]
+    charge: -1
+    group: true
+    formula: MnO4
+  - id: chromate
+    names: [хромат, хромата]
+    charge: -2
+    group: true
+    formula: CrO4
+  - id: dichromate
+    names: [дихромат, дихромата]
+    charge: -2
+    group: true
+    formula: Cr2O7
+  - id: chlorate
+    names: [хлорат, хлората]
+    charge: -1
+    group: true
+    formula: ClO3
+  - id: perchlorate
+    names: [перхлорат, перхлората]
+    charge: -1
+    group: true
+    formula: ClO4
+  - id: hypochlorite
+    names: [гипохлорит, гипохлорита]
+    charge: -1
+    group: true
+    formula: ClO
+  - id: bicarbonate
+    names: [гидрокарбонат, гидрокарбоната, бикарбонат]
+    charge: -1
+    group: true
+    formula: HCO3
+  - id: bisulfate
+    names: [гидросульфат, гидросульфата]
+    charge: -1
+    group: true
+    formula: HSO4
+  - id: cyanide
+    names: [цианид, цианида]
+    charge: -1
+    group: true
+    formula: CN
+  - id: thiocyanate
+    names: [роданид, тиоцианат]
+    charge: -1
+    group: true
+    formula: SCN
+  - id: ammonium
+    names: [аммоний, аммония]
+    charge: 1
+    group: true
+    formula: NH4
+    role: cation
+polyatomic:
+  - names: [гидроксил, о аш, оаш]
+    formula: OH
+    charge: -1
+  - names: [сульфат]
+    formula: SO4
+    charge: -2
+  - names: [нитрат]
+    formula: NO3
+    charge: -1
+  - names: [карбонат]
+    formula: CO3
+    charge: -2
+  - names: [фосфат]
+    formula: PO4
+    charge: -3
+  - names: [перманганат]
+    formula: MnO4
+    charge: -1
+  - names: [аммоний]
+    formula: NH4
+    charge: 1

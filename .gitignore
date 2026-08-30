@@ -1,0 +1,38 @@
+/target
+**/*.rs.bk
+
+# Python and local tooling
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+
+# Build and release output
+dist/
+/release-assets/
+*.pdb
+*.dSYM/
+
+# Local model weights
+models/
+*.ggml
+*.gguf
+*.bin
+*.pt
+*.onnx
+*.safetensors
+
+# Operating systems and editors
+.DS_Store
+Thumbs.db
+Desktop.ini
+.idea/
+.vscode/
+.vs/

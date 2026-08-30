@@ -1,0 +1,34 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/sciwhisper-core",
+    "crates/sciwhisper-asr",
+    "crates/sciwhisper-shell",
+    "crates/sciwhisper-cli",
+]
+default-members = [
+    "crates/sciwhisper-core",
+    "crates/sciwhisper-asr",
+    "crates/sciwhisper-shell",
+    "crates/sciwhisper-cli",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+authors = ["SciWhisper contributors"]
+description = "Offline voice input for structured scientific notation"
+
+[workspace.dependencies]
+sciwhisper-core = { path = "crates/sciwhisper-core" }
+sciwhisper-asr = { path = "crates/sciwhisper-asr" }
+sciwhisper-shell = { path = "crates/sciwhisper-shell" }
+serde = { version = "1", features = ["derive"] }
+serde_yaml = "0.9"
+thiserror = "2"
+clap = { version = "4", features = ["derive"] }
+serde_json = "1"
+tempfile = "3"
+cpal = "0.15"
+hound = "3.5"

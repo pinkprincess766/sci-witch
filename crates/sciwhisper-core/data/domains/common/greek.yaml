@@ -1,0 +1,98 @@
+schema_version: 1
+letters:
+  - spoken: [альфа]
+    lower: α
+    upper: Α
+    latin: alpha
+  - spoken: [бета]
+    lower: β
+    upper: Β
+    latin: beta
+  - spoken: [гамма]
+    lower: γ
+    upper: Γ
+    latin: gamma
+  - spoken: [дельта]
+    lower: δ
+    upper: Δ
+    latin: delta
+  - spoken: [эпсилон]
+    lower: ε
+    upper: Ε
+    latin: epsilon
+  - spoken: [дзета, зета, сета]
+    lower: ζ
+    upper: Ζ
+    latin: zeta
+  - spoken: [эта]
+    lower: η
+    upper: Η
+    latin: eta
+  - spoken: [тета, тэта]
+    lower: θ
+    upper: Θ
+    latin: theta
+  - spoken: [йота]
+    lower: ι
+    upper: Ι
+    latin: iota
+  - spoken: [каппа]
+    lower: κ
+    upper: Κ
+    latin: kappa
+  - spoken: [лямбда, лямбда]
+    lower: λ
+    upper: Λ
+    latin: lambda
+  - spoken: [мю, ми]
+    lower: μ
+    upper: Μ
+    latin: mu
+  - spoken: [ню]
+    lower: ν
+    upper: Ν
+    latin: nu
+  - spoken: [кси]
+    lower: ξ
+    upper: Ξ
+    latin: xi
+  - spoken: [омикрон]
+    lower: ο
+    upper: Ο
+    latin: omicron
+  - spoken: [пи]
+    lower: π
+    upper: Π
+    latin: pi
+  - spoken: [ро]
+    lower: ρ
+    upper: Ρ
+    latin: rho
+  - spoken: [сигма]
+    lower: σ
+    upper: Σ
+    latin: sigma
+  - spoken: [тау]
+    lower: τ
+    upper: Τ
+    latin: tau
+  - spoken: [ипсилон, эпсилон у]
+    lower: υ
+    upper: Υ
+    latin: upsilon
+  - spoken: [фи]
+    lower: φ
+    upper: Φ
+    latin: phi
+  - spoken: [хи]
+    lower: χ
+    upper: Χ
+    latin: chi
+  - spoken: [пси]
+    lower: ψ
+    upper: Ψ
+    latin: psi
+  - spoken: [омега]
+    lower: ω
+    upper: Ω
+    latin: omega

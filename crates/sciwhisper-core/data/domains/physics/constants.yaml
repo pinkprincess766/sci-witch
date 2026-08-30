@@ -1,0 +1,16 @@
+schema_version: 1
+constants:
+  - spoken: [же, g]
+    symbol: g
+    value: "9,81"
+    unit: "м/с²"
+  - spoken: [скорость света, цэ]
+    symbol: c
+  - spoken: [постоянная авогадро]
+    symbol: N_A
+  - spoken: [постоянная планка]
+    symbol: h
+  - spoken: [число фарадея]
+    symbol: F
+  - spoken: [газовая постоянная]
+    symbol: R

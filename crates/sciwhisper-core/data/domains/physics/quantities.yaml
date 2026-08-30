@@ -1,0 +1,33 @@
+schema_version: 1
+quantities:
+  - spoken: [дельта же, дельта гэ, дельта g]
+    symbol: ΔG
+    name: "Gibbs free energy"
+  - spoken: [дельта аш, дельта h]
+    symbol: ΔH
+    name: enthalpy
+  - spoken: [дельта эс, дельта s]
+    symbol: ΔS
+    name: entropy
+  - spoken: [дельта ю, дельта u]
+    symbol: ΔU
+    name: internal energy
+  - spoken: [же, g маленькая, ускорение свободного падения]
+    symbol: g
+    name: gravity
+  - spoken: [ц, скорость света]
+    symbol: c
+    name: speed of light
+    domain_default: physics
+  - spoken: [постоянная планка, постоянная планка h]
+    symbol: h
+    name: Planck constant
+  - spoken: [число фарадея, фарадей]
+    symbol: F
+    name: Faraday constant
+  - spoken: [эн эф е]
+    symbol: nFE
+    note: "parsed as product n·F·E unless concatenated"
+defaults:
+  # In physics, single-letter «ц» is c (speed of light), «же» after дельта is G.
+  delta_letter_upper: true

@@ -1,0 +1,29 @@
+schema_version: 1
+note: >
+  Synthetic clips are TTS (macOS Milena). They prove the Whisper overlay,
+  not ASR quality on real speakers. Real-speaker rows go under kind: human.
+clips:
+  - id: syn-cuoh2
+    kind: synthetic
+    path: synthetic/hydroxide.caf
+    spoken: "гидроксид меди два"
+    expect_unicode: "Cu(OH)₂"
+    domain: chemistry
+    speaker: tts-milena
+    noise: none
+  - id: syn-decomp
+    kind: synthetic
+    path: synthetic/decomp.caf
+    spoken: "гидроксид меди два превращается в оксид меди два плюс вода"
+    expect_unicode: "Cu(OH)₂ → CuO + H₂O"
+    domain: chemistry
+    speaker: tts-milena
+    noise: none
+  - id: syn-quad
+    kind: synthetic
+    path: synthetic/quadratic.caf
+    spoken: "икс в квадрате плюс два икс минус три равно нулю"
+    expect_unicode: "x² + 2x − 3 = 0"
+    domain: mathematics
+    speaker: tts-milena
+    noise: none

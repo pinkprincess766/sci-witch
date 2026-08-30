@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>ru</string>
+    <key>CFBundleDisplayName</key>
+    <string>SciWhisper</string>
+    <key>CFBundleExecutable</key>
+    <string>sciwhisper</string>
+    <key>CFBundleIconFile</key>
+    <string>SciWhisper.png</string>
+    <key>CFBundleIdentifier</key>
+    <string>org.sciwhisper.app</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleName</key>
+    <string>SciWhisper</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>0.1.0</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>12.0</string>
+    <key>LSUIElement</key>
+    <true/>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>NSAccessibilityUsageDescription</key>
+    <string>SciWhisper использует Accessibility только для вставки готового текста в выбранное пользователем поле.</string>
+    <key>NSInputMonitoringUsageDescription</key>
+    <string>SciWhisper отслеживает только заданные горячие клавиши для запуска и остановки диктовки.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>SciWhisper записывает речь по удержанию горячей клавиши и обрабатывает её локально.</string>
+</dict>
+</plist>

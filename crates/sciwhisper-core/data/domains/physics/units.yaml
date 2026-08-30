@@ -1,0 +1,85 @@
+schema_version: 1
+si_base:
+  - symbol: м
+    latex: r"\mathrm{m}"
+    spoken: [метр, метра, метров, метры]
+  - symbol: кг
+    latex: r"\mathrm{kg}"
+    spoken: [килограмм, килограмма, килограммов]
+  - symbol: с
+    latex: r"\mathrm{s}"
+    spoken: [секунда, секунды, секунду, секунд]
+  - symbol: А
+    latex: r"\mathrm{A}"
+    spoken: [ампер, ампера, ампер]
+  - symbol: К
+    latex: r"\mathrm{K}"
+    spoken: [кельвин, кельвина]
+  - symbol: моль
+    latex: r"\mathrm{mol}"
+    spoken: [моль, моля]
+  - symbol: кд
+    latex: r"\mathrm{cd}"
+    spoken: [кандела, канделы]
+derived:
+  - symbol: Н
+    spoken: [ньютон, ньютона, ньютонов]
+  - symbol: Дж
+    spoken: [джоуль, джоуля, джоулей]
+  - symbol: Вт
+    spoken: [ватт, ватта, ватт]
+  - symbol: Па
+    spoken: [паскаль, паскаля]
+  - symbol: Кл
+    spoken: [кулон, кулона]
+  - symbol: В
+    spoken: [вольт, вольта]
+  - symbol: Ом
+    spoken: [ом, ома]
+  - symbol: Гц
+    spoken: [герц]
+  - symbol: Кл
+    spoken: [кулон]
+prefixes:
+  - prefix: н
+    spoken: [нано]
+    factor: 1e-9
+  - prefix: мк
+    spoken: [микро]
+    factor: 1e-6
+  - prefix: м
+    spoken: [милли]
+    factor: 1e-3
+  - prefix: с
+    spoken: [санти]
+    factor: 1e-2
+  - prefix: к
+    spoken: [кило]
+    factor: 1e3
+  - prefix: М
+    spoken: [мега]
+    factor: 1e6
+  - prefix: Г
+    spoken: [гига]
+    factor: 1e9
+composed:
+  - spoken: [нанометр, нанометра, нанометров, нанометры]
+    symbol: нм
+  - spoken: [миллиметр, миллиметра]
+    symbol: мм
+  - spoken: [сантиметр, сантиметра]
+    symbol: см
+  - spoken: [километр, километра]
+    symbol: км
+  - spoken: [миллисекунда, миллисекунды]
+    symbol: мс
+  - spoken: [килогерц]
+    symbol: кГц
+  - spoken: [мегагерц]
+    symbol: МГц
+operators:
+  per: [на, в]
+  times: [умножить]
+power:
+  squared: [в квадрате, квадрате]
+  cubed: [в кубе]

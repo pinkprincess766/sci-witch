@@ -1,0 +1,37 @@
+schema_version: 1
+id: chem101
+title: "School chemistry — verified short reactions"
+license: "CC BY 4.0"
+reactions:
+  - id: methane_combustion
+    phrases:
+      - горение метана
+      - сгорание метана
+    equation: "CH4 + 2O2 -> CO2 + 2H2O"
+    provenance:
+      source: "Complete combustion of methane, secondary-school stoichiometry"
+      reviewer: "course-pack-chem101"
+      reviewed_at: "2026-08-30"
+      scope: "excess oxygen, complete combustion to CO2 and H2O"
+      version: "1"
+  - id: hydrogen_combustion
+    phrases:
+      - горение водорода
+    equation: "2H2 + O2 -> 2H2O"
+    provenance:
+      source: "Combustion of hydrogen"
+      reviewer: "course-pack-chem101"
+      reviewed_at: "2026-08-30"
+      scope: "complete combustion"
+      version: "1"
+  - id: copper_hydroxide_decomp
+    phrases:
+      - разложение гидроксида меди
+      - разложение гидроксида меди два
+    equation: "Cu(OH)2 -> CuO + H2O"
+    provenance:
+      source: "Thermal decomposition of copper(II) hydroxide"
+      reviewer: "course-pack-chem101"
+      reviewed_at: "2026-08-30"
+      scope: "heating"
+      version: "1"

@@ -1,0 +1,213 @@
+schema_version: 1
+elements:
+  - symbol: H
+    z: 1
+    names: [водород, водорода, водородом, аш, hydrogen]
+    diatomic: true
+    default_oxidation: 1
+    oxidations: [1, -1]
+  - symbol: He
+    z: 2
+    names: [гелий, гелия]
+  - symbol: Li
+    z: 3
+    names: [литий, лития]
+    default_oxidation: 1
+  - symbol: Be
+    z: 4
+    names: [бериллий, бериллия]
+    default_oxidation: 2
+  - symbol: B
+    z: 5
+    names: [бор, бора]
+    default_oxidation: 3
+  - symbol: C
+    z: 6
+    names: [углерод, углерода, цэ, carbon]
+    default_oxidation: 4
+    oxidations: [2, 4, -4]
+  - symbol: N
+    z: 7
+    names: [азот, азота, эн]
+    diatomic: true
+    default_oxidation: -3
+    oxidations: [-3, 2, 3, 4, 5]
+  - symbol: O
+    z: 8
+    names: [кислород, кислорода, о, oxygen]
+    diatomic: true
+    default_oxidation: -2
+  - symbol: F
+    z: 9
+    names: [фтор, фтора, эф]
+    diatomic: true
+    default_oxidation: -1
+  - symbol: Ne
+    z: 10
+    names: [неон, неона]
+  - symbol: Na
+    z: 11
+    names: [натрий, натрия, натрием]
+    default_oxidation: 1
+  - symbol: Mg
+    z: 12
+    names: [магний, магния]
+    default_oxidation: 2
+  - symbol: Al
+    z: 13
+    names: [алюминий, алюминия]
+    default_oxidation: 3
+  - symbol: Si
+    z: 14
+    names: [кремний, кремния]
+    default_oxidation: 4
+  - symbol: P
+    z: 15
+    names: [фосфор, фосфора, пэ]
+    default_oxidation: 5
+    oxidations: [3, 5, -3]
+  - symbol: S
+    z: 16
+    names: [сера, серы, серу, эс, sulfur, sulphur]
+    default_oxidation: -2
+    oxidations: [-2, 4, 6]
+  - symbol: Cl
+    z: 17
+    names: [хлор, хлора, хлором]
+    diatomic: true
+    default_oxidation: -1
+  - symbol: Ar
+    z: 18
+    names: [аргон, аргона]
+  - symbol: K
+    z: 19
+    names: [калий, калия, калием]
+    default_oxidation: 1
+  - symbol: Ca
+    z: 20
+    names: [кальций, кальция]
+    default_oxidation: 2
+  - symbol: Sc
+    z: 21
+    names: [скандий, скандия]
+    default_oxidation: 3
+  - symbol: Ti
+    z: 22
+    names: [титан, титана]
+    default_oxidation: 4
+  - symbol: V
+    z: 23
+    names: [ванадий, ванадия]
+    default_oxidation: 5
+  - symbol: Cr
+    z: 24
+    names: [хром, хрома]
+    default_oxidation: 3
+    oxidations: [2, 3, 6]
+  - symbol: Mn
+    z: 25
+    names: [марганец, марганца, марганцем]
+    default_oxidation: 2
+    oxidations: [2, 4, 6, 7]
+  - symbol: Fe
+    z: 26
+    names: [железо, железа, железом, феррум, ferrum]
+    default_oxidation: 3
+    oxidations: [2, 3]
+  - symbol: Co
+    z: 27
+    names: [кобальт, кобальта]
+    default_oxidation: 2
+  - symbol: Ni
+    z: 28
+    names: [никель, никеля]
+    default_oxidation: 2
+  - symbol: Cu
+    z: 29
+    names: [медь, меди, медью, купрум, cuprum]
+    default_oxidation: 2
+    oxidations: [1, 2]
+  - symbol: Zn
+    z: 30
+    names: [цинк, цинка, цинком]
+    default_oxidation: 2
+  - symbol: Ga
+    z: 31
+    names: [галлий, галлия]
+    default_oxidation: 3
+  - symbol: Ge
+    z: 32
+    names: [германий, германия]
+    default_oxidation: 4
+  - symbol: As
+    z: 33
+    names: [мышьяк, мышьяка]
+    default_oxidation: 3
+  - symbol: Se
+    z: 34
+    names: [селен, селена]
+    default_oxidation: -2
+  - symbol: Br
+    z: 35
+    names: [бром, брома]
+    diatomic: true
+    default_oxidation: -1
+  - symbol: Kr
+    z: 36
+    names: [криптон, криптона]
+  - symbol: Rb
+    z: 37
+    names: [рубидий, рубидия]
+    default_oxidation: 1
+  - symbol: Sr
+    z: 38
+    names: [стронций, стронция]
+    default_oxidation: 2
+  - symbol: Ag
+    z: 47
+    names: [серебро, серебра, аргентум]
+    default_oxidation: 1
+  - symbol: Cd
+    z: 48
+    names: [кадмий, кадмия]
+    default_oxidation: 2
+  - symbol: Sn
+    z: 50
+    names: [олово, олова]
+    default_oxidation: 4
+    oxidations: [2, 4]
+  - symbol: I
+    z: 53
+    names: [йод, иод, йода, иода]
+    diatomic: true
+    default_oxidation: -1
+  - symbol: Xe
+    z: 54
+    names: [ксенон, ксенона]
+  - symbol: Cs
+    z: 55
+    names: [цезий, цезия]
+    default_oxidation: 1
+  - symbol: Ba
+    z: 56
+    names: [барий, бария]
+    default_oxidation: 2
+  - symbol: Au
+    z: 79
+    names: [золото, золота, аурум]
+    default_oxidation: 3
+    oxidations: [1, 3]
+  - symbol: Hg
+    z: 80
+    names: [ртуть, ртути]
+    default_oxidation: 2
+    oxidations: [1, 2]
+  - symbol: Pb
+    z: 82
+    names: [свинец, свинца]
+    default_oxidation: 2
+    oxidations: [2, 4]
+  - symbol: U
+    z: 92
+    names: [уран, урана]
+    default_oxidation: 6

@@ -1,0 +1,83 @@
+schema_version: 1
+letters:
+  - spoken: [а]
+    latin: a
+    cyrillic: а
+  - spoken: [бэ, б]
+    latin: b
+    cyrillic: б
+  - spoken: [цэ, ц]
+    latin: c
+    cyrillic: ц
+  - spoken: [дэ, д]
+    latin: d
+    cyrillic: д
+  - spoken: [е]
+    latin: e
+    cyrillic: е
+  - spoken: [эф, ф]
+    latin: f
+    cyrillic: ф
+  - spoken: [гэ, г]
+    latin: g
+    cyrillic: г
+  - spoken: [же, ж]
+    latin: g
+    note: "же maps to G/g in scientific speech (ΔG, g)"
+  - spoken: [аш]
+    latin: h
+  - spoken: [и]
+    latin: i
+    cyrillic: и
+  - spoken: [жи, йот]
+    latin: j
+  - spoken: [ка]
+    latin: k
+    cyrillic: к
+  - spoken: [эль, л]
+    latin: l
+    cyrillic: л
+  - spoken: [эм, м]
+    latin: m
+    cyrillic: м
+  - spoken: [эн, н]
+    latin: n
+    cyrillic: н
+  - spoken: [о]
+    latin: o
+    cyrillic: о
+  - spoken: [пэ, п]
+    latin: p
+    cyrillic: п
+  - spoken: [ку]
+    latin: q
+  - spoken: [эр, р]
+    latin: r
+    cyrillic: р
+  - spoken: [эс, с]
+    latin: s
+    cyrillic: с
+  - spoken: [тэ, т]
+    latin: t
+    cyrillic: t
+  - spoken: [у]
+    latin: u
+    cyrillic: у
+  - spoken: [ви, вэ, в]
+    latin: v
+    cyrillic: в
+  - spoken: [дубль-вэ, дубль вэ, w]
+    latin: w
+  - spoken: [икс, x]
+    latin: x
+  - spoken: [игрек, игрек y, y]
+    latin: y
+  - spoken: [зет, зед, z]
+    latin: z
+commands:
+  latin: [латинская, латинский, латинское]
+  cyrillic: [русская, русский, русское, кириллическая]
+  greek: [греческая, греческий, греческое]
+  upper: [большое, большая, большой, заглавная, заглавный]
+  lower: [малое, малая, малый, строчная, строчный]
+  zero: [ноль, нуль]
