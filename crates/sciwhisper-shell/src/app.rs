@@ -1,9 +1,10 @@
-//! Tray application: global PTT, warm Whisper, insert into the front app.
+//! System-panel application: global recording controls and insertion into the front app.
 
 use std::collections::HashSet;
 use std::sync::mpsc::{self, Sender};
 use std::sync::Mutex;
 use std::thread;
+use std::time::{Duration, Instant};
 
 use sciwhisper_asr::capture::{PttSession, Recording};
 use sciwhisper_asr::pipeline::{compile_transcript, PipelineResult};
@@ -19,6 +20,7 @@ use crate::config::{Config, OutputMode};
 use crate::error::{Error, Result};
 use crate::history::{History, HistoryItem};
 use crate::hotkey::{self, Combo, Key};
+use crate::indicator::RecordingIndicator;
 use crate::insert::{self, LastInsert};
 use crate::key_listener::KeyEvent;
 use crate::tray::{self, StatusIcon, Tray};
@@ -26,6 +28,7 @@ use crate::tray::{self, StatusIcon, Tray};
 enum Msg {
     PttDown { sticky: Option<OutputMode> },
     PttUp,
+    ToggleRecording,
     Cancel,
     WhisperReady,
     WhisperFailed(String),
@@ -78,7 +81,7 @@ pub fn run() -> Result<()> {
         }
     });
 
-    spawn_hotkeys(tx.clone(), ptt, ptt_latex, ptt_word);
+    spawn_hotkeys(tx.clone(), ptt, ptt_latex, ptt_word, config.double_control);
     let audio_tx = spawn_audio_thread();
 
     let event_loop = EventLoop::<Msg>::with_user_event()
@@ -105,6 +108,7 @@ pub fn run() -> Result<()> {
     event_loop.set_control_flow(ControlFlow::Wait);
     let mut app = DesktopApp {
         tray: None,
+        indicator: None,
         state,
         audio: audio_tx,
         tx,
@@ -123,6 +127,7 @@ pub fn run() -> Result<()> {
 
 struct DesktopApp {
     tray: Option<Tray>,
+    indicator: Option<RecordingIndicator>,
     state: State,
     audio: Sender<AudioCmd>,
     tx: Sender<Msg>,
@@ -137,7 +142,13 @@ impl DesktopApp {
             self.pending.push(event);
             return;
         };
+        let previous_phase = self.state.phase;
         handle_msg(event, tray, &mut self.state, &self.audio, &self.tx);
+        if previous_phase != self.state.phase {
+            if let Some(indicator) = self.indicator.as_mut() {
+                indicator.set_recording(self.state.phase == Phase::Recording);
+            }
+        }
     }
 
     fn handle_pending_menu(&mut self, event_loop: &ActiveEventLoop) {
@@ -171,10 +182,11 @@ impl ApplicationHandler<Msg> for DesktopApp {
         match tray::build(self.state.domain, self.state.output, "загрузка Whisper…") {
             Ok(tray) => {
                 self.tray = Some(tray);
+                self.indicator = RecordingIndicator::new(event_loop).ok();
                 self.state.accessibility = crate::permissions::request_accessibility();
                 insert::notify(
                     "SciWhisper",
-                    "В трее. Удерживайте Ctrl+Shift+Space, говорите, отпустите.",
+                    "Нажмите Control дважды, говорите, затем нажмите Control дважды ещё раз.",
                 );
                 for event in std::mem::take(&mut self.pending) {
                     self.handle_event(event);
@@ -201,9 +213,16 @@ impl ApplicationHandler<Msg> for DesktopApp {
     fn window_event(
         &mut self,
         _event_loop: &ActiveEventLoop,
-        _window_id: WindowId,
-        _event: WindowEvent,
+        window_id: WindowId,
+        event: WindowEvent,
     ) {
+        if matches!(event, WindowEvent::RedrawRequested) {
+            if let Some(indicator) = self.indicator.as_mut() {
+                if indicator.window_id() == window_id {
+                    indicator.redraw();
+                }
+            }
+        }
     }
 }
 
@@ -248,55 +267,128 @@ fn spawn_audio_thread() -> Sender<AudioCmd> {
 
 static ENGINE: Mutex<Option<SharedEngine>> = Mutex::new(None);
 
-fn spawn_hotkeys(tx: Sender<Msg>, ptt: Combo, ptt_latex: Option<Combo>, ptt_word: Option<Combo>) {
+fn spawn_hotkeys(
+    tx: Sender<Msg>,
+    ptt: Combo,
+    ptt_latex: Option<Combo>,
+    ptt_word: Option<Combo>,
+    double_control: bool,
+) {
     thread::spawn(move || {
         let mut down: HashSet<Key> = HashSet::new();
         let mut holding = false;
+        let mut double_control_detector = DoubleControlDetector::default();
         let event_tx = tx.clone();
-        if let Err(error) = crate::key_listener::listen(move |event| match event {
-            KeyEvent::Press(k) => {
-                down.insert(k);
-                if hotkey::is_escape(k) {
-                    let _ = event_tx.send(Msg::Cancel);
-                    holding = false;
-                    return;
-                }
-                if !holding && ptt.trigger_down(&down) {
-                    holding = true;
-                    let _ = event_tx.send(Msg::PttDown { sticky: None });
-                } else if !holding {
-                    if ptt_latex
-                        .as_ref()
-                        .map(|c| c.trigger_down(&down))
-                        .unwrap_or(false)
-                    {
+        if let Err(error) = crate::key_listener::listen(move |event| {
+            if double_control && double_control_detector.observe(event, Instant::now()) {
+                let _ = event_tx.send(Msg::ToggleRecording);
+            }
+            match event {
+                KeyEvent::Press(k) => {
+                    down.insert(k);
+                    if hotkey::is_escape(k) {
+                        let _ = event_tx.send(Msg::Cancel);
+                        holding = false;
+                        return;
+                    }
+                    if !holding && ptt.trigger_down(&down) {
                         holding = true;
-                        let _ = event_tx.send(Msg::PttDown {
-                            sticky: Some(OutputMode::Latex),
-                        });
-                    } else if ptt_word
-                        .as_ref()
-                        .map(|c| c.trigger_down(&down))
-                        .unwrap_or(false)
-                    {
-                        holding = true;
-                        let _ = event_tx.send(Msg::PttDown {
-                            sticky: Some(OutputMode::Word),
-                        });
+                        let _ = event_tx.send(Msg::PttDown { sticky: None });
+                    } else if !holding {
+                        if ptt_latex
+                            .as_ref()
+                            .map(|c| c.trigger_down(&down))
+                            .unwrap_or(false)
+                        {
+                            holding = true;
+                            let _ = event_tx.send(Msg::PttDown {
+                                sticky: Some(OutputMode::Latex),
+                            });
+                        } else if ptt_word
+                            .as_ref()
+                            .map(|c| c.trigger_down(&down))
+                            .unwrap_or(false)
+                        {
+                            holding = true;
+                            let _ = event_tx.send(Msg::PttDown {
+                                sticky: Some(OutputMode::Word),
+                            });
+                        }
                     }
                 }
-            }
-            KeyEvent::Release(k) => {
-                down.remove(&k);
-                if holding && (k == ptt.trigger || !ptt.modifiers_held(&down)) {
-                    holding = false;
-                    let _ = event_tx.send(Msg::PttUp);
+                KeyEvent::Release(k) => {
+                    down.remove(&k);
+                    if holding && (k == ptt.trigger || !ptt.modifiers_held(&down)) {
+                        holding = false;
+                        let _ = event_tx.send(Msg::PttUp);
+                    }
                 }
             }
         }) {
             let _ = tx.send(Msg::HotkeyFailed(error));
         }
     });
+}
+
+const CONTROL_TAP_MAX: Duration = Duration::from_millis(350);
+const DOUBLE_CONTROL_GAP: Duration = Duration::from_millis(500);
+
+#[derive(Default)]
+struct DoubleControlDetector {
+    control_down: bool,
+    clean_tap: bool,
+    pressed_at: Option<Instant>,
+    first_tap_at: Option<Instant>,
+}
+
+impl DoubleControlDetector {
+    fn observe(&mut self, event: KeyEvent, now: Instant) -> bool {
+        match event {
+            KeyEvent::Press(key) if is_control(key) => {
+                if self.control_down {
+                    self.clean_tap = false;
+                    self.first_tap_at = None;
+                } else {
+                    self.control_down = true;
+                    self.clean_tap = true;
+                    self.pressed_at = Some(now);
+                }
+            }
+            KeyEvent::Press(_) => {
+                self.clean_tap = false;
+                self.first_tap_at = None;
+            }
+            KeyEvent::Release(key) if is_control(key) => {
+                if !self.control_down {
+                    return false;
+                }
+                self.control_down = false;
+                let quick = self
+                    .pressed_at
+                    .take()
+                    .map(|pressed| now.saturating_duration_since(pressed) <= CONTROL_TAP_MAX)
+                    .unwrap_or(false);
+                if !self.clean_tap || !quick {
+                    self.clean_tap = false;
+                    self.first_tap_at = None;
+                    return false;
+                }
+                self.clean_tap = false;
+                if let Some(first) = self.first_tap_at.take() {
+                    if now.saturating_duration_since(first) <= DOUBLE_CONTROL_GAP {
+                        return true;
+                    }
+                }
+                self.first_tap_at = Some(now);
+            }
+            KeyEvent::Release(_) => {}
+        }
+        false
+    }
+}
+
+fn is_control(key: Key) -> bool {
+    matches!(key, Key::ControlLeft | Key::ControlRight)
 }
 
 fn handle_msg(
@@ -310,7 +402,10 @@ fn handle_msg(
         Msg::WhisperReady => {
             if state.accessibility {
                 tray::set_status(tray, StatusIcon::Idle, "SciWhisper готов");
-                insert::notify("SciWhisper", "Whisper в памяти. Можно диктовать.");
+                insert::notify(
+                    "SciWhisper",
+                    "Модель распознавания загружена. Можно диктовать.",
+                );
             } else {
                 tray::set_status(
                     tray,
@@ -342,7 +437,7 @@ fn handle_msg(
             match ack_rx.recv() {
                 Ok(Ok(())) => {
                     state.phase = Phase::Recording;
-                    tray::set_status(tray, StatusIcon::Recording, "● запись — отпустите клавишу");
+                    tray::set_status(tray, StatusIcon::Recording, "● запись — Esc отменяет");
                 }
                 Ok(Err(e)) => insert::notify("SciWhisper", &e),
                 Err(_) => insert::notify("SciWhisper", "audio thread closed"),
@@ -403,6 +498,11 @@ fn handle_msg(
                 }
             });
         }
+        Msg::ToggleRecording => match state.phase {
+            Phase::Idle => handle_msg(Msg::PttDown { sticky: None }, tray, state, audio, tx),
+            Phase::Recording => handle_msg(Msg::PttUp, tray, state, audio, tx),
+            Phase::Processing => {}
+        },
         Msg::Done(kind) => match kind {
             DoneKind::Err(e) => {
                 state.phase = Phase::Idle;
@@ -469,7 +569,7 @@ fn handle_menu(
         return;
     }
     if id == ids.rec.as_ref() {
-        let _ = tx.send(Msg::PttDown { sticky: None });
+        let _ = tx.send(Msg::ToggleRecording);
         return;
     }
     if id == ids.clear.as_ref() {
@@ -555,4 +655,47 @@ fn handle_menu(
     st.config.domain = st.domain.as_str().into();
     st.config.output = st.output.as_str().into();
     let _ = st.config.save();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn double_control_toggles_after_two_clean_taps() {
+        let start = Instant::now();
+        let mut detector = DoubleControlDetector::default();
+        assert!(!detector.observe(KeyEvent::Press(Key::ControlLeft), start));
+        assert!(!detector.observe(
+            KeyEvent::Release(Key::ControlLeft),
+            start + Duration::from_millis(80)
+        ));
+        assert!(!detector.observe(
+            KeyEvent::Press(Key::ControlLeft),
+            start + Duration::from_millis(180)
+        ));
+        assert!(detector.observe(
+            KeyEvent::Release(Key::ControlLeft),
+            start + Duration::from_millis(250)
+        ));
+    }
+
+    #[test]
+    fn control_used_in_a_shortcut_does_not_toggle() {
+        let start = Instant::now();
+        let mut detector = DoubleControlDetector::default();
+        assert!(!detector.observe(KeyEvent::Press(Key::ControlLeft), start));
+        assert!(!detector.observe(
+            KeyEvent::Press(Key::KeyC),
+            start + Duration::from_millis(40)
+        ));
+        assert!(!detector.observe(
+            KeyEvent::Release(Key::KeyC),
+            start + Duration::from_millis(70)
+        ));
+        assert!(!detector.observe(
+            KeyEvent::Release(Key::ControlLeft),
+            start + Duration::from_millis(90)
+        ));
+    }
 }

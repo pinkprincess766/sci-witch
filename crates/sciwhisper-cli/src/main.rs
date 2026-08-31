@@ -71,7 +71,7 @@ enum Command {
     SelfTest,
     /// Show representative chemistry, mathematics and physics conversions.
     Demo,
-    /// Tray + global push-to-talk. Hold Ctrl+Shift+Space, speak, release to insert.
+    /// System panel app. Press Control twice to start and twice again to insert.
     App,
     /// View or edit persistent SciWhisper settings.
     Settings {
@@ -230,6 +230,7 @@ fn show_settings(config: &Config) -> Result<(), String> {
         config.model.as_deref().unwrap_or("default local model")
     );
     println!("  ptt:             {}", config.ptt);
+    println!("  double_control:  {}", config.double_control);
     println!("  ptt_latex:       {}", config.ptt_latex);
     println!("  ptt_word:        {}", config.ptt_word);
     println!("  persist_history: {}", config.persist_history);
@@ -265,7 +266,14 @@ fn configure_settings() -> Result<(), String> {
     let current = config.model.clone().unwrap_or_else(|| "default".into());
     update_from_prompt(&mut config, "model", "Локальная модель", &current)?;
     let current = config.ptt.clone();
-    update_from_prompt(&mut config, "ptt", "Push-to-talk", &current)?;
+    update_from_prompt(&mut config, "ptt", "Запись по удержанию клавиш", &current)?;
+    let double_control = config.double_control.to_string();
+    update_from_prompt(
+        &mut config,
+        "double_control",
+        "Двойной Control запускает/останавливает запись [true/false]",
+        &double_control,
+    )?;
     let current = config.ptt_latex.clone();
     update_from_prompt(&mut config, "ptt_latex", "Быстрый LaTeX", &current)?;
     let current = config.ptt_word.clone();

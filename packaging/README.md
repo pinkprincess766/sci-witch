@@ -16,9 +16,8 @@ SciWhisper-windows-x64/
 ```
 
 ```text
-SciWhisper-macos/
-  sciwhisper
-  SciWhisper-Test.command
+SciWhisper-macOS-arm64/
+  SciWhisper.app/
   README.md
   LICENSE
   NOTICE
@@ -26,15 +25,4 @@ SciWhisper-macos/
   docs/
 ```
 
-```text
-SciWhisper-linux-x64/
-  sciwhisper
-  SciWhisper-Test.sh
-  README.md
-  LICENSE
-  NOTICE
-  DATA_LICENSE.md
-  docs/
-```
-
-Model pack распространяется отдельно до появления окончательного решения о размере и лицензировании bundle. Launcher не скачивает модель.
+Модель распознавания распространяется отдельно до окончательного решения о размере и лицензировании комплекта. Программа ничего не скачивает без явного действия пользователя.

@@ -1,5 +1,6 @@
 use crate::hotkey::Key;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum KeyEvent {
     Press(Key),
     Release(Key),

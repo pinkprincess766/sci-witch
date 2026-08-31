@@ -24,14 +24,13 @@
 - [x] бинарник и launcher находятся рядом
 - [x] включены README, LICENSE, NOTICE, DATA_LICENSE, PRIVACY и KNOWN_LIMITATIONS
 - [x] модель не попала в source archive
-- [x] опубликованы SHA-256 checksums
 - [ ] архив проверен на чистой пользовательской машине
 - [ ] версия в Cargo, changelog и названии релиза совпадает
 
 ## Публикация
 
-- [ ] репозиторий и issue tracker существуют
+- [x] репозиторий и раздел Issues существуют
 - [ ] Cargo metadata содержит настоящий repository URL
 - [ ] security contact актуален
-- [x] релиз честно помечен Technical Preview
+- [ ] релиз опубликован как предварительная версия
 - [ ] Windows installer не обещается до появления проверенного installer

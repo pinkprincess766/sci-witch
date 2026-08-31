@@ -5,6 +5,7 @@ pub mod error;
 pub mod front;
 pub mod history;
 pub mod hotkey;
+mod indicator;
 pub mod insert;
 mod key_listener;
 pub mod permissions;

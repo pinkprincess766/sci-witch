@@ -32,9 +32,9 @@ pub struct Tray {
 
 pub fn build(domain: Domain, output: OutputMode, status: &str) -> tray_icon::Result<Tray> {
     let menu = Menu::new();
-    let rec = MenuItem::new("Запись (удерживайте PTT)", true, None);
+    let rec = MenuItem::new("Начать / завершить запись (Control ×2)", true, None);
     let paste_last = MenuItem::new("Повторить вставку", true, None);
-    let show_raw = MenuItem::new("Скопировать raw Whisper", true, None);
+    let show_raw = MenuItem::new("Скопировать исходный текст", true, None);
     let undo = MenuItem::new("Undo вставки", true, None);
     let clear = MenuItem::new("Очистить историю", true, None);
     let quit = MenuItem::new("Выход", true, None);

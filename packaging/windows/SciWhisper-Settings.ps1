@@ -41,7 +41,7 @@ $settings = Read-Settings
 
 $form = New-Object System.Windows.Forms.Form
 $form.Text = "Si-Witch — настройки"
-$form.ClientSize = New-Object System.Drawing.Size(620, 566)
+$form.ClientSize = New-Object System.Drawing.Size(620, 606)
 $form.StartPosition = "CenterScreen"
 $form.FormBorderStyle = "FixedDialog"
 $form.MaximizeBox = $false
@@ -104,36 +104,44 @@ Add-Label "Научный домен" 112
 $domain = Add-ComboBox @("auto", "chemistry", "mathematics", "physics", "plain") $settings.domain 112
 Add-Label "Формат вставки" 153
 $output = Add-ComboBox @("auto", "unicode", "latex", "word") $settings.output 153
-Add-Label "Язык Whisper" 194
+Add-Label "Язык распознавания" 194
 $language = Add-TextBox $settings.language 194
 Add-Label "Локальная модель" 235
 $modelValue = $settings.model
 if ($modelValue -eq "default local model") { $modelValue = "" }
 $model = Add-TextBox $modelValue 235
-Add-Label "Push-to-talk" 294
+Add-Label "Запись по удержанию" 294
 $ptt = Add-TextBox $settings.ptt 294
-Add-Label "Быстрый LaTeX" 335
-$pttLatex = Add-TextBox $settings.ptt_latex 335
-Add-Label "Быстрый Word" 376
-$pttWord = Add-TextBox $settings.ptt_word 376
+
+$doubleControl = New-Object System.Windows.Forms.CheckBox
+$doubleControl.Text = "Двойной Control запускает и завершает запись"
+$doubleControl.Checked = ($settings.double_control -eq "true")
+$doubleControl.Location = New-Object System.Drawing.Point(205, 329)
+$doubleControl.Size = New-Object System.Drawing.Size(375, 28)
+$form.Controls.Add($doubleControl)
+
+Add-Label "Быстрый LaTeX" 376
+$pttLatex = Add-TextBox $settings.ptt_latex 376
+Add-Label "Быстрый Word" 417
+$pttWord = Add-TextBox $settings.ptt_word 417
 
 $history = New-Object System.Windows.Forms.CheckBox
 $history.Text = "Хранить локальную историю распознаваний"
 $history.Checked = ($settings.persist_history -eq "true")
-$history.Location = New-Object System.Drawing.Point(205, 417)
+$history.Location = New-Object System.Drawing.Point(205, 458)
 $history.Size = New-Object System.Drawing.Size(375, 28)
 $form.Controls.Add($history)
 
 $status = New-Object System.Windows.Forms.Label
 $status.Text = "Все настройки хранятся локально."
 $status.ForeColor = [System.Drawing.Color]::FromArgb(95, 100, 96)
-$status.Location = New-Object System.Drawing.Point(32, 466)
+$status.Location = New-Object System.Drawing.Point(32, 499)
 $status.Size = New-Object System.Drawing.Size(360, 25)
 $form.Controls.Add($status)
 
 $doctor = New-Object System.Windows.Forms.Button
 $doctor.Text = "Диагностика"
-$doctor.Location = New-Object System.Drawing.Point(32, 507)
+$doctor.Location = New-Object System.Drawing.Point(32, 540)
 $doctor.Size = New-Object System.Drawing.Size(130, 36)
 $doctor.Add_Click({
     try {
@@ -148,14 +156,14 @@ $form.Controls.Add($doctor)
 $cancel = New-Object System.Windows.Forms.Button
 $cancel.Text = "Отмена"
 $cancel.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
-$cancel.Location = New-Object System.Drawing.Point(354, 507)
+$cancel.Location = New-Object System.Drawing.Point(354, 540)
 $cancel.Size = New-Object System.Drawing.Size(105, 36)
 $form.Controls.Add($cancel)
 $form.CancelButton = $cancel
 
 $save = New-Object System.Windows.Forms.Button
 $save.Text = "Сохранить"
-$save.Location = New-Object System.Drawing.Point(475, 507)
+$save.Location = New-Object System.Drawing.Point(475, 540)
 $save.Size = New-Object System.Drawing.Size(105, 36)
 $save.BackColor = [System.Drawing.Color]::FromArgb(206, 143, 55)
 $save.FlatStyle = "Flat"
@@ -168,10 +176,11 @@ $save.Add_Click({
         if ([string]::IsNullOrWhiteSpace($modelSetting)) { $modelSetting = "default" }
         Invoke-SciWhisper -Arguments @("settings", "set", "model", $modelSetting) | Out-Null
         Invoke-SciWhisper -Arguments @("settings", "set", "ptt", $ptt.Text) | Out-Null
+        Invoke-SciWhisper -Arguments @("settings", "set", "double_control", $doubleControl.Checked.ToString().ToLowerInvariant()) | Out-Null
         Invoke-SciWhisper -Arguments @("settings", "set", "ptt_latex", $pttLatex.Text) | Out-Null
         Invoke-SciWhisper -Arguments @("settings", "set", "ptt_word", $pttWord.Text) | Out-Null
         Invoke-SciWhisper -Arguments @("settings", "set", "persist_history", $history.Checked.ToString().ToLowerInvariant()) | Out-Null
-        $status.Text = "Сохранено. Перезапустите tray-приложение."
+        $status.Text = "Сохранено. Перезапустите приложение."
         $status.ForeColor = [System.Drawing.Color]::FromArgb(49, 111, 74)
     } catch {
         [System.Windows.Forms.MessageBox]::Show($_.Exception.Message, "Настройки не сохранены", "OK", "Error") | Out-Null

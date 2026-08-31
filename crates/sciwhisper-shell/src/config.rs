@@ -12,6 +12,9 @@ pub struct Config {
     /// Push-to-talk: hold to record. Example: "Ctrl+Shift+Space"
     #[serde(default = "default_ptt")]
     pub ptt: String,
+    /// Start/stop recording by pressing either Control key twice.
+    #[serde(default = "default_double_control")]
+    pub double_control: bool,
     #[serde(default = "default_ptt_latex")]
     pub ptt_latex: String,
     #[serde(default = "default_ptt_word")]
@@ -31,6 +34,9 @@ pub struct Config {
 
 fn default_ptt() -> String {
     "Ctrl+Shift+Space".into()
+}
+fn default_double_control() -> bool {
+    true
 }
 fn default_ptt_latex() -> String {
     "Ctrl+Shift+L".into()
@@ -52,6 +58,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             ptt: default_ptt(),
+            double_control: default_double_control(),
             ptt_latex: default_ptt_latex(),
             ptt_word: default_ptt_word(),
             domain: default_domain(),
@@ -163,6 +170,9 @@ impl Config {
                 Combo::parse(value).map_err(Error::Message)?;
                 self.ptt = value.into();
             }
+            "double_control" | "double_ctrl" => {
+                self.double_control = parse_bool(value)?;
+            }
             "ptt_latex" | "latex_hotkey" => {
                 Combo::parse(value).map_err(Error::Message)?;
                 self.ptt_latex = value.into();
@@ -176,7 +186,7 @@ impl Config {
             }
             _ => {
                 return Err(Error::Message(format!(
-                    "unknown setting '{key}'. Expected domain, output, model, language, ptt, ptt_latex, ptt_word or persist_history"
+                    "unknown setting '{key}'. Expected domain, output, model, language, ptt, double_control, ptt_latex, ptt_word or persist_history"
                 )));
             }
         }
@@ -246,9 +256,11 @@ mod tests {
         let mut config = Config::default();
         config.set("domain", "chemistry").unwrap();
         config.set("format", "latex").unwrap();
+        config.set("double_control", "false").unwrap();
         config.set("history", "yes").unwrap();
         assert_eq!(config.domain, "chemistry");
         assert_eq!(config.output, "latex");
+        assert!(!config.double_control);
         assert!(config.persist_history);
         assert!(config.set("output", "magic").is_err());
         assert!(config.set("ptt", "DefinitelyNotAKey").is_err());
