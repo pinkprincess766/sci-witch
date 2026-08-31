@@ -37,6 +37,6 @@ exit /b 0
 
 :failed
 echo.
-echo Проверка завершилась с ошибкой. Скопируйте сообщение по инструкции docs\TESTING_RU.md.
+echo Проверка завершилась с ошибкой. Скопируйте сообщение по инструкции docs\user\TESTING_RU.md.
 pause
 exit /b 1

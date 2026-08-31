@@ -4,7 +4,7 @@
 
 ## Перед изменением кода
 
-1. Прочитайте `SciWhisper_TZ.md` и соответствующий ADR.
+1. Прочитайте [спецификацию](docs/development/SPECIFICATION_RU.md), [архитектуру](docs/development/ARCHITECTURE_RU.md) и подходящее решение из `docs/development/decisions/`.
 2. Не смешивайте ASR, parser и renderer в одном изменении без необходимости.
 3. Для нового выражения сначала добавьте минимальный failing test.
 4. Не добавляйте облачную зависимость или автоматическое скачивание в runtime.

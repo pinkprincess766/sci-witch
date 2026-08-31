@@ -12,7 +12,7 @@ SciWhisper-windows-x64/
   LICENSE
   NOTICE
   DATA_LICENSE.md
-  docs/
+  docs/user/
 ```
 
 ```text
@@ -22,7 +22,7 @@ SciWhisper-macOS-arm64/
   LICENSE
   NOTICE
   DATA_LICENSE.md
-  docs/
+  docs/user/
 ```
 
 Модель распознавания распространяется отдельно до окончательного решения о размере и лицензировании комплекта. Программа ничего не скачивает без явного действия пользователя.

@@ -135,7 +135,7 @@ _Макет соответствует доступным настройкам; 
 - полного сохранения содержимого буфера обмена, если в нём находятся файлы или изображения;
 - подписанного установщика и полностью готового комплекта `whisper.cpp`, не требующего Python.
 
-Полный список: [известные ограничения](docs/KNOWN_LIMITATIONS.md).
+Полный список: [известные ограничения](docs/user/KNOWN_LIMITATIONS_RU.md).
 
 ## Проверка без микрофона
 
@@ -149,7 +149,7 @@ sciwhisper demo
 sciwhisper doctor
 ```
 
-Пошаговая инструкция без знания программирования: [docs/TESTING_RU.md](docs/TESTING_RU.md).
+Пошаговая инструкция без знания программирования: [docs/user/TESTING_RU.md](docs/user/TESTING_RU.md).
 
 ## Команды для опытных пользователей
 
@@ -220,12 +220,9 @@ crates/sciwhisper-cli    format / rec / transcribe / app / settings / corpus / d
 
 ## Документы
 
-- [Техническое задание](SciWhisper_TZ.md)
-- [Голосовая грамматика](docs/grammar.md)
-- [Архитектура гибридного научного декодера](docs/HYBRID_SCIENCE_DECODER_RU.md)
-- [Тестирование без знания программирования](docs/TESTING_RU.md)
-- [Приватность](docs/PRIVACY.md)
-- [Известные ограничения](docs/KNOWN_LIMITATIONS.md)
+- [Тестирование без знания программирования](docs/user/TESTING_RU.md)
+- [Приватность](docs/user/PRIVACY_RU.md)
+- [Известные ограничения](docs/user/KNOWN_LIMITATIONS_RU.md)
 - [Как участвовать](CONTRIBUTING.md)
 - [Политика безопасности](SECURITY.md)
 

@@ -33,11 +33,12 @@ jobs:
           set -euo pipefail
           version="${GITHUB_REF_NAME#v}"
           root="bundle/sci-witch-macOS-arm64-${version}"
-          mkdir -p "$root/docs/images"
+          mkdir -p "$root/docs/user" "$root/docs/images"
           SCIWHISPER_BIN="target/aarch64-apple-darwin/release/sciwhisper" \
             packaging/macos/package-app.sh "$root/SciWhisper.app"
           cp README.md LICENSE NOTICE DATA_LICENSE.md CHANGELOG.md "$root/"
-          cp docs/TESTING_RU.md docs/PRIVACY.md docs/KNOWN_LIMITATIONS.md "$root/docs/"
+          cp docs/user/TESTING_RU.md docs/user/PRIVACY_RU.md \
+            docs/user/KNOWN_LIMITATIONS_RU.md "$root/docs/user/"
           cp docs/images/si-witch-recording.gif "$root/docs/images/"
           ditto -c -k --sequesterRsrc --keepParent "$root" \
             "bundle/SciWhisper-${version}-macOS-arm64.zip"
@@ -72,14 +73,15 @@ jobs:
         run: |
           $version = $env:GITHUB_REF_NAME -replace '^v', ''
           $root = "bundle/sci-witch-Windows-x64-$version"
-          New-Item -ItemType Directory -Force "$root/docs/images" | Out-Null
+          New-Item -ItemType Directory -Force "$root/docs/user", "$root/docs/development", "$root/docs/images" | Out-Null
           Copy-Item target/release/sciwhisper.exe $root
           Copy-Item packaging/windows/SciWhisper.cmd, packaging/windows/SciWhisper-App.ps1 $root
           Copy-Item packaging/windows/SciWhisper-Settings.cmd, packaging/windows/SciWhisper-Settings.ps1 $root
           Copy-Item packaging/windows/SciWhisper-Test.cmd, packaging/windows/README-WINDOWS.txt $root
           Copy-Item assets/branding/SciWhisper-wink-broom-sand-v1.ico "$root/SciWhisper.ico"
           Copy-Item README.md, LICENSE, NOTICE, DATA_LICENSE.md, CHANGELOG.md, SECURITY.md, CONTRIBUTING.md $root
-          Copy-Item docs/TESTING_RU.md, docs/PRIVACY.md, docs/KNOWN_LIMITATIONS.md, docs/grammar.md "$root/docs"
+          Copy-Item docs/user/TESTING_RU.md, docs/user/PRIVACY_RU.md, docs/user/KNOWN_LIMITATIONS_RU.md "$root/docs/user"
+          Copy-Item docs/development/GRAMMAR_RU.md "$root/docs/development"
           Copy-Item docs/images/si-witch-windows-settings-mockup.png, docs/images/si-witch-recording.gif "$root/docs/images"
           Compress-Archive -Path $root -DestinationPath "bundle/SciWhisper-$version-Windows-x64.zip"
 

@@ -1,4 +1,4 @@
-//! MVP acceptance corpus from SciWhisper_TZ.md §16.
+//! MVP acceptance corpus from docs/development/SPECIFICATION_RU.md §16.
 
 use sciwhisper_core::ast::{Chemical, Math, Node};
 use sciwhisper_core::{interpret, render_result, Domain, InterpretOptions, Renderer};
