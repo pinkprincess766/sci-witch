@@ -322,7 +322,8 @@ fn try_systematic(words: &[String], lex: &Lexicon, nums: &NumberLex) -> Option<S
             return None;
         }
         (Formula::atom(&el.symbol, 1), ox, false)
-    } else if let Some(cat) = lex.anion(&words[i]) {
+    } else {
+        let cat = lex.anion(&words[i])?;
         if cat.role != IonRole::Cation {
             return None;
         }
@@ -337,8 +338,6 @@ fn try_systematic(words: &[String], lex: &Lexicon, nums: &NumberLex) -> Option<S
             return None;
         }
         (cat.formula.clone(), cat.charge, cat.group)
-    } else {
-        return None;
     };
 
     let formula = ionic_compound(

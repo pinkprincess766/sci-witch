@@ -256,15 +256,19 @@ mod tests {
 
         #[cfg(target_os = "macos")]
         {
-            assert!(idle.chunks_exact(4).all(|pixel| pixel[0..3] == [0, 0, 0]));
-            assert!(idle.chunks_exact(4).any(|pixel| pixel[3] == 0));
-            assert!(idle.chunks_exact(4).any(|pixel| pixel[3] > 200));
+            assert!(idle
+                .as_chunks::<4>()
+                .0
+                .iter()
+                .all(|pixel| pixel[0..3] == [0, 0, 0]));
+            assert!(idle.as_chunks::<4>().0.iter().any(|pixel| pixel[3] == 0));
+            assert!(idle.as_chunks::<4>().0.iter().any(|pixel| pixel[3] > 200));
         }
 
         #[cfg(not(target_os = "macos"))]
         {
-            assert!(idle.chunks_exact(4).any(|pixel| pixel[0] > 150));
-            assert!(idle.chunks_exact(4).any(|pixel| pixel[2] < 100));
+            assert!(idle.as_chunks::<4>().0.iter().any(|pixel| pixel[0] > 150));
+            assert!(idle.as_chunks::<4>().0.iter().any(|pixel| pixel[2] < 100));
         }
     }
 }
