@@ -1,6 +1,8 @@
 //! Internal scientific notation tree.
 //! Renderers consume this AST and must not re-parse a raw transcript.
 
+use std::collections::BTreeMap;
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -73,6 +75,31 @@ impl Formula {
 
     pub fn is_empty(&self) -> bool {
         self.parts.is_empty()
+    }
+
+    /// Element symbol -> total atom count, with groups and hydrates expanded.
+    pub fn atom_counts(&self) -> BTreeMap<String, u64> {
+        let mut atoms = BTreeMap::new();
+        Self::collect_atoms(self, 1, &mut atoms);
+        atoms
+    }
+
+    fn collect_atoms(formula: &Formula, multiplier: u64, atoms: &mut BTreeMap<String, u64>) {
+        for part in &formula.parts {
+            match part {
+                Part::Atom { symbol, count } => {
+                    *atoms.entry(symbol.clone()).or_default() += multiplier * u64::from(*count);
+                }
+                Part::Group { inner, count } => {
+                    Self::collect_atoms(inner, multiplier * u64::from(*count), atoms);
+                }
+                Part::Hydrate { count } => {
+                    let waters = multiplier * u64::from(*count);
+                    *atoms.entry("H".into()).or_default() += waters * 2;
+                    *atoms.entry("O".into()).or_default() += waters;
+                }
+            }
+        }
     }
 }
 

@@ -29,6 +29,11 @@ fn equation(eq: &Equation) -> String {
     format!("{left} {arrow} {right}")
 }
 
+/// Render one species with its own coefficient, e.g. for a balancing suggestion.
+pub(crate) fn render_species(s: &Species) -> String {
+    species(s)
+}
+
 fn species(s: &Species) -> String {
     let mut out = String::new();
     if s.coefficient != 1 {

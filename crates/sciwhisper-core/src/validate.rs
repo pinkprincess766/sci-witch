@@ -2,7 +2,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::ast::{Chemical, Equation, Formula, Node, Part, Species, Warning};
+use crate::ast::{Chemical, Equation, Node, Species, Warning};
 
 pub fn semantic_warnings(node: &Node) -> Vec<Warning> {
     let mut warnings = Vec::new();
@@ -25,7 +25,8 @@ fn collect_warnings(node: &Node, warnings: &mut Vec<Warning>) {
 fn validate_equation(equation: &Equation, warnings: &mut Vec<Warning>) {
     let left = side_atoms(&equation.left);
     let right = side_atoms(&equation.right);
-    if left != right {
+    let atoms_balanced = left == right;
+    if !atoms_balanced {
         let elements: BTreeSet<_> = left.keys().chain(right.keys()).cloned().collect();
         let differences = elements
             .into_iter()
@@ -45,38 +46,37 @@ fn validate_equation(equation: &Equation, warnings: &mut Vec<Warning>) {
 
     let left_charge = side_charge(&equation.left);
     let right_charge = side_charge(&equation.right);
-    if left_charge != right_charge {
+    let charge_balanced = left_charge == right_charge;
+    if !charge_balanced {
         warnings.push(Warning {
             code: "chemistry.unbalanced_charge".into(),
             message: format!("charge is not conserved ({left_charge} → {right_charge})"),
         });
+    }
+
+    // A suggestion is additive, never a silent rewrite: the dictated AST and
+    // its coefficient stay untouched, only a warning proposes a fix.
+    if !atoms_balanced || !charge_balanced {
+        if let Some(coeffs) = crate::balance::balance_equation(equation) {
+            warnings.push(Warning {
+                code: "chemistry.balance_suggestion".into(),
+                message: format!(
+                    "predicted balanced form: {}",
+                    crate::balance::render_suggestion(equation, &coeffs)
+                ),
+            });
+        }
     }
 }
 
 fn side_atoms(species: &[Species]) -> BTreeMap<String, u64> {
     let mut atoms = BTreeMap::new();
     for species in species {
-        collect_formula_atoms(&species.formula, u64::from(species.coefficient), &mut atoms);
-    }
-    atoms
-}
-
-fn collect_formula_atoms(formula: &Formula, multiplier: u64, atoms: &mut BTreeMap<String, u64>) {
-    for part in &formula.parts {
-        match part {
-            Part::Atom { symbol, count } => {
-                *atoms.entry(symbol.clone()).or_default() += multiplier * u64::from(*count);
-            }
-            Part::Group { inner, count } => {
-                collect_formula_atoms(inner, multiplier * u64::from(*count), atoms);
-            }
-            Part::Hydrate { count } => {
-                let waters = multiplier * u64::from(*count);
-                *atoms.entry("H".into()).or_default() += waters * 2;
-                *atoms.entry("O".into()).or_default() += waters;
-            }
+        for (element, count) in species.formula.atom_counts() {
+            *atoms.entry(element).or_default() += u64::from(species.coefficient) * count;
         }
     }
+    atoms
 }
 
 fn side_charge(species: &[Species]) -> i64 {
@@ -119,5 +119,32 @@ mod tests {
             .warnings
             .iter()
             .any(|warning| warning.code == "chemistry.unbalanced_atoms"));
+    }
+
+    #[test]
+    fn unbalanceable_reaction_gets_no_false_suggestion() {
+        // Missing a carbon sink (CO2): no choice of coefficients over just
+        // these two species conserves atoms, so the system must abstain
+        // rather than invent a plausible-looking but wrong fix.
+        let result = parsed("уксусная кислота окисляется до аш два о");
+        assert!(!result
+            .warnings
+            .iter()
+            .any(|warning| warning.code == "chemistry.balance_suggestion"));
+    }
+
+    #[test]
+    fn suggests_balanced_coefficients_for_a_solvable_reaction() {
+        let equation = crate::formula::parse_equation_str("H2 + O2 -> H2O").unwrap();
+        let node = crate::ast::Node::Chemical(crate::ast::Chemical::Equation(equation));
+        let warnings = super::semantic_warnings(&node);
+        let suggestion = warnings
+            .iter()
+            .find(|warning| warning.code == "chemistry.balance_suggestion")
+            .unwrap_or_else(|| panic!("no suggestion in {warnings:?}"));
+        assert_eq!(
+            suggestion.message,
+            "predicted balanced form: 2H₂ + O₂ → 2H₂O"
+        );
     }
 }
