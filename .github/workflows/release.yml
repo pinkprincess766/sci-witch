@@ -33,12 +33,15 @@ jobs:
           set -euo pipefail
           version="${GITHUB_REF_NAME#v}"
           root="bundle/sci-witch-macOS-arm64-${version}"
-          mkdir -p "$root/docs/user" "$root/docs/images"
+          mkdir -p "$root/docs/user" "$root/docs/development" "$root/docs/images"
           SCIWHISPER_BIN="target/aarch64-apple-darwin/release/sciwhisper" \
             packaging/macos/package-app.sh "$root/SciWhisper.app"
           cp README.md LICENSE NOTICE DATA_LICENSE.md CHANGELOG.md "$root/"
           cp docs/user/TESTING_RU.md docs/user/PRIVACY_RU.md \
             docs/user/KNOWN_LIMITATIONS_RU.md "$root/docs/user/"
+          cp docs/development/GRAMMAR_RU.md docs/development/ARCHITECTURE_RU.md \
+            docs/development/MATHEMATICS_RU.md docs/development/ML_RESEARCH_RU.md \
+            "$root/docs/development/"
           cp docs/images/si-witch-recording.gif "$root/docs/images/"
           ditto -c -k --sequesterRsrc --keepParent "$root" \
             "bundle/SciWhisper-${version}-macOS-arm64.zip"
@@ -81,7 +84,7 @@ jobs:
           Copy-Item assets/branding/SciWhisper-wink-broom-sand-v1.ico "$root/SciWhisper.ico"
           Copy-Item README.md, LICENSE, NOTICE, DATA_LICENSE.md, CHANGELOG.md, SECURITY.md, CONTRIBUTING.md $root
           Copy-Item docs/user/TESTING_RU.md, docs/user/PRIVACY_RU.md, docs/user/KNOWN_LIMITATIONS_RU.md "$root/docs/user"
-          Copy-Item docs/development/GRAMMAR_RU.md "$root/docs/development"
+          Copy-Item docs/development/GRAMMAR_RU.md, docs/development/ARCHITECTURE_RU.md, docs/development/MATHEMATICS_RU.md, docs/development/ML_RESEARCH_RU.md "$root/docs/development"
           Copy-Item docs/images/si-witch-windows-settings-mockup.png, docs/images/si-witch-recording.gif "$root/docs/images"
           Compress-Archive -Path $root -DestinationPath "bundle/SciWhisper-$version-Windows-x64.zip"
 
