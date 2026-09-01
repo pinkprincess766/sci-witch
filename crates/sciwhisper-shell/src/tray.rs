@@ -13,15 +13,15 @@ pub struct MenuIds {
     pub show_raw: MenuId,
     pub undo: MenuId,
     pub clear: MenuId,
-    pub domain_auto: MenuId,
-    pub domain_chem: MenuId,
-    pub domain_math: MenuId,
-    pub domain_phys: MenuId,
-    pub domain_plain: MenuId,
-    pub out_auto: MenuId,
-    pub out_unicode: MenuId,
-    pub out_latex: MenuId,
-    pub out_word: MenuId,
+    /// One entry per domain option; exactly one should be checked at a time.
+    pub domain_checks: Vec<(CheckMenuItem, Domain)>,
+    /// One entry per output option; exactly one should be checked at a time.
+    pub output_checks: Vec<(CheckMenuItem, OutputMode)>,
+    /// One entry per microphone option (`None` = system default), plus every
+    /// device `capture::input_devices()` reported when the menu was last
+    /// (re)built. Exactly one should be checked at a time.
+    pub mic_checks: Vec<(CheckMenuItem, Option<String>)>,
+    pub mic_refresh: MenuId,
 }
 
 pub struct Tray {
@@ -30,7 +30,28 @@ pub struct Tray {
     status: MenuItem,
 }
 
-pub fn build(domain: Domain, output: OutputMode, status: &str) -> tray_icon::Result<Tray> {
+impl Tray {
+    pub fn current_status(&self) -> String {
+        self.status.text()
+    }
+
+    /// Rebuilds the menu in place — same tray icon, fresh microphone list —
+    /// so a newly plugged-in device shows up without restarting the app.
+    pub fn refresh(&mut self, domain: Domain, output: OutputMode, mic: Option<&str>) {
+        let status_text = self.status.text();
+        let (menu, ids, status) = build_menu(domain, output, mic, &status_text);
+        self.icon.set_menu(Some(Box::new(menu)));
+        self.ids = ids;
+        self.status = status;
+    }
+}
+
+fn build_menu(
+    domain: Domain,
+    output: OutputMode,
+    mic: Option<&str>,
+    status: &str,
+) -> (Menu, MenuIds, MenuItem) {
     let menu = Menu::new();
     let rec = MenuItem::new("Начать / завершить запись (Control ×2)", true, None);
     let paste_last = MenuItem::new("Повторить вставку", true, None);
@@ -39,27 +60,46 @@ pub fn build(domain: Domain, output: OutputMode, status: &str) -> tray_icon::Res
     let clear = MenuItem::new("Очистить историю", true, None);
     let quit = MenuItem::new("Выход", true, None);
 
-    let d_auto = CheckMenuItem::new("Auto", true, domain == Domain::Auto, None);
-    let d_chem = CheckMenuItem::new("Chemistry", true, domain == Domain::Chemistry, None);
-    let d_math = CheckMenuItem::new("Mathematics", true, domain == Domain::Mathematics, None);
-    let d_phys = CheckMenuItem::new("Physics", true, domain == Domain::Physics, None);
-    let d_plain = CheckMenuItem::new("Plain", true, domain == Domain::Plain, None);
-    let domains = Submenu::new("Домен", true);
-    let _ = domains.append(&d_auto);
-    let _ = domains.append(&d_chem);
-    let _ = domains.append(&d_math);
-    let _ = domains.append(&d_phys);
-    let _ = domains.append(&d_plain);
+    let domains_menu = Submenu::new("Домен", true);
+    let mut domain_checks = Vec::new();
+    for (value, label) in [
+        (Domain::Auto, "Auto"),
+        (Domain::Chemistry, "Chemistry"),
+        (Domain::Mathematics, "Mathematics"),
+        (Domain::Physics, "Physics"),
+        (Domain::Plain, "Plain"),
+    ] {
+        let item = CheckMenuItem::new(label, true, value == domain, None);
+        let _ = domains_menu.append(&item);
+        domain_checks.push((item, value));
+    }
 
-    let o_auto = CheckMenuItem::new("Auto", true, output == OutputMode::Auto, None);
-    let o_uni = CheckMenuItem::new("Unicode", true, output == OutputMode::Unicode, None);
-    let o_tex = CheckMenuItem::new("LaTeX", true, output == OutputMode::Latex, None);
-    let o_word = CheckMenuItem::new("Word native", true, output == OutputMode::Word, None);
-    let outputs = Submenu::new("Формат", true);
-    let _ = outputs.append(&o_auto);
-    let _ = outputs.append(&o_uni);
-    let _ = outputs.append(&o_tex);
-    let _ = outputs.append(&o_word);
+    let outputs_menu = Submenu::new("Формат", true);
+    let mut output_checks = Vec::new();
+    for (value, label) in [
+        (OutputMode::Auto, "Auto"),
+        (OutputMode::Unicode, "Unicode"),
+        (OutputMode::Latex, "LaTeX"),
+        (OutputMode::Word, "Word native"),
+    ] {
+        let item = CheckMenuItem::new(label, true, value == output, None);
+        let _ = outputs_menu.append(&item);
+        output_checks.push((item, value));
+    }
+
+    let mics_menu = Submenu::new("Микрофон", true);
+    let default_item = CheckMenuItem::new("Системный по умолчанию", true, mic.is_none(), None);
+    let _ = mics_menu.append(&default_item);
+    let mut mic_checks = vec![(default_item, None::<String>)];
+    for name in sciwhisper_asr::capture::input_devices() {
+        let checked = mic == Some(name.as_str());
+        let item = CheckMenuItem::new(&name, true, checked, None);
+        let _ = mics_menu.append(&item);
+        mic_checks.push((item, Some(name)));
+    }
+    let _ = mics_menu.append(&PredefinedMenuItem::separator());
+    let mic_refresh = MenuItem::new("Обновить список устройств", true, None);
+    let _ = mics_menu.append(&mic_refresh);
 
     let status = MenuItem::new(status, false, None);
     let _ = menu.append(&status);
@@ -69,8 +109,9 @@ pub fn build(domain: Domain, output: OutputMode, status: &str) -> tray_icon::Res
     let _ = menu.append(&show_raw);
     let _ = menu.append(&undo);
     let _ = menu.append(&PredefinedMenuItem::separator());
-    let _ = menu.append(&domains);
-    let _ = menu.append(&outputs);
+    let _ = menu.append(&domains_menu);
+    let _ = menu.append(&outputs_menu);
+    let _ = menu.append(&mics_menu);
     let _ = menu.append(&PredefinedMenuItem::separator());
     let _ = menu.append(&clear);
     let _ = menu.append(&quit);
@@ -82,16 +123,22 @@ pub fn build(domain: Domain, output: OutputMode, status: &str) -> tray_icon::Res
         show_raw: show_raw.id().clone(),
         undo: undo.id().clone(),
         clear: clear.id().clone(),
-        domain_auto: d_auto.id().clone(),
-        domain_chem: d_chem.id().clone(),
-        domain_math: d_math.id().clone(),
-        domain_phys: d_phys.id().clone(),
-        domain_plain: d_plain.id().clone(),
-        out_auto: o_auto.id().clone(),
-        out_unicode: o_uni.id().clone(),
-        out_latex: o_tex.id().clone(),
-        out_word: o_word.id().clone(),
+        domain_checks,
+        output_checks,
+        mic_checks,
+        mic_refresh: mic_refresh.id().clone(),
     };
+
+    (menu, ids, status)
+}
+
+pub fn build(
+    domain: Domain,
+    output: OutputMode,
+    mic: Option<&str>,
+    status: &str,
+) -> tray_icon::Result<Tray> {
+    let (menu, ids, status) = build_menu(domain, output, mic, status);
 
     let icon = TrayIconBuilder::new()
         .with_menu(Box::new(menu))

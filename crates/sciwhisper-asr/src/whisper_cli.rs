@@ -356,6 +356,15 @@ pub fn doctor() -> String {
         if model_ready { "yes" } else { "no" }
     ));
     lines.push("runtime network policy: disabled (missing models are rejected)".into());
+    let devices = crate::capture::input_devices();
+    if devices.is_empty() {
+        lines.push("input devices: none detected".into());
+    } else {
+        lines.push("input devices:".into());
+        for name in &devices {
+            lines.push(format!("  {name}"));
+        }
+    }
     lines.join("\n")
 }
 

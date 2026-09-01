@@ -2815,7 +2815,7 @@ dependencies = [
 
 [[package]]
 name = "sciwhisper-asr"
-version = "0.1.0"
+version = "0.1.1-rc1"
 dependencies = [
  "cpal",
  "hound",
@@ -2828,7 +2828,7 @@ dependencies = [
 
 [[package]]
 name = "sciwhisper-cli"
-version = "0.1.0"
+version = "0.1.1-rc1"
 dependencies = [
  "clap",
  "sciwhisper-asr",
@@ -2840,7 +2840,7 @@ dependencies = [
 
 [[package]]
 name = "sciwhisper-core"
-version = "0.1.0"
+version = "0.1.1-rc1"
 dependencies = [
  "serde",
  "serde_json",
@@ -2850,7 +2850,7 @@ dependencies = [
 
 [[package]]
 name = "sciwhisper-shell"
-version = "0.1.0"
+version = "0.1.1-rc1"
 dependencies = [
  "arboard",
  "core-foundation 0.9.4",

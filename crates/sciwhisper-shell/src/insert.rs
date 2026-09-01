@@ -167,15 +167,34 @@ impl LastInsert {
 pub fn notify(title: &str, body: &str) {
     #[cfg(target_os = "macos")]
     {
-        // notify-rust's legacy macOS bridge can abort inside NSAppleScript on macOS 26.
-        // Status remains visible in the menu-bar title and tooltip instead.
-        eprintln!("{title}: {body}");
+        // notify-rust's legacy bridge calls NSAppleScript in-process and can
+        // abort on macOS 26; shelling out to osascript runs the same
+        // "display notification" command out-of-process instead, so a
+        // banner still reaches the user even though this crashes the other way.
+        let script = format!(
+            "display notification {} with title {}",
+            applescript_string(body),
+            applescript_string(title)
+        );
+        let shown = std::process::Command::new("osascript")
+            .arg("-e")
+            .arg(&script)
+            .status()
+            .is_ok_and(|status| status.success());
+        if !shown {
+            eprintln!("{title}: {body}");
+        }
     }
     #[cfg(not(target_os = "macos"))]
     let _ = notify_rust::Notification::new()
         .summary(title)
         .body(body)
         .show();
+}
+
+#[cfg(target_os = "macos")]
+fn applescript_string(s: &str) -> String {
+    format!("\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\""))
 }
 
 #[allow(dead_code)]

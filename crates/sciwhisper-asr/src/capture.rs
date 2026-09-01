@@ -15,6 +15,39 @@ use crate::error::{Error, Result};
 
 pub const TARGET_HZ: u32 = 16_000;
 
+/// Names of every input device the default host reports, best-effort (a
+/// device whose name briefly fails to query is skipped, not fatal).
+pub fn input_devices() -> Vec<String> {
+    let host = cpal::default_host();
+    let Ok(devices) = host.input_devices() else {
+        return Vec::new();
+    };
+    devices.filter_map(|d| d.name().ok()).collect()
+}
+
+/// Resolves `name` to an input device. A device the user explicitly chose
+/// is never silently swapped for another one: if it is absent or has been
+/// unplugged, this fails instead of recording from whatever is left, so the
+/// caller can surface that to the user rather than capture silently from
+/// the wrong microphone.
+fn select_device(name: Option<&str>) -> Result<cpal::Device> {
+    let host = cpal::default_host();
+    let Some(name) = name else {
+        return host.default_input_device().ok_or(Error::NoMicrophone);
+    };
+    let devices = host
+        .input_devices()
+        .map_err(|e| Error::Audio(e.to_string()))?;
+    devices
+        .into_iter()
+        .find(|d| d.name().is_ok_and(|n| n == name))
+        .ok_or_else(|| {
+            Error::Audio(format!(
+                "выбранный микрофон «{name}» не найден или отключён; выберите другой в настройках или в трее"
+            ))
+        })
+}
+
 pub struct Recording {
     pub wav_path: PathBuf,
     pub duration_secs: f32,
@@ -44,9 +77,8 @@ pub struct PttSession {
 }
 
 impl PttSession {
-    pub fn start() -> Result<Self> {
-        let host = cpal::default_host();
-        let device = host.default_input_device().ok_or(Error::NoMicrophone)?;
+    pub fn start(device: Option<&str>) -> Result<Self> {
+        let device = select_device(device)?;
         let config = device
             .default_input_config()
             .map_err(|e| Error::Audio(e.to_string()))?;
@@ -126,10 +158,10 @@ fn finalize_samples(
     })
 }
 
-/// Record from the default microphone until Enter, or until `max_secs`.
-pub fn record_wav(max_secs: Option<u64>) -> Result<Recording> {
-    let host = cpal::default_host();
-    let device = host.default_input_device().ok_or(Error::NoMicrophone)?;
+/// Record from `device` (or the system default, if `None`) until Enter, or
+/// until `max_secs`.
+pub fn record_wav(max_secs: Option<u64>, device: Option<&str>) -> Result<Recording> {
+    let device = select_device(device)?;
     let config = device
         .default_input_config()
         .map_err(|e| Error::Audio(e.to_string()))?;
@@ -329,5 +361,25 @@ mod tests {
         assert!(path.exists());
         drop(wav);
         assert!(!path.exists());
+    }
+
+    #[test]
+    fn missing_configured_microphone_fails_instead_of_silently_substituting() {
+        // A device the user explicitly chose must never be silently swapped
+        // for another one (e.g. after it is unplugged): the caller has to
+        // see this as an error, not start recording from the wrong mic.
+        let err = select_device(Some("это устройство точно не существует #12345"));
+        assert!(err.is_err());
+    }
+
+    #[test]
+    fn no_configured_microphone_falls_back_to_system_default_without_error() {
+        // Absence of a preference is not the same as a missing preference:
+        // `None` should still resolve (or fail only if there is truly no
+        // input device at all), never because of the name-matching branch.
+        let result = select_device(None);
+        if let Err(e) = result {
+            assert!(matches!(e, Error::NoMicrophone));
+        }
     }
 }

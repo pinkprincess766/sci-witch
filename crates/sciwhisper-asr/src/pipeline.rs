@@ -23,6 +23,9 @@ pub struct PipelineOptions {
     pub language: String,
     pub model: Option<String>,
     pub whisper_bin: Option<std::path::PathBuf>,
+    /// Input device name from `capture::input_devices()`; `None` uses the
+    /// system default microphone. Ignored by `from_audio`.
+    pub mic: Option<String>,
 }
 
 impl Default for PipelineOptions {
@@ -32,6 +35,7 @@ impl Default for PipelineOptions {
             language: "ru".into(),
             model: None,
             whisper_bin: None,
+            mic: None,
         }
     }
 }
@@ -54,7 +58,7 @@ fn transcribe_prepared(path: &Path, opts: PipelineOptions) -> Result<PipelineRes
 }
 
 pub fn from_microphone(max_secs: Option<u64>, opts: PipelineOptions) -> Result<PipelineResult> {
-    let rec = capture::record_wav(max_secs)?;
+    let rec = capture::record_wav(max_secs, opts.mic.as_deref())?;
     eprintln!(
         "записано {:.1} с, peak {:.2} — Whisper…",
         rec.duration_secs, rec.peak

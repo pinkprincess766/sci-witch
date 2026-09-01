@@ -48,6 +48,9 @@ enum Command {
         /// Path to whisper / whisper-cli
         #[arg(long)]
         whisper: Option<PathBuf>,
+        /// Input device name from `sciwhisper doctor` (default: system default microphone).
+        #[arg(long)]
+        mic: Option<String>,
     },
     /// Transcribe an audio file with Whisper, then compile.
     Transcribe {
@@ -132,6 +135,7 @@ fn run(cli: Cli) -> Result<(), String> {
             language,
             json,
             whisper,
+            mic,
         }) => {
             let domain: Domain = domain.parse()?;
             eprintln!("SciWhisper поверх Whisper. Домен: {}", domain.as_str());
@@ -142,6 +146,7 @@ fn run(cli: Cli) -> Result<(), String> {
                     language,
                     model,
                     whisper_bin: whisper,
+                    mic,
                 },
             )
             .map_err(|e| e.to_string())?;
@@ -168,6 +173,7 @@ fn run(cli: Cli) -> Result<(), String> {
                     language,
                     model,
                     whisper_bin: whisper,
+                    mic: None,
                 },
             )
             .map_err(|e| e.to_string())?;
@@ -229,6 +235,10 @@ fn show_settings(config: &Config) -> Result<(), String> {
         "  model:           {}",
         config.model.as_deref().unwrap_or("default local model")
     );
+    println!(
+        "  mic:             {}",
+        config.mic.as_deref().unwrap_or("системный по умолчанию")
+    );
     println!("  ptt:             {}", config.ptt);
     println!("  double_control:  {}", config.double_control);
     println!("  ptt_latex:       {}", config.ptt_latex);
@@ -265,6 +275,7 @@ fn configure_settings() -> Result<(), String> {
     update_from_prompt(&mut config, "language", "Язык Whisper", &current)?;
     let current = config.model.clone().unwrap_or_else(|| "default".into());
     update_from_prompt(&mut config, "model", "Локальная модель", &current)?;
+    configure_mic(&mut config)?;
     let current = config.ptt.clone();
     update_from_prompt(&mut config, "ptt", "Запись по удержанию клавиш", &current)?;
     let double_control = config.double_control.to_string();
@@ -299,6 +310,36 @@ fn configure_settings() -> Result<(), String> {
     config.save().map_err(|e| e.to_string())?;
     println!("Сохранено в {}", Config::path().display());
     Ok(())
+}
+
+fn configure_mic(config: &mut Config) -> Result<(), String> {
+    let devices = sciwhisper_asr::capture::input_devices();
+    let current = config.mic.clone().unwrap_or_else(|| "по умолчанию".into());
+    println!("Микрофон [{current}]:");
+    println!("  0. системный по умолчанию");
+    for (index, name) in devices.iter().enumerate() {
+        println!("  {}. {name}", index + 1);
+    }
+    print!("Номер или название устройства (Enter — оставить текущее): ");
+    io::stdout().flush().map_err(|e| e.to_string())?;
+    let mut value = String::new();
+    io::stdin()
+        .read_line(&mut value)
+        .map_err(|e| e.to_string())?;
+    let value = value.trim();
+    if value.is_empty() {
+        return Ok(());
+    }
+    if let Ok(index) = value.parse::<usize>() {
+        if index == 0 {
+            return config.set("mic", "default").map_err(|e| e.to_string());
+        }
+        return match devices.get(index - 1) {
+            Some(name) => config.set("mic", name).map_err(|e| e.to_string()),
+            None => Err(format!("нет устройства с номером {index}")),
+        };
+    }
+    config.set("mic", value).map_err(|e| e.to_string())
 }
 
 fn update_from_prompt(
@@ -355,6 +396,7 @@ fn run_corpus(
                 language: language.clone(),
                 model: model.clone(),
                 whisper_bin: None,
+                mic: None,
             },
         ) {
             Ok(r) if r.transcript.no_speech => println!("silence"),
@@ -503,7 +545,14 @@ fn print_pipeline(result: &PipelineResult, renderer: &str, json: bool) -> Result
             println!("{other}: {s}");
         }
     }
+    print_warnings(&result.interpretation.warnings);
     Ok(())
+}
+
+fn print_warnings(warnings: &[sciwhisper_core::ast::Warning]) {
+    for warning in warnings {
+        eprintln!("warning[{}]: {}", warning.code, warning.message);
+    }
 }
 
 fn run_format(domain: &str, renderer: &str, json: bool, text: Vec<String>) -> Result<(), String> {
@@ -552,6 +601,7 @@ fn run_format(domain: &str, renderer: &str, json: bool, text: Vec<String>) -> Re
             println!("{}", render_result(&result, r));
         }
     }
+    print_warnings(&result.warnings);
     if result.confidence <= 0.0 {
         return Err("could not parse input; raw transcript preserved".into());
     }

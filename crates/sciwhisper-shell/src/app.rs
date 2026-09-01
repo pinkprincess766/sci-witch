@@ -152,7 +152,7 @@ impl DesktopApp {
     }
 
     fn handle_pending_menu(&mut self, event_loop: &ActiveEventLoop) {
-        let Some(tray) = self.tray.as_ref() else {
+        let Some(tray) = self.tray.as_mut() else {
             return;
         };
         while let Ok(event) = MenuEvent::receiver().try_recv() {
@@ -179,7 +179,12 @@ impl ApplicationHandler<Msg> for DesktopApp {
         }
         // AppKit must be running before NSStatusItem is created. Building the tray before
         // `run_app` makes an unsigned CLI process terminate silently on macOS.
-        match tray::build(self.state.domain, self.state.output, "загрузка Whisper…") {
+        match tray::build(
+            self.state.domain,
+            self.state.output,
+            self.state.config.mic.as_deref(),
+            "загрузка Whisper…",
+        ) {
             Ok(tray) => {
                 self.tray = Some(tray);
                 self.indicator = RecordingIndicator::new(event_loop).ok();
@@ -227,7 +232,7 @@ impl ApplicationHandler<Msg> for DesktopApp {
 }
 
 enum AudioCmd {
-    Start(Sender<std::result::Result<(), String>>),
+    Start(Sender<std::result::Result<(), String>>, Option<String>),
     Stop(Sender<std::result::Result<Recording, String>>),
     Cancel,
 }
@@ -238,7 +243,7 @@ fn spawn_audio_thread() -> Sender<AudioCmd> {
         let mut session: Option<PttSession> = None;
         while let Ok(cmd) = rx.recv() {
             match cmd {
-                AudioCmd::Start(ack) => match PttSession::start() {
+                AudioCmd::Start(ack, mic) => match PttSession::start(mic.as_deref()) {
                     Ok(s) => {
                         session = Some(s);
                         let _ = ack.send(Ok(()));
@@ -433,7 +438,7 @@ fn handle_msg(
             state.sticky_output = sticky;
             state.accessibility = crate::permissions::accessibility_trusted();
             let (ack_tx, ack_rx) = mpsc::channel();
-            let _ = audio.send(AudioCmd::Start(ack_tx));
+            let _ = audio.send(AudioCmd::Start(ack_tx, state.config.mic.clone()));
             match ack_rx.recv() {
                 Ok(Ok(())) => {
                     state.phase = Phase::Recording;
@@ -550,14 +555,39 @@ fn handle_msg(
                         tray::set_status(tray, StatusIcon::Idle, "результат в буфере");
                     }
                 }
+                // The dictated (possibly unbalanced) equation is always what
+                // gets inserted; this only adds a follow-up notice, never a
+                // silent substitution.
+                if let Some(notice) = chemistry_balance_notice(&res.interpretation.warnings) {
+                    insert::notify("SciWhisper", &notice);
+                }
             }
         },
     }
 }
 
+fn chemistry_balance_notice(warnings: &[sciwhisper_core::ast::Warning]) -> Option<String> {
+    if !warnings
+        .iter()
+        .any(|w| w.code.starts_with("chemistry.unbalanced"))
+    {
+        return None;
+    }
+    let suggestion = warnings
+        .iter()
+        .find(|w| w.code == "chemistry.balance_suggestion")
+        .and_then(|w| w.message.strip_prefix("predicted balanced form: "));
+    Some(match suggestion {
+        Some(balanced) => {
+            format!("Уравнение не сбалансировано.\nВозможные коэффициенты:\n{balanced}")
+        }
+        None => "Уравнение не сбалансировано.".to_string(),
+    })
+}
+
 fn handle_menu(
     id: &str,
-    tray: &Tray,
+    tray: &mut Tray,
     st: &mut State,
     _audio: &Sender<AudioCmd>,
     tx: &Sender<Msg>,
@@ -625,32 +655,43 @@ fn handle_menu(
         }
         return;
     }
-    if id == ids.domain_auto.as_ref() {
-        st.domain = Domain::Auto;
+    if id == ids.mic_refresh.as_ref() {
+        tray.refresh(st.domain, st.output, st.config.mic.as_deref());
+        return;
     }
-    if id == ids.domain_chem.as_ref() {
-        st.domain = Domain::Chemistry;
+    if let Some((_, value)) = ids
+        .domain_checks
+        .iter()
+        .find(|(item, _)| id == item.id().as_ref())
+    {
+        st.domain = *value;
     }
-    if id == ids.domain_math.as_ref() {
-        st.domain = Domain::Mathematics;
+    if let Some((_, value)) = ids
+        .output_checks
+        .iter()
+        .find(|(item, _)| id == item.id().as_ref())
+    {
+        st.output = *value;
     }
-    if id == ids.domain_phys.as_ref() {
-        st.domain = Domain::Physics;
+    if let Some((_, value)) = ids
+        .mic_checks
+        .iter()
+        .find(|(item, _)| id == item.id().as_ref())
+    {
+        st.config.mic = value.clone();
     }
-    if id == ids.domain_plain.as_ref() {
-        st.domain = Domain::Plain;
+    // A tray menu's checkboxes are independent toggles, not a radio group by
+    // default: without this, the previous selection stays checked and a
+    // second click on the active one un-checks it while the config is
+    // unchanged underneath.
+    for (item, value) in &ids.domain_checks {
+        item.set_checked(*value == st.domain);
     }
-    if id == ids.out_auto.as_ref() {
-        st.output = OutputMode::Auto;
+    for (item, value) in &ids.output_checks {
+        item.set_checked(*value == st.output);
     }
-    if id == ids.out_unicode.as_ref() {
-        st.output = OutputMode::Unicode;
-    }
-    if id == ids.out_latex.as_ref() {
-        st.output = OutputMode::Latex;
-    }
-    if id == ids.out_word.as_ref() {
-        st.output = OutputMode::Word;
+    for (item, value) in &ids.mic_checks {
+        item.set_checked(*value == st.config.mic);
     }
     st.config.domain = st.domain.as_str().into();
     st.config.output = st.output.as_str().into();
@@ -697,5 +738,50 @@ mod tests {
             KeyEvent::Release(Key::ControlLeft),
             start + Duration::from_millis(90)
         ));
+    }
+
+    fn warning(code: &str, message: &str) -> sciwhisper_core::ast::Warning {
+        sciwhisper_core::ast::Warning {
+            code: code.into(),
+            message: message.into(),
+        }
+    }
+
+    #[test]
+    fn balanced_reaction_gets_no_notice() {
+        assert_eq!(chemistry_balance_notice(&[]), None);
+    }
+
+    #[test]
+    fn unbalanced_reaction_with_suggestion_shows_it() {
+        let warnings = [
+            warning(
+                "chemistry.unbalanced_atoms",
+                "atom balance is not conserved (O: 2 → 3)",
+            ),
+            warning(
+                "chemistry.balance_suggestion",
+                "predicted balanced form: 2H₂O₂ → 2H₂O + O₂",
+            ),
+        ];
+        assert_eq!(
+            chemistry_balance_notice(&warnings),
+            Some(
+                "Уравнение не сбалансировано.\nВозможные коэффициенты:\n2H₂O₂ → 2H₂O + O₂"
+                    .to_string()
+            )
+        );
+    }
+
+    #[test]
+    fn unbalanced_reaction_without_a_unique_suggestion_still_warns() {
+        let warnings = [warning(
+            "chemistry.unbalanced_atoms",
+            "atom balance is not conserved (C: 1 → 0)",
+        )];
+        assert_eq!(
+            chemistry_balance_notice(&warnings),
+            Some("Уравнение не сбалансировано.".to_string())
+        );
     }
 }

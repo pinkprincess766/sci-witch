@@ -30,6 +30,10 @@ pub struct Config {
     pub language: String,
     #[serde(default)]
     pub persist_history: bool,
+    /// Input device name from `sciwhisper_asr::capture::input_devices()`;
+    /// `None` uses the system default microphone.
+    #[serde(default)]
+    pub mic: Option<String>,
 }
 
 fn default_ptt() -> String {
@@ -66,6 +70,7 @@ impl Default for Config {
             model: None,
             language: default_lang(),
             persist_history: false,
+            mic: None,
         }
     }
 }
@@ -160,6 +165,12 @@ impl Config {
                     _ => Some(value.into()),
                 };
             }
+            "mic" | "microphone" | "input_device" => {
+                self.mic = match value {
+                    "" | "-" | "none" | "default" => None,
+                    _ => Some(value.into()),
+                };
+            }
             "language" | "lang" => {
                 if value.is_empty() {
                     return Err(Error::Message("language must not be empty".into()));
@@ -186,7 +197,7 @@ impl Config {
             }
             _ => {
                 return Err(Error::Message(format!(
-                    "unknown setting '{key}'. Expected domain, output, model, language, ptt, double_control, ptt_latex, ptt_word or persist_history"
+                    "unknown setting '{key}'. Expected domain, output, model, language, mic, ptt, double_control, ptt_latex, ptt_word or persist_history"
                 )));
             }
         }
@@ -264,6 +275,16 @@ mod tests {
         assert!(config.persist_history);
         assert!(config.set("output", "magic").is_err());
         assert!(config.set("ptt", "DefinitelyNotAKey").is_err());
+    }
+
+    #[test]
+    fn mic_setting_round_trips_and_clears_to_default() {
+        let mut config = Config::default();
+        assert_eq!(config.mic, None);
+        config.set("mic", "USB Microphone").unwrap();
+        assert_eq!(config.mic.as_deref(), Some("USB Microphone"));
+        config.set("microphone", "default").unwrap();
+        assert_eq!(config.mic, None);
     }
 
     #[test]
