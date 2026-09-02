@@ -6,11 +6,17 @@ use std::sync::OnceLock;
 use serde::Deserialize;
 
 use crate::ast::Formula;
+use crate::dimension::Dimension;
 use crate::error::{Error, Result};
 use crate::formula::{parse_equation_str, parse_formula_str};
 use crate::normalize::normalize_word;
 
 pub const SUPPORTED_SCHEMA: u32 = 1;
+
+/// `units.yaml` moved to its own schema when every unit gained a required
+/// `dimension`. Only this exact version is accepted: schema 1 carries no
+/// dimensions at all, and a newer one may redefine what they mean.
+pub const UNITS_SCHEMA: u32 = 2;
 
 const ELEMENTS_YAML: &str = include_str!("../data/domains/chemistry/elements.yaml");
 const IONS_YAML: &str = include_str!("../data/domains/chemistry/ions.yaml");
@@ -30,6 +36,8 @@ pub struct Lexicon {
     pub latin: HashMap<String, char>,
     pub cyrillic: HashMap<String, String>,
     pub units: Vec<NamedUnit>,
+    /// Unit symbol as it appears in the AST (`м`, `см`, `Дж`) -> SI dimension.
+    pub unit_dimensions: HashMap<String, Dimension>,
     pub shortcuts: Vec<Shortcut>,
 }
 
@@ -77,6 +85,7 @@ pub struct GreekLetter {
 pub struct NamedUnit {
     pub names: Vec<String>,
     pub symbol: String,
+    pub dimension: Dimension,
 }
 
 #[derive(Clone, Debug)]
@@ -146,6 +155,12 @@ impl Lexicon {
         best
     }
 
+    /// SI dimension of a unit symbol as the AST spells it, or `None` for a
+    /// unit this build does not know — the caller must then abstain.
+    pub fn unit_dimension(&self, symbol: &str) -> Option<Dimension> {
+        self.unit_dimensions.get(symbol).copied()
+    }
+
     pub fn shortcut_exact(&self, normalized: &str) -> Option<&Shortcut> {
         self.shortcuts
             .iter()
@@ -163,6 +178,7 @@ fn load_builtin() -> Result<Lexicon> {
         latin: HashMap::new(),
         cyrillic: HashMap::new(),
         units: Vec::new(),
+        unit_dimensions: HashMap::new(),
         shortcuts: Vec::new(),
     };
     load_elements(&mut lex, ELEMENTS_YAML)?;
@@ -407,6 +423,10 @@ struct UnitsFile {
 #[derive(Deserialize)]
 struct UnitEntry {
     symbol: String,
+    /// Required: every unit must state its SI dimension, and an unparsable
+    /// one fails the whole build of the lexicon rather than silently
+    /// disabling dimensional analysis for that unit.
+    dimension: String,
     #[serde(default)]
     spoken: Vec<String>,
 }
@@ -416,21 +436,48 @@ fn load_units(lex: &mut Lexicon, yaml: &str) -> Result<()> {
         name: "units.yaml",
         source: e,
     })?;
-    check_schema("units.yaml", f.schema_version)?;
-    let mut add = |items: Vec<UnitEntry>| {
-        for e in items {
-            if e.spoken.is_empty() {
-                continue;
-            }
-            lex.units.push(NamedUnit {
-                names: e.spoken.into_iter().map(|n| normalize_word(&n)).collect(),
-                symbol: e.symbol,
+    if f.schema_version != UNITS_SCHEMA {
+        return Err(Error::Parse {
+            domain: "lexicon",
+            reason: format!(
+                "units.yaml has schema_version {}, this build supports only {UNITS_SCHEMA}",
+                f.schema_version
+            ),
+        });
+    }
+    for e in f.si_base.into_iter().chain(f.derived).chain(f.composed) {
+        let dimension = Dimension::parse(&e.dimension).ok_or_else(|| Error::Parse {
+            domain: "lexicon",
+            reason: format!(
+                "units.yaml: unit '{}' has an invalid dimension '{}'",
+                e.symbol, e.dimension
+            ),
+        })?;
+        // A repeated symbol is always a data bug; a repeat with a different
+        // dimension would silently decide which physics wins.
+        if let Some(previous) = lex.unit_dimensions.get(&e.symbol) {
+            return Err(Error::Parse {
+                domain: "lexicon",
+                reason: if *previous == dimension {
+                    format!("units.yaml: unit symbol '{}' is defined twice", e.symbol)
+                } else {
+                    format!(
+                        "units.yaml: unit symbol '{}' is defined twice with different dimensions ({previous} vs {dimension})",
+                        e.symbol
+                    )
+                },
             });
         }
-    };
-    add(f.si_base);
-    add(f.derived);
-    add(f.composed);
+        lex.unit_dimensions.insert(e.symbol.clone(), dimension);
+        if e.spoken.is_empty() {
+            continue;
+        }
+        lex.units.push(NamedUnit {
+            names: e.spoken.into_iter().map(|n| normalize_word(&n)).collect(),
+            symbol: e.symbol,
+            dimension,
+        });
+    }
     Ok(())
 }
 
@@ -472,6 +519,82 @@ fn load_course(lex: &mut Lexicon, yaml: &str) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn empty_lexicon() -> Lexicon {
+        Lexicon {
+            elements_by_name: HashMap::new(),
+            elements_by_symbol: HashMap::new(),
+            anion_classes: HashMap::new(),
+            substances: Vec::new(),
+            greek: HashMap::new(),
+            latin: HashMap::new(),
+            cyrillic: HashMap::new(),
+            units: Vec::new(),
+            unit_dimensions: HashMap::new(),
+            shortcuts: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn units_file_requires_its_own_schema_version() {
+        // Schema 1 predates dimensions entirely and must be refused, not
+        // loaded with silently missing physics.
+        let yaml =
+            "schema_version: 1\nsi_base:\n  - symbol: м\n    dimension: L\n    spoken: [метр]\n";
+        let error = load_units(&mut empty_lexicon(), yaml)
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("schema_version 1"), "{error}");
+        assert!(error.contains("supports only 2"), "{error}");
+
+        let future =
+            "schema_version: 3\nsi_base:\n  - symbol: м\n    dimension: L\n    spoken: [метр]\n";
+        assert!(load_units(&mut empty_lexicon(), future).is_err());
+    }
+
+    #[test]
+    fn units_file_rejects_a_conflicting_duplicate_symbol() {
+        let yaml = "schema_version: 2\nsi_base:\n  - symbol: Кл\n    dimension: I T\n    spoken: [кулон]\nderived:\n  - symbol: Кл\n    dimension: M L^2\n    spoken: [кулон]\n";
+        let error = load_units(&mut empty_lexicon(), yaml)
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("defined twice"), "{error}");
+        assert!(error.contains("different dimensions"), "{error}");
+    }
+
+    #[test]
+    fn units_file_rejects_a_repeated_symbol_even_when_consistent() {
+        let yaml = "schema_version: 2\nsi_base:\n  - symbol: м\n    dimension: L\n    spoken: [метр]\n  - symbol: м\n    dimension: L\n    spoken: [метра]\n";
+        let error = load_units(&mut empty_lexicon(), yaml)
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("defined twice"), "{error}");
+    }
+
+    #[test]
+    fn units_file_rejects_an_invalid_dimension() {
+        let yaml =
+            "schema_version: 2\nsi_base:\n  - symbol: м\n    dimension: Q^2\n    spoken: [метр]\n";
+        let error = load_units(&mut empty_lexicon(), yaml)
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("invalid dimension"), "{error}");
+    }
+
+    #[test]
+    fn builtin_units_have_unique_symbols() {
+        let lex = Lexicon::builtin();
+        assert_eq!(lex.unit_dimension("Кл").unwrap().to_string(), "T I");
+        // Every spoken form of a symbol resolves to the same dimension.
+        for unit in &lex.units {
+            assert_eq!(
+                lex.unit_dimension(&unit.symbol),
+                Some(unit.dimension),
+                "unit {}",
+                unit.symbol
+            );
+        }
+    }
 
     #[test]
     fn sourced_substances_keep_iupac_provenance() {
