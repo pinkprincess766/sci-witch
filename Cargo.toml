@@ -5,12 +5,14 @@ members = [
     "crates/sciwhisper-asr",
     "crates/sciwhisper-shell",
     "crates/sciwhisper-cli",
+    "crates/sciwhisper-eval",
 ]
 default-members = [
     "crates/sciwhisper-core",
     "crates/sciwhisper-asr",
     "crates/sciwhisper-shell",
     "crates/sciwhisper-cli",
+    "crates/sciwhisper-eval",
 ]
 
 [workspace.package]
@@ -24,6 +26,7 @@ description = "Offline voice input for structured scientific notation"
 sciwhisper-core = { path = "crates/sciwhisper-core" }
 sciwhisper-asr = { path = "crates/sciwhisper-asr" }
 sciwhisper-shell = { path = "crates/sciwhisper-shell" }
+sciwhisper-eval = { path = "crates/sciwhisper-eval" }
 serde = { version = "1", features = ["derive"] }
 serde_yaml = "0.9"
 thiserror = "2"
