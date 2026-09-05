@@ -18,7 +18,8 @@ fn collect_warnings(node: &Node, warnings: &mut Vec<Warning>) {
             }
         }
         Node::Chemical(Chemical::Equation(equation)) => validate_equation(equation, warnings),
-        Node::Text(_) | Node::Chemical(Chemical::Species(_)) | Node::Math(_) => {}
+        Node::Math(math) => crate::dimension::check(math, warnings),
+        Node::Text(_) | Node::Chemical(Chemical::Species(_)) => {}
     }
 }
 

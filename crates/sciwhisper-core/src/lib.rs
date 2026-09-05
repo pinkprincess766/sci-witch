@@ -2,6 +2,7 @@
 
 pub mod ast;
 pub mod balance;
+pub mod dimension;
 pub mod error;
 pub mod formula;
 pub mod interpret;

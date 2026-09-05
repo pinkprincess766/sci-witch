@@ -1,45 +1,61 @@
-schema_version: 1
+schema_version: 2
+# `dimension` uses the seven SI base symbols M L T I Θ N J with optional
+# exact rational powers (`M L T^-2`, `L^1/2`, `1` for dimensionless).
+# Prefixes change the scale only, never the dimension.
 si_base:
   - symbol: м
     latex: r"\mathrm{m}"
+    dimension: L
     spoken: [метр, метра, метров, метры]
   - symbol: кг
     latex: r"\mathrm{kg}"
+    dimension: M
     spoken: [килограмм, килограмма, килограммов]
   - symbol: с
     latex: r"\mathrm{s}"
+    dimension: T
     spoken: [секунда, секунды, секунду, секунд]
   - symbol: А
     latex: r"\mathrm{A}"
+    dimension: I
     spoken: [ампер, ампера, ампер]
   - symbol: К
     latex: r"\mathrm{K}"
+    dimension: Θ
     spoken: [кельвин, кельвина]
   - symbol: моль
     latex: r"\mathrm{mol}"
+    dimension: N
     spoken: [моль, моля]
   - symbol: кд
     latex: r"\mathrm{cd}"
+    dimension: J
     spoken: [кандела, канделы]
 derived:
   - symbol: Н
+    dimension: M L T^-2
     spoken: [ньютон, ньютона, ньютонов]
   - symbol: Дж
+    dimension: M L^2 T^-2
     spoken: [джоуль, джоуля, джоулей]
   - symbol: Вт
+    dimension: M L^2 T^-3
     spoken: [ватт, ватта, ватт]
   - symbol: Па
+    dimension: M L^-1 T^-2
     spoken: [паскаль, паскаля]
   - symbol: Кл
+    dimension: I T
     spoken: [кулон, кулона]
   - symbol: В
+    dimension: M L^2 T^-3 I^-1
     spoken: [вольт, вольта]
   - symbol: Ом
+    dimension: M L^2 T^-3 I^-2
     spoken: [ом, ома]
   - symbol: Гц
+    dimension: T^-1
     spoken: [герц]
-  - symbol: Кл
-    spoken: [кулон]
 prefixes:
   - prefix: н
     spoken: [нано]
@@ -65,18 +81,25 @@ prefixes:
 composed:
   - spoken: [нанометр, нанометра, нанометров, нанометры]
     symbol: нм
+    dimension: L
   - spoken: [миллиметр, миллиметра]
     symbol: мм
+    dimension: L
   - spoken: [сантиметр, сантиметра]
     symbol: см
+    dimension: L
   - spoken: [километр, километра]
     symbol: км
+    dimension: L
   - spoken: [миллисекунда, миллисекунды]
     symbol: мс
+    dimension: T
   - spoken: [килогерц]
     symbol: кГц
+    dimension: T^-1
   - spoken: [мегагерц]
     symbol: МГц
+    dimension: T^-1
 operators:
   per: [на, в]
   times: [умножить]
