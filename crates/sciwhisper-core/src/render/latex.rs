@@ -1,6 +1,6 @@
 use crate::ast::{
-    Arrow, BinOp, Chemical, Equation, Formula, GroupKind, Math, Node, Part, Species, StateMarker,
-    UnitExpr,
+    derivative_total_order, Arrow, BinOp, Chemical, DerivativeKind, DerivativeVariable, Equation,
+    Formula, GroupKind, LimitDirection, Math, Node, Part, Species, StateMarker, UnitExpr,
 };
 
 pub fn render(node: &Node) -> String {
@@ -175,6 +175,17 @@ fn math(m: &Math) -> String {
             }
             s
         }
+        Math::Derivative {
+            kind,
+            expr,
+            variables,
+        } => derivative(*kind, expr, variables),
+        Math::Limit {
+            variable,
+            target,
+            direction,
+            body,
+        } => limit(variable, target, *direction, body),
         Math::Unit(u) => unit(u),
         Math::Infinity => "\\infty".into(),
         Math::Ellipsis => "\\ldots".into(),
@@ -208,6 +219,73 @@ fn nary(
     s
 }
 
+/// `\frac{d f}{d x}`, `\frac{d^{2} y}{d x^{2}}`,
+/// `\frac{\partial^{2} T}{\partial x\,\partial y}` — a real fraction,
+/// with the order as an exponent on the operator and on the variable.
+fn derivative(kind: DerivativeKind, expr: &Math, variables: &[DerivativeVariable]) -> String {
+    let operator = match kind {
+        DerivativeKind::Ordinary => "d",
+        DerivativeKind::Partial => "\\partial",
+    };
+    let mut numerator = String::from(operator);
+    // `None` means the total order overflowed: no exponent is printed rather
+    // than a wrapped, wrong one.
+    if let Some(total) = derivative_total_order(variables) {
+        if total != 1 {
+            numerator.push_str(&format!("^{{{total}}}"));
+        }
+    }
+    numerator.push(' ');
+    numerator.push_str(&derivative_operand(expr));
+    if variables.is_empty() {
+        // Structurally invalid (the validator reports it); no denominator is
+        // invented for it.
+        return numerator;
+    }
+    let denominator = variables
+        .iter()
+        .map(|variable| {
+            let mut part = format!("{operator} {}", derivative_operand(&variable.variable));
+            if variable.order != 1 {
+                part.push_str(&format!("^{{{}}}", variable.order));
+            }
+            part
+        })
+        .collect::<Vec<_>>()
+        .join("\\,");
+    format!("\\frac{{{numerator}}}{{{denominator}}}")
+}
+
+/// Only a simple atom sits next to the `d`: `\frac{d \left(x^{2}\right)}{d x}`.
+fn derivative_operand(operand: &Math) -> String {
+    if super::derivative_operand_needs_group(operand) {
+        format!("\\left({}\\right)", math(operand))
+    } else {
+        math(operand)
+    }
+}
+
+/// `\lim_{x \to 0} \frac{\sin\left(x\right)}{x}`,
+/// `\lim_{x \to 0^-} f`.
+fn limit(variable: &Math, target: &Math, direction: LimitDirection, body: &Math) -> String {
+    let mut approach = format!("{} \\to {}", math(variable), math_tight(target));
+    if let Some(marker) = direction.marker() {
+        approach.push_str(&format!("^{marker}"));
+    }
+    format!("\\lim_{{{approach}}} {}", construct_body(body))
+}
+
+/// Additive and relational bodies need brackets; a quotient already renders
+/// as a self-delimiting `\frac`.
+fn construct_body(body: &Math) -> String {
+    match body {
+        Math::Binary { op, .. } if !matches!(op, BinOp::Mul | BinOp::Div) => {
+            format!("\\left({}\\right)", math(body))
+        }
+        other => math(other),
+    }
+}
+
 fn unit(u: &UnitExpr) -> String {
     let mut s = String::new();
     for (i, f) in u.factors.iter().enumerate() {
@@ -237,7 +315,13 @@ fn math_tight(m: &Math) -> String {
 
 fn math_maybe_group(m: &Math) -> String {
     match m {
-        Math::Binary { .. } | Math::Juxt(_) | Math::Fraction { .. } | Math::UnaryMinus(_) => {
+        Math::Binary { .. }
+        | Math::Juxt(_)
+        | Math::Fraction { .. }
+        | Math::UnaryMinus(_)
+        // The same grouping decision as the Unicode renderer makes.
+        | Math::Derivative { .. }
+        | Math::Limit { .. } => {
             format!("\\left({}\\right)", math(m))
         }
         _ => math(m),
