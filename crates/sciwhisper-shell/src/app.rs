@@ -7,7 +7,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use sciwhisper_asr::capture::{PttSession, Recording};
-use sciwhisper_asr::pipeline::{compile_transcript, PipelineResult};
+use sciwhisper_asr::pipeline::{compile_transcript, compile_transcript_with, PipelineResult};
 use sciwhisper_asr::{prompt, SharedEngine, TranscribeOptions};
 use sciwhisper_core::Domain;
 use tray_icon::menu::MenuEvent;
@@ -460,6 +460,7 @@ fn handle_msg(
             state.phase = Phase::Processing;
             tray::set_status(tray, StatusIcon::Processing, "Whisper…");
             let domain = state.domain;
+            let dictation = state.config.dictation_mode();
             let language = state.config.language.clone();
             let tx = tx.clone();
             let audio = audio.clone();
@@ -491,7 +492,7 @@ fn handle_msg(
                             temperature: 0.0,
                         },
                     )?;
-                    Ok::<_, sciwhisper_asr::Error>(compile_transcript(t, domain))
+                    Ok::<_, sciwhisper_asr::Error>(compile_transcript_with(t, domain, dictation))
                 })();
                 match done {
                     Ok(p) => {

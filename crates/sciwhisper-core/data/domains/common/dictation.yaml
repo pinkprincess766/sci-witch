@@ -1,0 +1,46 @@
+schema_version: 1
+# Spoken shell of a dictation: the words a person says *around* a formula.
+#
+# These are matched longest-first and never mean anything scientific. They are
+# dropped only in ScientificOnly mode, and only where they wrap a span that
+# actually parsed; in MixedText they survive untouched, because deleting a
+# user's words on a guess is worse than leaving them in.
+framing:
+  - давайте запишем
+  - давай запишем
+  - я хочу записать
+  - хочу записать
+  - формула такая
+  - следующее выражение
+  - следующая формула
+  - пусть будет
+  - запиши
+  - запишите
+  - напиши
+  - напишите
+  - введи
+  - введите
+  - например
+fillers:
+  - пожалуйста
+  - допустим
+  - значит
+  - ну
+  - так
+  - вот
+  - э
+corrections:
+  # «…, нет, железа три» — the words after the marker restate part of the span.
+  restate:
+    - я имел в виду
+    - я имела в виду
+    - то есть
+    - точнее
+    - вернее
+    - поправка
+    - нет
+  # «не два, а три» — an explicit token-for-token substitution.
+  substitute_open:
+    - не
+  substitute_pivot:
+    - а
