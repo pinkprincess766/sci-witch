@@ -3,7 +3,10 @@ use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
 use sciwhisper_asr::{doctor, from_audio, from_microphone, PipelineOptions, PipelineResult};
-use sciwhisper_core::{interpret, render_result, Domain, InterpretOptions, Renderer};
+use sciwhisper_core::{
+    interpret, interpret_utterance, render, render_result, Domain, InterpretOptions, Renderer,
+    UtteranceMode, UtteranceOptions,
+};
 use sciwhisper_shell::config::Config;
 
 #[derive(Parser)]
@@ -23,6 +26,10 @@ enum Command {
     Format {
         #[arg(long, default_value = "auto")]
         domain: String,
+        /// mixed: keep the sentence, replace proven spans.
+        /// scientific: drop a recognised dictation shell.
+        #[arg(long, default_value = "mixed")]
+        mode: String,
         #[arg(long, default_value = "unicode")]
         renderer: String,
         #[arg(long)]
@@ -123,10 +130,11 @@ fn run(cli: Cli) -> Result<(), String> {
         None => sciwhisper_shell::run().map_err(|e| e.to_string()),
         Some(Command::Format {
             domain,
+            mode,
             renderer,
             json,
             text,
-        }) => run_format(&domain, &renderer, json, text),
+        }) => run_format(&domain, &mode, &renderer, json, text),
         Some(Command::Rec {
             domain,
             renderer,
@@ -143,6 +151,7 @@ fn run(cli: Cli) -> Result<(), String> {
                 seconds,
                 PipelineOptions {
                     domain,
+                    mode: UtteranceMode::MixedText,
                     language,
                     model,
                     whisper_bin: whisper,
@@ -170,6 +179,7 @@ fn run(cli: Cli) -> Result<(), String> {
                 &audio,
                 PipelineOptions {
                     domain,
+                    mode: UtteranceMode::MixedText,
                     language,
                     model,
                     whisper_bin: whisper,
@@ -393,6 +403,7 @@ fn run_corpus(
             f,
             PipelineOptions {
                 domain,
+                mode: UtteranceMode::MixedText,
                 language: language.clone(),
                 model: model.clone(),
                 whisper_bin: None,
@@ -555,7 +566,13 @@ fn print_warnings(warnings: &[sciwhisper_core::ast::Warning]) {
     }
 }
 
-fn run_format(domain: &str, renderer: &str, json: bool, text: Vec<String>) -> Result<(), String> {
+fn run_format(
+    domain: &str,
+    mode: &str,
+    renderer: &str,
+    json: bool,
+    text: Vec<String>,
+) -> Result<(), String> {
     let spoken = if text.is_empty() {
         let mut buf = String::new();
         io::stdin()
@@ -566,21 +583,29 @@ fn run_format(domain: &str, renderer: &str, json: bool, text: Vec<String>) -> Re
         text.join(" ")
     };
     let domain: Domain = domain.parse().map_err(|e: String| e)?;
-    let result = interpret(
+    let mode: UtteranceMode = mode.parse().map_err(|e: String| e)?;
+    // One parse, then three views of the same structure.
+    let utterance = interpret_utterance(
         spoken.trim(),
-        InterpretOptions {
+        UtteranceOptions {
             domain,
+            mode,
             allow_shortcuts: true,
         },
     );
+    let result = utterance.to_interpretation(domain);
+    let show = |r: Renderer| render(&utterance.document, r);
     if json {
         let v = serde_json::json!({
             "domain": result.domain.as_str(),
+            "mode": utterance.mode.as_str(),
+            "decision": utterance.decision.as_str(),
             "confidence": result.confidence,
             "normalized": result.normalized_transcript,
-            "unicode": render_result(&result, Renderer::Unicode),
-            "latex": render_result(&result, Renderer::Latex),
-            "omml": render_result(&result, Renderer::Omml),
+            "unicode": show(Renderer::Unicode),
+            "latex": show(Renderer::Latex),
+            "omml": show(Renderer::Omml),
+            "spans": utterance.spans.len(),
             "warnings": result.warnings,
             "unresolved": result.unresolved_spans,
         });
@@ -592,17 +617,17 @@ fn run_format(domain: &str, renderer: &str, json: bool, text: Vec<String>) -> Re
     }
     match renderer {
         "all" => {
-            println!("unicode: {}", render_result(&result, Renderer::Unicode));
-            println!("latex:   {}", render_result(&result, Renderer::Latex));
-            println!("omml:    {}", render_result(&result, Renderer::Omml));
+            println!("unicode: {}", show(Renderer::Unicode));
+            println!("latex:   {}", show(Renderer::Latex));
+            println!("omml:    {}", show(Renderer::Omml));
         }
         other => {
             let r: Renderer = other.parse().map_err(|e: String| e)?;
-            println!("{}", render_result(&result, r));
+            println!("{}", show(r));
         }
     }
     print_warnings(&result.warnings);
-    if result.confidence <= 0.0 {
+    if utterance.is_raw() {
         return Err("could not parse input; raw transcript preserved".into());
     }
     Ok(())

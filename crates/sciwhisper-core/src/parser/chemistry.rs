@@ -1,10 +1,8 @@
 use crate::ast::{Arrow, Chemical, Equation, Formula, Node, Part, Species, StateMarker};
 use crate::error::{Error, Result};
 use crate::formula::{ionic_compound, parse_formula_str};
-use crate::lexicon::{AnionClass, Element, IonRole, Lexicon};
+use crate::lexicon::{AnionClass, ChemConnective, Element, IonRole, Lexicon};
 use crate::numbers::NumberLex;
-
-type ReactionSplit = (Vec<String>, Arrow, Vec<String>, Option<String>);
 
 pub fn parse_chemistry(words: &[String], lex: &Lexicon, nums: &NumberLex) -> Result<Node> {
     // Whisper inserts commas around «превращается в».
@@ -20,103 +18,221 @@ pub fn parse_chemistry(words: &[String], lex: &Lexicon, nums: &NumberLex) -> Res
             reason: "empty input".into(),
         });
     }
-    if let Some((left, arrow, right, cond)) = split_reaction(words) {
-        let left = parse_side(&left, lex, nums)?;
-        let right = parse_side(&right, lex, nums)?;
-        return Ok(Node::Chemical(Chemical::Equation(Equation {
-            left,
-            arrow,
-            right,
-            condition: cond,
-        })));
+    // A reaction shape is recognised first. If the sentence carries the shape
+    // but a side does not parse as chemistry, the whole utterance fails: an
+    // arrow is never accepted between things that are not substances.
+    if let Some(equation) = parse_reaction(words, lex, nums) {
+        return Ok(Node::Chemical(Chemical::Equation(equation?)));
     }
     let species = parse_species(words, lex, nums)?;
     Ok(Node::Chemical(Chemical::Species(species)))
 }
 
-fn split_reaction(words: &[String]) -> Option<ReactionSplit> {
-    let arrows: &[(&[&str], Arrow)] = &[
-        (&["равновесная", "стрелка"], Arrow::Equilibrium),
-        (&["превращается", "в"], Arrow::Forward),
-        (&["превращаются", "в"], Arrow::Forward),
-        (&["переходит", "в"], Arrow::Forward),
-        (&["переходят", "в"], Arrow::Forward),
-        (&["окисляется", "до"], Arrow::Forward),
-        (&["окисляются", "до"], Arrow::Forward),
-        (&["восстанавливается", "до"], Arrow::Forward),
-        (&["восстанавливаются", "до"], Arrow::Forward),
-        (&["превращается"], Arrow::Forward),
-        (&["превращаются"], Arrow::Forward),
-        (&["дает"], Arrow::Forward),
-        (&["стрелка"], Arrow::Forward),
-        (&["обратимо"], Arrow::Equilibrium),
-    ];
-    for i in 0..words.len() {
-        for (ph, arrow) in arrows {
-            if match_at(words, i, ph) {
-                let left = words[..i].to_vec();
-                let right = words[i + ph.len()..].to_vec();
-                if left.is_empty() || right.is_empty() {
-                    continue;
+/// One group of words that should name a substance, together with the
+/// connective that introduced it.
+#[derive(Clone, Debug)]
+struct Chunk {
+    words: Vec<String>,
+    opened_by: Option<ChemConnective>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Side {
+    Left,
+    Right,
+}
+
+/// Recognises a spoken reaction.
+///
+/// `None` means the sentence carries no reaction shape at all, and the caller
+/// should try to read it as a single substance. `Some(Err(..))` means the
+/// shape was there but the chemistry was not — «реакция идёт быстрее» has a
+/// reaction noun and nothing else, and must not become an equation.
+///
+/// The connectives come from `aliases.yaml`; this function holds no list of
+/// spoken phrases of its own.
+fn parse_reaction(words: &[String], lex: &Lexicon, nums: &NumberLex) -> Option<Result<Equation>> {
+    let speech = &lex.chemistry_speech;
+    let (words, condition) = strip_conditions(words, lex);
+
+    let mut chunks: Vec<Chunk> = vec![Chunk {
+        words: Vec::new(),
+        opened_by: None,
+    }];
+    let mut saw_structure = false;
+    let mut index = 0usize;
+    while index < words.len() {
+        if let Some((connective, used)) = speech.connective_at(&words, index) {
+            // «ион меди два плюс» — the first `плюс` after an ion marker is
+            // the charge, not a separator. This is the one place where a
+            // connective is absorbed into the substance it follows.
+            let current = chunks.last().expect("there is always a current chunk");
+            let plus_is_a_charge = connective == ChemConnective::Plus
+                && current.words.iter().any(|word| speech.is_ion_marker(word))
+                && !current
+                    .words
+                    .last()
+                    .is_some_and(|word| word == "плюс" || word == "минус");
+            if !plus_is_a_charge {
+                if !matches!(
+                    connective,
+                    ChemConnective::Plus | ChemConnective::Conjunction
+                ) {
+                    saw_structure = true;
                 }
-                let (left, c1) = strip_conditions(&left);
-                let (right, c2) = strip_conditions(&right);
-                let cond = c1.or(c2);
-                return Some((left, *arrow, right, cond));
+                chunks.push(Chunk {
+                    words: Vec::new(),
+                    opened_by: Some(connective),
+                });
+                index += used;
+                continue;
             }
         }
+        chunks
+            .last_mut()
+            .expect("there is always a current chunk")
+            .words
+            .push(words[index].clone());
+        index += 1;
     }
-    None
-}
 
-fn strip_conditions(words: &[String]) -> (Vec<String>, Option<String>) {
-    let mut out = Vec::new();
-    let mut cond = None;
-    let mut i = 0;
-    while i < words.len() {
-        if match_at(words, i, &["при", "нагревании"]) || match_at(words, i, &["при", "нагреве"])
-        {
-            cond = Some("heat".into());
-            i += 2;
+    if !saw_structure {
+        return None;
+    }
+
+    // A connective that leaves no words behind is only meaningful as a bridge:
+    // «между A и B протекает реакция с образованием C» has nothing between the
+    // noun and the product marker. Anywhere else an empty group is a broken
+    // sentence, not a reaction.
+    let mut kept: Vec<Chunk> = Vec::new();
+    for (position, chunk) in chunks.iter().enumerate() {
+        if !chunk.words.is_empty() {
+            kept.push(chunk.clone());
             continue;
         }
-        if words[i] == "нагревание" {
-            cond = Some("heat".into());
-            i += 1;
-            continue;
+        let before = chunk.opened_by;
+        let after = chunks.get(position + 1).and_then(|next| next.opened_by);
+        let bridged = [before, after].into_iter().flatten().any(|connective| {
+            matches!(
+                connective,
+                ChemConnective::ReactionNoun
+                    | ChemConnective::FromMarker
+                    | ChemConnective::BetweenMarker
+            )
+        });
+        if !bridged {
+            return Some(Err(Error::Parse {
+                domain: "chemistry",
+                reason: "a reaction connective with nothing on one of its sides".into(),
+            }));
         }
-        out.push(words[i].clone());
-        i += 1;
     }
-    (out, cond)
-}
 
-fn parse_side(words: &[String], lex: &Lexicon, nums: &NumberLex) -> Result<Vec<Species>> {
-    let chunks = split_plus(words);
-    chunks
-        .into_iter()
-        .map(|c| parse_species(&c, lex, nums))
-        .collect()
-}
+    let mut left: Vec<Vec<String>> = Vec::new();
+    let mut right: Vec<Vec<String>> = Vec::new();
+    let mut side = Side::Left;
+    let mut arrow: Option<Arrow> = None;
+    let mut decomposition = false;
 
-fn split_plus(words: &[String]) -> Vec<Vec<String>> {
-    let mut out = Vec::new();
-    let mut buf = Vec::new();
-    for w in words {
-        if w == "плюс" {
-            if buf.iter().any(|x: &String| x == "ион") || buf.is_empty() {
-                buf.push(w.clone());
-            } else {
-                out.push(std::mem::take(&mut buf));
+    for chunk in kept {
+        match chunk.opened_by {
+            None => {}
+            Some(ChemConnective::Plus) => {}
+            Some(ChemConnective::Conjunction) => {
+                // `и` may only ever be a `+`, and only next to a group that
+                // is already being read as chemistry. Products of a
+                // decomposition and further reagents qualify; a bare `и`
+                // before any structure does not.
+                if arrow.is_none() && !decomposition && left.is_empty() {
+                    return Some(Err(Error::Parse {
+                        domain: "chemistry",
+                        reason: "«и» outside a chemical side".into(),
+                    }));
+                }
             }
-        } else {
-            buf.push(w.clone());
+            Some(ChemConnective::JoinReagent) => {}
+            Some(ChemConnective::FromMarker) | Some(ChemConnective::BetweenMarker) => {
+                if arrow.is_some() {
+                    return Some(Err(Error::Parse {
+                        domain: "chemistry",
+                        reason: "a reaction opening after the arrow".into(),
+                    }));
+                }
+                side = Side::Left;
+            }
+            Some(ChemConnective::ReactionNoun) => {}
+            Some(kind) => {
+                if arrow.is_some() {
+                    return Some(Err(Error::Parse {
+                        domain: "chemistry",
+                        reason: "two arrows in one reaction".into(),
+                    }));
+                }
+                arrow = Some(if kind == ChemConnective::Equilibrium {
+                    Arrow::Equilibrium
+                } else {
+                    Arrow::Forward
+                });
+                decomposition = kind == ChemConnective::Decompose;
+                side = Side::Right;
+            }
+        }
+        if chunk.words.is_empty() {
+            continue;
+        }
+        match side {
+            Side::Left => left.push(chunk.words),
+            Side::Right => right.push(chunk.words),
         }
     }
-    if !buf.is_empty() {
-        out.push(buf);
+
+    let arrow = arrow?;
+    if left.is_empty() || right.is_empty() {
+        return Some(Err(Error::Parse {
+            domain: "chemistry",
+            reason: "a reaction needs substances on both sides".into(),
+        }));
     }
-    out
+
+    let parse_all = |groups: Vec<Vec<String>>| -> Result<Vec<Species>> {
+        groups
+            .into_iter()
+            .map(|group| parse_species(&group, lex, nums))
+            .collect()
+    };
+    let left = match parse_all(left) {
+        Ok(species) => species,
+        Err(error) => return Some(Err(error)),
+    };
+    let right = match parse_all(right) {
+        Ok(species) => species,
+        Err(error) => return Some(Err(error)),
+    };
+    Some(Ok(Equation {
+        left,
+        arrow,
+        right,
+        condition,
+    }))
+}
+
+/// Pulls the reaction conditions out of the word list. The phrases come from
+/// `aliases.yaml`.
+fn strip_conditions(words: &[String], lex: &Lexicon) -> (Vec<String>, Option<String>) {
+    let speech = &lex.chemistry_speech;
+    let mut out = Vec::new();
+    let mut condition = None;
+    let mut index = 0;
+    while index < words.len() {
+        if let Some((kind, used)) = speech.condition_at(words, index) {
+            condition.get_or_insert_with(|| kind.as_str().to_string());
+            index += used;
+            continue;
+        }
+        out.push(words[index].clone());
+        index += 1;
+    }
+    (out, condition)
 }
 
 pub fn parse_species(words: &[String], lex: &Lexicon, nums: &NumberLex) -> Result<Species> {
@@ -143,7 +259,7 @@ pub fn parse_species(words: &[String], lex: &Lexicon, nums: &NumberLex) -> Resul
         return Ok(s);
     }
 
-    let (words, marker) = strip_marker(&words);
+    let (words, marker) = strip_marker(&words, lex);
     if words.is_empty() {
         return Err(Error::Parse {
             domain: "chemistry",
@@ -187,19 +303,14 @@ pub fn parse_species(words: &[String], lex: &Lexicon, nums: &NumberLex) -> Resul
     })
 }
 
-fn strip_marker(words: &[String]) -> (Vec<String>, Option<StateMarker>) {
-    if words.is_empty() {
-        return (vec![], None);
-    }
-    let last = words.last().unwrap().as_str();
-    if last == "газ" {
-        return (words[..words.len() - 1].to_vec(), Some(StateMarker::Gas));
-    }
-    if last == "осадок" {
-        return (
-            words[..words.len() - 1].to_vec(),
-            Some(StateMarker::Precipitate),
-        );
+fn strip_marker(words: &[String], lex: &Lexicon) -> (Vec<String>, Option<StateMarker>) {
+    let speech = &lex.chemistry_speech;
+    for start in (0..words.len()).rev() {
+        if let Some((marker, used)) = speech.marker_at(words, start) {
+            if start + used == words.len() {
+                return (words[..start].to_vec(), Some(marker));
+            }
+        }
     }
     (words.to_vec(), None)
 }
@@ -214,10 +325,15 @@ fn try_full_substance(words: &[String], lex: &Lexicon) -> Option<Species> {
 }
 
 fn try_ion(words: &[String], lex: &Lexicon, nums: &NumberLex) -> Option<Species> {
-    if !words.iter().any(|w| w == "ион") {
+    let speech = &lex.chemistry_speech;
+    if !words.iter().any(|w| speech.is_ion_marker(w)) {
         return None;
     }
-    let mut filtered: Vec<String> = words.iter().filter(|w| *w != "ион").cloned().collect();
+    let mut filtered: Vec<String> = words
+        .iter()
+        .filter(|w| !speech.is_ion_marker(w))
+        .cloned()
+        .collect();
     if filtered.is_empty() {
         return None;
     }
@@ -356,14 +472,9 @@ fn try_spelled(words: &[String], lex: &Lexicon, nums: &NumberLex) -> Option<Spec
     let mut i = 0;
     let mut saw_element = false;
     while i < words.len() {
-        if words[i] == "дважды" {
-            apply_times(&mut parts, 2, lex);
-            i += 1;
-            continue;
-        }
-        if words[i] == "трижды" {
-            apply_times(&mut parts, 3, lex);
-            i += 1;
+        if let Some((count, used)) = lex.chemistry_speech.grouping_at(words, i) {
+            apply_times(&mut parts, count, lex);
+            i += used;
             continue;
         }
         if let Some((el, used_el)) = chemistry_element_at(lex, words, i) {
@@ -464,13 +575,6 @@ fn apply_times(parts: &mut Vec<Part>, n: u32, lex: &Lexicon) {
         let inner = Formula::atom(symbol, count);
         parts.push(Part::Group { inner, count: n });
     }
-}
-
-fn match_at(words: &[String], i: usize, phrase: &[&str]) -> bool {
-    if i + phrase.len() > words.len() {
-        return false;
-    }
-    phrase.iter().enumerate().all(|(k, w)| words[i + k] == *w)
 }
 
 /// Used by tests and course-pack roundtrip.

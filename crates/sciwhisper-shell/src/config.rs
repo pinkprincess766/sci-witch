@@ -21,6 +21,12 @@ pub struct Config {
     pub ptt_word: String,
     #[serde(default = "default_domain")]
     pub domain: String,
+    /// How the ordinary words around a formula are treated:
+    /// `mixed` keeps the whole sentence and replaces only proven spans,
+    /// `scientific` drops a recognised dictation shell («ну запиши …»).
+    /// The default is the safe one: nothing the user said is deleted.
+    #[serde(default = "default_dictation")]
+    pub dictation: String,
     /// auto | unicode | latex | word
     #[serde(default = "default_output")]
     pub output: String,
@@ -51,6 +57,10 @@ fn default_ptt_word() -> String {
 fn default_output() -> String {
     "auto".into()
 }
+fn default_dictation() -> String {
+    "mixed".into()
+}
+
 fn default_domain() -> String {
     "auto".into()
 }
@@ -66,6 +76,7 @@ impl Default for Config {
             ptt_latex: default_ptt_latex(),
             ptt_word: default_ptt_word(),
             domain: default_domain(),
+            dictation: default_dictation(),
             output: default_output(),
             model: None,
             language: default_lang(),
@@ -206,6 +217,13 @@ impl Config {
 
     pub fn domain(&self) -> Domain {
         self.domain.parse().unwrap_or(Domain::Auto)
+    }
+
+    /// An unreadable value falls back to the mode that cannot delete text.
+    pub fn dictation_mode(&self) -> sciwhisper_core::UtteranceMode {
+        self.dictation
+            .parse()
+            .unwrap_or(sciwhisper_core::UtteranceMode::MixedText)
     }
 
     pub fn output(&self) -> OutputMode {
