@@ -14,7 +14,7 @@
 
 use std::fmt;
 
-use crate::ast::{BinOp, Math, UnitExpr, Warning};
+use crate::ast::{derivative_defect, BinOp, DerivativeVariable, Math, UnitExpr, Warning};
 use crate::lexicon::Lexicon;
 
 /// Recursion guard. An artificially deep or hand-built AST abstains instead
@@ -440,18 +440,120 @@ fn infer_with(math: &Math, lex: &Lexicon, depth: u32, warnings: &mut Vec<Warning
             Inferred::Unknown
         }
 
+        // `d(∫ f dx) = d(f) + d(x)` — proven only when both the integrand
+        // and the variable of integration are themselves proven. A bare `x`
+        // is unknown, so `∫ x² dx` stays unproven rather than guessed.
         Math::Integral {
             from,
             to,
             integrand,
             wrt,
         } => {
-            for part in [from, to, integrand, wrt].into_iter().flatten() {
-                let _ = infer_with(part, lex, depth, warnings);
+            let from = from
+                .as_ref()
+                .map(|part| infer_with(part, lex, depth, warnings));
+            let to = to
+                .as_ref()
+                .map(|part| infer_with(part, lex, depth, warnings));
+            let integrand = integrand
+                .as_ref()
+                .map(|part| infer_with(part, lex, depth, warnings));
+            let wrt = wrt
+                .as_ref()
+                .map(|part| infer_with(part, lex, depth, warnings));
+
+            // A bound has to match the other bound and the variable of
+            // integration — but that is only *provable* where two proven
+            // dimensions meet. One diagnosis per integral, not the same
+            // problem restated three times.
+            let proven = |slot: Option<Inferred>| match slot {
+                Some(Inferred::Known(d)) => Some(d),
+                _ => None,
+            };
+            let (lower, upper, variable) = (proven(from), proven(to), proven(wrt));
+            for (a, b) in [(lower, upper), (lower, variable), (upper, variable)] {
+                if let (Some(a), Some(b)) = (a, b) {
+                    if a != b {
+                        warnings.push(mismatch("integration bounds", &a, &b));
+                        break;
+                    }
+                }
             }
-            Inferred::Unknown
+
+            match (integrand, wrt) {
+                (Some(Inferred::Known(f)), Some(Inferred::Known(x))) => {
+                    f.mul(&x).map_or(Inferred::Unknown, Inferred::Known)
+                }
+                _ => Inferred::Unknown,
+            }
+        }
+
+        // `d(∂^k f / ∂x₁^{k₁} … ∂xₙ^{kₙ}) = d(f) − Σ kᵢ d(xᵢ)`, proven only
+        // when the expression *and* every variable are proven. Nothing is
+        // differentiated here: only the dimension of the written derivative
+        // is inferred.
+        Math::Derivative {
+            expr,
+            variables,
+            kind: _,
+        } => {
+            let value = infer_with(expr, lex, depth, warnings);
+            let divisor = variables_dimension(variables, lex, depth, warnings);
+            // A structurally invalid node (no variable, a zero order, a
+            // total order past the cap) is not a quantity at all.
+            if derivative_defect(variables).is_some() {
+                return Inferred::Unknown;
+            }
+            match (value, divisor) {
+                (Inferred::Known(value), Some(divisor)) => value
+                    .div(&divisor)
+                    .map_or(Inferred::Unknown, Inferred::Known),
+                _ => Inferred::Unknown,
+            }
+        }
+
+        // `d(lim_{x→a} f(x)) = d(f)`: a limit changes nothing dimensionally.
+        // The variable and the approached point must agree, which is
+        // checkable only when both are proven — `x → 0` is not, because a
+        // bare `x` carries no dimension.
+        Math::Limit {
+            variable,
+            target,
+            direction: _,
+            body,
+        } => {
+            let variable = infer_with(variable, lex, depth, warnings);
+            let target = infer_with(target, lex, depth, warnings);
+            if let (Inferred::Known(a), Inferred::Known(b)) = (variable, target) {
+                if a != b {
+                    warnings.push(mismatch("the approach of a limit", &a, &b));
+                }
+            }
+            infer_with(body, lex, depth, warnings)
         }
     }
+}
+
+/// `Σ kᵢ d(xᵢ)` as a single dimension. `None` as soon as one variable is
+/// unproven or the exponent arithmetic overflows; every variable is visited
+/// first so a mismatch inside one is still reported.
+fn variables_dimension(
+    variables: &[DerivativeVariable],
+    lex: &Lexicon,
+    depth: u32,
+    warnings: &mut Vec<Warning>,
+) -> Option<Dimension> {
+    let mut product = Some(Dimension::DIMENSIONLESS);
+    for variable in variables {
+        let inferred = infer_with(&variable.variable, lex, depth, warnings);
+        product = match (product, inferred, i32::try_from(variable.order)) {
+            (Some(accumulated), Inferred::Known(dimension), Ok(order)) => Exponent::new(order, 1)
+                .and_then(|power| dimension.pow(power))
+                .and_then(|scaled| accumulated.mul(&scaled)),
+            _ => None,
+        };
+    }
+    product
 }
 
 fn unit_dimension(expr: &UnitExpr, lex: &Lexicon) -> Inferred {
@@ -580,7 +682,9 @@ fn operation_name(op: BinOp) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ast::{Case, FunctionKind, GroupKind, Symbol, UnitFactor};
+    use crate::ast::{
+        Case, DerivativeKind, FunctionKind, GroupKind, LimitDirection, Symbol, UnitFactor,
+    };
 
     fn dim(symbol: &str) -> Dimension {
         Lexicon::builtin()
@@ -1036,5 +1140,264 @@ mod tests {
             .mul(Exponent::integer(i32::MAX))
             .is_none());
         assert!(Exponent::integer(1).div(Exponent::ZERO).is_none());
+    }
+
+    // ---------------------------------------------------------------- calculus
+
+    fn derivative(kind: DerivativeKind, expr: Math, variables: Vec<(Math, u32)>) -> Math {
+        Math::derivative(
+            kind,
+            expr,
+            variables
+                .into_iter()
+                .map(|(variable, order)| DerivativeVariable::new(variable, order))
+                .collect(),
+        )
+        .expect("the test builds a well-formed derivative")
+    }
+
+    #[test]
+    fn first_derivative_of_a_length_by_a_time_is_a_velocity() {
+        // d(3 м)/d(2 с) = L T^-1. Both dimensions are dictated, so the
+        // result is proven rather than guessed.
+        let node = derivative(
+            DerivativeKind::Ordinary,
+            quantity("3", "м"),
+            vec![(quantity("2", "с"), 1)],
+        );
+        assert_eq!(known(&node).to_string(), "L T^-1");
+        assert!(warnings_for(&node).is_empty());
+    }
+
+    #[test]
+    fn second_derivative_divides_by_the_squared_variable() {
+        // d²(3 м)/d(2 с)² = L T^-2: the order enters as an exponent.
+        let node = derivative(
+            DerivativeKind::Ordinary,
+            quantity("3", "м"),
+            vec![(quantity("2", "с"), 2)],
+        );
+        assert_eq!(known(&node).to_string(), "L T^-2");
+    }
+
+    #[test]
+    fn mixed_partial_subtracts_every_variable() {
+        // ∂²(1 Дж)/∂(1 м)∂(1 с) = M L^2 T^-2 / (L · T) = M L T^-3.
+        let node = derivative(
+            DerivativeKind::Partial,
+            quantity("1", "Дж"),
+            vec![(quantity("1", "м"), 1), (quantity("1", "с"), 1)],
+        );
+        assert_eq!(known(&node).to_string(), "M L T^-3");
+        assert!(warnings_for(&node).is_empty());
+    }
+
+    #[test]
+    fn a_derivative_by_an_unproven_variable_stays_silent_and_unproven() {
+        // dx is a bare symbol: no dimension can be subtracted, so the
+        // derivative is Unknown — and that is not a complaint.
+        let node = derivative(
+            DerivativeKind::Ordinary,
+            quantity("3", "м"),
+            vec![(symbol("x"), 1)],
+        );
+        assert_eq!(infer(&node), Inferred::Unknown);
+        assert!(warnings_for(&node).is_empty());
+    }
+
+    #[test]
+    fn a_derivative_of_an_unproven_expression_stays_silent_and_unproven() {
+        let node = derivative(
+            DerivativeKind::Ordinary,
+            symbol("f"),
+            vec![(quantity("2", "с"), 1)],
+        );
+        assert_eq!(infer(&node), Inferred::Unknown);
+        assert!(warnings_for(&node).is_empty());
+    }
+
+    #[test]
+    fn a_mismatch_inside_a_derivative_is_still_reported() {
+        // The derivative itself is unprovable, but the nonsense addition
+        // inside it must not be hidden by that.
+        let node = derivative(
+            DerivativeKind::Ordinary,
+            Math::Binary {
+                op: BinOp::Add,
+                left: Box::new(quantity("3", "м")),
+                right: Box::new(quantity("4", "с")),
+            },
+            vec![(symbol("x"), 1)],
+        );
+        let codes: Vec<_> = warnings_for(&node)
+            .into_iter()
+            .map(|warning| warning.code)
+            .collect();
+        assert_eq!(codes, ["physics.dimension_mismatch"]);
+    }
+
+    #[test]
+    fn a_derivative_order_that_overflows_the_exponent_abstains() {
+        // A hand-built node with an order past the cap is not repaired and
+        // not accepted: it is simply not a quantity.
+        let variables = vec![DerivativeVariable::new(quantity("2", "с"), u32::MAX)];
+        let node = Math::Derivative {
+            kind: DerivativeKind::Ordinary,
+            expr: Box::new(quantity("3", "м")),
+            variables,
+        };
+        assert_eq!(infer(&node), Inferred::Unknown);
+    }
+
+    #[test]
+    fn a_derivative_without_a_variable_abstains() {
+        let node = Math::Derivative {
+            kind: DerivativeKind::Ordinary,
+            expr: Box::new(quantity("3", "м")),
+            variables: vec![],
+        };
+        assert_eq!(infer(&node), Inferred::Unknown);
+    }
+
+    #[test]
+    fn an_integral_multiplies_the_integrand_by_its_variable() {
+        // ∫ (3 м) d(2 с) = L T.
+        let node = Math::Integral {
+            from: None,
+            to: None,
+            integrand: Some(Box::new(quantity("3", "м"))),
+            wrt: Some(Box::new(quantity("2", "с"))),
+        };
+        assert_eq!(known(&node).to_string(), "L T");
+        assert!(warnings_for(&node).is_empty());
+    }
+
+    #[test]
+    fn an_integral_over_a_bare_symbol_stays_unproven_without_a_warning() {
+        let node = Math::Integral {
+            from: None,
+            to: None,
+            integrand: Some(Box::new(quantity("3", "м"))),
+            wrt: Some(Box::new(symbol("x"))),
+        };
+        assert_eq!(infer(&node), Inferred::Unknown);
+        assert!(warnings_for(&node).is_empty());
+    }
+
+    #[test]
+    fn an_integral_missing_a_part_stays_unproven() {
+        for (integrand, wrt) in [
+            (Some(Box::new(quantity("3", "м"))), None),
+            (None, Some(Box::new(quantity("2", "с")))),
+            (None, None),
+        ] {
+            let node = Math::Integral {
+                from: None,
+                to: None,
+                integrand,
+                wrt,
+            };
+            assert_eq!(infer(&node), Inferred::Unknown);
+        }
+    }
+
+    #[test]
+    fn incompatible_integration_bounds_are_reported_exactly_once() {
+        // Every pairing of (lower, upper, variable) is incompatible here;
+        // that is one problem, so it earns one warning, not three.
+        let node = Math::Integral {
+            from: Some(Box::new(quantity("0", "м"))),
+            to: Some(Box::new(quantity("1", "с"))),
+            integrand: Some(Box::new(symbol("f"))),
+            wrt: Some(Box::new(unit("кг"))),
+        };
+        let codes: Vec<_> = warnings_for(&node)
+            .into_iter()
+            .map(|warning| warning.code)
+            .collect();
+        assert_eq!(codes, ["physics.dimension_mismatch"]);
+    }
+
+    #[test]
+    fn a_numeric_bound_pair_is_compatible_and_silent() {
+        // «интеграл от нуля до единицы … по икс»: both bounds are plain
+        // numbers and the variable is unproven, so nothing is claimed.
+        let node = Math::Integral {
+            from: Some(Box::new(Math::Number("0".into()))),
+            to: Some(Box::new(Math::Number("1".into()))),
+            integrand: Some(Box::new(symbol("x"))),
+            wrt: Some(Box::new(symbol("x"))),
+        };
+        assert!(warnings_for(&node).is_empty());
+        assert_eq!(infer(&node), Inferred::Unknown);
+    }
+
+    #[test]
+    fn a_limit_keeps_the_dimension_of_its_body() {
+        let node = Math::limit(
+            symbol("x"),
+            Math::Number("0".into()),
+            LimitDirection::TwoSided,
+            quantity("3", "м"),
+        );
+        assert_eq!(known(&node).to_string(), "L");
+        // x is a bare symbol and 0 is a plain number: not two proven
+        // dimensions, so there is nothing to complain about.
+        assert!(warnings_for(&node).is_empty());
+    }
+
+    #[test]
+    fn a_limit_with_an_unproven_body_is_unproven() {
+        for direction in [
+            LimitDirection::TwoSided,
+            LimitDirection::FromLeft,
+            LimitDirection::FromRight,
+        ] {
+            let node = Math::limit(
+                symbol("x"),
+                Math::Number("0".into()),
+                direction,
+                symbol("f"),
+            );
+            assert_eq!(infer(&node), Inferred::Unknown);
+            assert!(warnings_for(&node).is_empty());
+        }
+    }
+
+    #[test]
+    fn a_limit_approaching_an_incompatible_point_is_reported() {
+        // Both sides are dictated with units, so the incompatibility is
+        // provable: a length cannot tend to a time.
+        let node = Math::limit(
+            quantity("1", "м"),
+            quantity("0", "с"),
+            LimitDirection::TwoSided,
+            symbol("f"),
+        );
+        let codes: Vec<_> = warnings_for(&node)
+            .into_iter()
+            .map(|warning| warning.code)
+            .collect();
+        assert_eq!(codes, ["physics.dimension_mismatch"]);
+    }
+
+    #[test]
+    fn calculus_nodes_deeper_than_the_guard_abstain_without_panicking() {
+        let mut node = symbol("f");
+        for _ in 0..(MAX_DEPTH + 32) {
+            node = Math::limit(
+                symbol("x"),
+                Math::Number("0".into()),
+                LimitDirection::TwoSided,
+                node,
+            );
+        }
+        assert_eq!(infer(&node), Inferred::Unknown);
+        // And the same for a derivative chain.
+        let mut node = quantity("3", "м");
+        for _ in 0..(MAX_DEPTH + 32) {
+            node = derivative(DerivativeKind::Ordinary, node, vec![(symbol("x"), 1)]);
+        }
+        assert_eq!(infer(&node), Inferred::Unknown);
     }
 }

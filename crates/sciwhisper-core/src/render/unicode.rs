@@ -1,6 +1,6 @@
 use crate::ast::{
-    Arrow, BinOp, Chemical, Equation, Formula, GroupKind, Math, Node, Part, Species, StateMarker,
-    UnitExpr,
+    derivative_total_order, Arrow, BinOp, Chemical, DerivativeKind, DerivativeVariable, Equation,
+    Formula, GroupKind, LimitDirection, Math, Node, Part, Species, StateMarker, UnitExpr,
 };
 
 pub fn render(node: &Node) -> String {
@@ -187,6 +187,17 @@ fn math(m: &Math) -> String {
             }
             s
         }
+        Math::Derivative {
+            kind,
+            expr,
+            variables,
+        } => derivative(*kind, expr, variables),
+        Math::Limit {
+            variable,
+            target,
+            direction,
+            body,
+        } => limit(variable, target, *direction, body),
         Math::Unit(u) => unit(u),
         Math::Infinity => "∞".into(),
         Math::Ellipsis => "…".into(),
@@ -218,6 +229,71 @@ fn nary(
         s.push_str(&math(b));
     }
     s
+}
+
+/// Linear but unambiguous: `df/dx`, `d²y/dx²`, `∂T/∂x`, `∂²T/(∂x∂y)`.
+/// A plain text field cannot show two-dimensional typography, so the
+/// fraction is written on one line and grouped where grouping matters.
+fn derivative(kind: DerivativeKind, expr: &Math, variables: &[DerivativeVariable]) -> String {
+    let operator = kind.operator();
+    let mut numerator = String::from(operator);
+    // `None` means the total order overflowed: leave the superscript off
+    // rather than print a wrapped, wrong order.
+    if let Some(total) = derivative_total_order(variables) {
+        if total != 1 {
+            numerator.push_str(&super_digits(&total.to_string()));
+        }
+    }
+    numerator.push_str(&derivative_operand(expr));
+    if variables.is_empty() {
+        // Structurally invalid (the validator reports it); the numerator is
+        // still shown rather than a denominator nobody dictated.
+        return numerator;
+    }
+    let mut denominator = String::new();
+    for variable in variables {
+        denominator.push_str(operator);
+        denominator.push_str(&derivative_operand(&variable.variable));
+        if variable.order != 1 {
+            denominator.push_str(&super_digits(&variable.order.to_string()));
+        }
+    }
+    if variables.len() > 1 {
+        format!("{numerator}/({denominator})")
+    } else {
+        format!("{numerator}/{denominator}")
+    }
+}
+
+/// Only a simple atom sits next to the `d`: `d(x²)/dx`, never `dx²/dx`.
+fn derivative_operand(operand: &Math) -> String {
+    if super::derivative_operand_needs_group(operand) {
+        format!("({})", math(operand))
+    } else {
+        math(operand)
+    }
+}
+
+/// `lim_{x→0} sin(x)/x`, `lim_{x→0⁻} f(x)`.
+fn limit(variable: &Math, target: &Math, direction: LimitDirection, body: &Math) -> String {
+    let mut approach = format!("{}→{}", math(variable), math_tight(target));
+    match direction {
+        LimitDirection::TwoSided => {}
+        LimitDirection::FromLeft => approach.push('⁻'),
+        LimitDirection::FromRight => approach.push('⁺'),
+    }
+    format!("lim_{{{approach}}} {}", construct_body(body))
+}
+
+/// A construct body needs brackets exactly where the linear form would
+/// otherwise change the reading: `lim_{x→0} (x + 1)` but `lim_{x→0} x·y`.
+fn construct_body(body: &Math) -> String {
+    match body {
+        Math::Binary { op, .. } if !matches!(op, BinOp::Mul | BinOp::Div) => {
+            format!("({})", math(body))
+        }
+        other => math(other),
+    }
 }
 
 fn lower_bound(value: &Math) -> String {
@@ -263,7 +339,13 @@ fn math_tight(m: &Math) -> String {
 
 fn math_maybe_group(m: &Math) -> String {
     match m {
-        Math::Binary { .. } | Math::Juxt(_) | Math::Fraction { .. } | Math::UnaryMinus(_) => {
+        Math::Binary { .. }
+        | Math::Juxt(_)
+        | Math::Fraction { .. }
+        | Math::UnaryMinus(_)
+        // `(df/dx)²` must never flatten into the very different `df/dx²`.
+        | Math::Derivative { .. }
+        | Math::Limit { .. } => {
             format!("({})", math(m))
         }
         Math::Number(_)
@@ -286,6 +368,10 @@ fn sub_digits(n: &str) -> String {
     n.chars()
         .map(|c| c.to_digit(10).map(|d| SUB[d as usize]).unwrap_or(c))
         .collect()
+}
+
+fn super_digits(n: &str) -> String {
+    n.chars().map(super_digit).collect()
 }
 
 fn super_digit(c: char) -> char {

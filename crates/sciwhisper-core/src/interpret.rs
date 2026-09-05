@@ -172,6 +172,20 @@ fn detect_domain(words: &[String], lex: &Lexicon) -> Domain {
                 | "степени"
                 | "квадрате"
                 | "скобку"
+                // Calculus. Without these, «производная эф по икс» scores as
+                // chemistry, because «по» is also the symbol of polonium.
+                | "производная"
+                | "производную"
+                | "производной"
+                | "частная"
+                | "частную"
+                | "частной"
+                | "предел"
+                | "предела"
+                | "стремящемся"
+                | "стремящейся"
+                | "стремится"
+                | "порядка"
         ) {
             math += 3;
         }
