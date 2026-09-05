@@ -10,6 +10,7 @@ pub mod insert;
 mod key_listener;
 pub mod permissions;
 pub mod tray;
+pub mod update;
 pub mod word_win;
 
 pub use app::run;

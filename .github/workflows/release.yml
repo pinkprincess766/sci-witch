@@ -98,13 +98,98 @@ jobs:
     needs: [macos, windows]
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verify tag matches workspace version
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+          import tomllib
+
+          with open("Cargo.toml", "rb") as source:
+              cargo_version = tomllib.load(source)["workspace"]["package"]["version"]
+          tag = os.environ["GITHUB_REF_NAME"]
+          expected = f"v{cargo_version}"
+          if tag != expected:
+              raise SystemExit(f"release tag {tag!r} does not match Cargo.toml version {expected!r}")
+          PY
+
       - uses: actions/download-artifact@v4
         with:
           path: dist
           merge-multiple: true
 
+      - name: Build update manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          repo="${GITHUB_REPOSITORY}"
+          published_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          manifest="dist/update-manifest.json"
+
+          platforms="{}"
+          add_platform() {
+            local key="$1"
+            local zip="$2"
+            if [[ ! -f "$zip" ]]; then
+              echo "required release artifact is missing: $zip" >&2
+              exit 1
+            fi
+            local name
+            local sha
+            local url
+            name="$(basename "$zip")"
+            sha="$(sha256sum "$zip" | cut -d' ' -f1)"
+            if [[ ! "$sha" =~ ^[0-9a-f]{64}$ ]]; then
+              echo "invalid SHA-256 for $zip: $sha" >&2
+              exit 1
+            fi
+            url="https://github.com/${repo}/releases/download/${GITHUB_REF_NAME}/${name}"
+            platforms="$(echo "$platforms" | jq --arg k "$key" --arg name "$name" --arg sha "$sha" --arg url "$url" \
+              '. + {($k): {asset_name: $name, sha256: $sha, url: $url}}')"
+          }
+
+          add_platform "windows-x64" "dist/SciWhisper-${version}-Windows-x64.zip"
+          add_platform "macos-arm64" "dist/SciWhisper-${version}-macOS-arm64.zip"
+
+          jq -n \
+            --arg schema_version "1" \
+            --arg version "$version" \
+            --arg channel "preview" \
+            --arg published_at "$published_at" \
+            --arg notes_url "https://github.com/${repo}/releases/tag/${GITHUB_REF_NAME}" \
+            --argjson platforms "$platforms" \
+            '{schema_version: ($schema_version | tonumber), version: $version, channel: $channel, published_at: $published_at, notes_url: $notes_url, platforms: $platforms}' \
+            > "$manifest"
+
+          echo "--- update-manifest.json ---"
+          cat "$manifest"
+          jq -e '
+            .schema_version == 1 and
+            (.version | type == "string" and length > 0) and
+            .channel == "preview" and
+            (.platforms | length == 2) and
+            ([.platforms."windows-x64", .platforms."macos-arm64"] | all(
+              (.asset_name | type == "string" and length > 0) and
+              (.sha256 | test("^[0-9a-f]{64}$")) and
+              (.url | startswith("https://github.com/"))
+            ))
+          ' "$manifest" >/dev/null || {
+            echo "generated update manifest failed schema validation" >&2
+            exit 1
+          }
+
       - uses: softprops/action-gh-release@v2
         with:
           prerelease: true
           generate_release_notes: true
-          files: dist/*.zip
+          files: |
+            dist/*.zip
+            dist/update-manifest.json
