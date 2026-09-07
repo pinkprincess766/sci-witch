@@ -258,20 +258,24 @@ mod tests {
 
     #[test]
     fn the_helper_is_told_exactly_which_directories_to_move() {
+        let current = Path::new("/opt/SciWhisper");
         let staged = Staged {
             version: "0.2.0".into(),
-            paths: plan_paths(Path::new("/opt/SciWhisper"), "0.2.0"),
+            paths: plan_paths(current, "0.2.0"),
             files: 12,
             bytes: 1024,
         };
         let (helper, args) = helper_command(&staged);
-        assert_eq!(helper, Path::new("/opt/SciWhisper").join(helper_name()));
+        assert_eq!(helper, current.join(helper_name()));
         assert_eq!(args[0], "--current");
-        assert_eq!(args[1], "/opt/SciWhisper");
-        assert_eq!(args[3], "/opt/SciWhisper.staging-0.2.0");
-        assert_eq!(args[5], "/opt/SciWhisper.backup-0.2.0");
+        assert_eq!(Path::new(&args[1]), staged.paths.current);
+        assert_eq!(Path::new(&args[3]), staged.paths.staging);
+        assert_eq!(Path::new(&args[5]), staged.paths.backup);
         // The program it restarts is the one it just installed.
-        assert!(args[7].starts_with("/opt/SciWhisper/"));
+        assert_eq!(
+            Path::new(&args[7]),
+            staged.paths.current.join(install::executable_name())
+        );
     }
 
     #[test]
