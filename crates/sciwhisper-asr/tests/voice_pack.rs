@@ -25,7 +25,14 @@ const MODE_FILE: &str = "SCIWHISPER_TEST_BACKEND_MODE";
 /// variables and Windows never has to execute a renamed batch script.
 fn fake_whisper(dir: &Path, mode: &str) -> PathBuf {
     let path = dir.join(backend_file_name());
-    std::fs::copy(env!("CARGO_BIN_EXE_sciwhisper-test-backend"), &path).unwrap();
+    let built = Path::new(env!("CARGO_BIN_EXE_sciwhisper-test-backend"));
+    // Some Linux CI filesystems can briefly reject execution of a file that
+    // has just been copied with ETXTBSY. A hard link points at Cargo's already
+    // closed executable and is also much cheaper across the parallel cases.
+    // Windows installations that disallow links still get the ordinary copy.
+    if std::fs::hard_link(built, &path).is_err() {
+        std::fs::copy(built, &path).unwrap();
+    }
     std::fs::write(dir.join(MODE_FILE), mode).unwrap();
     path
 }
