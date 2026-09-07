@@ -3,6 +3,7 @@ name: ci
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 jobs:
   test:
@@ -27,19 +28,26 @@ jobs:
         run: cargo build --workspace
 
   windows-app:
+    needs: whisper-backend
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - name: Build Windows tray binary
-        run: cargo build -p sciwhisper-cli --release
+      - uses: actions/download-artifact@v4
+        with:
+          name: ci-whisper-backend
+          path: whisper-out
+      - name: Build Windows application binaries
+        run: cargo build -p sciwhisper-cli -p sciwhisper-update --release
       - name: Run Windows self-test
         run: target/release/sciwhisper.exe self-test
-      - name: Assemble portable Windows bundle
+      - name: Assemble complete application bundle without the separate model pack
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force artifact | Out-Null
+          New-Item -ItemType Directory -Force artifact/whisper, artifact/docs/user | Out-Null
           Copy-Item target/release/sciwhisper.exe artifact/
+          Copy-Item target/release/sciwhisper-updater.exe artifact/
+          Copy-Item whisper-out/* artifact/whisper/ -Recurse
           Copy-Item packaging/windows/SciWhisper-Test.cmd artifact/
           Copy-Item packaging/windows/SciWhisper.cmd artifact/
           Copy-Item packaging/windows/SciWhisper-App.ps1 artifact/
@@ -48,8 +56,120 @@ jobs:
           Copy-Item packaging/windows/README-WINDOWS.txt artifact/
           Copy-Item assets/branding/SciWhisper-wink-broom-sand-v1.ico artifact/SciWhisper.ico
           Copy-Item README.md, LICENSE, NOTICE, DATA_LICENSE.md artifact/
-      - name: Upload portable bundle
+          Copy-Item docs/user/TESTING_RU.md, docs/user/PRIVACY_RU.md, docs/user/KNOWN_LIMITATIONS_RU.md, docs/user/WINDOWS_ACCEPTANCE_RU.md artifact/docs/user/
+
+          $contents = Get-Content packaging/windows/BUNDLE_CONTENTS.json | ConvertFrom-Json
+          $missing = @()
+          foreach ($dir in $contents.required_dirs) {
+            if (-not (Test-Path -PathType Container "artifact/$dir")) { $missing += "dir $dir" }
+          }
+          foreach ($file in $contents.required_files) {
+            if (-not (Test-Path -PathType Leaf "artifact/$file")) { $missing += $file }
+          }
+          if ($missing.Count -gt 0) {
+            throw "the CI Windows bundle is incomplete, missing: $($missing -join ', ')"
+          }
+      - name: Upload Windows bundle (model pack remains a separate release asset)
         uses: actions/upload-artifact@v4
         with:
-          name: sciwhisper-windows
+          name: sciwhisper-windows-without-model
           path: artifact/
+
+  # The shipped recogniser is built and started on every push and pull request,
+  # not only when a tag is cut: a bundle that cannot produce its own engine is a
+  # broken bundle, and that should be visible before release day. The build is
+  # cached on the pinned commit, so it is paid for once per pin.
+  whisper-backend:
+    name: Bundled whisper.cpp
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read the pin
+        id: pin
+        shell: pwsh
+        run: |
+          $pin = Get-Content packaging/windows/model-pack.json | ConvertFrom-Json
+          if (-not $pin.whisper_cpp.commit) {
+            throw "packaging/windows/model-pack.json must pin whisper_cpp.commit"
+          }
+          "commit=$($pin.whisper_cpp.commit)" >> $env:GITHUB_OUTPUT
+          "tag=$($pin.whisper_cpp.tag)" >> $env:GITHUB_OUTPUT
+          "repo=$($pin.whisper_cpp.repository)" >> $env:GITHUB_OUTPUT
+
+      - name: Cache the built engine
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: whisper-out
+          key: whisper-cli-${{ runner.os }}-${{ steps.pin.outputs.commit }}-${{ hashFiles('packaging/windows/model-pack.json', '.github/workflows/ci.yml') }}
+
+      - name: Build whisper.cpp from the pinned commit
+        if: steps.cache.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          git clone --depth 1 --branch ${{ steps.pin.outputs.tag }} ${{ steps.pin.outputs.repo }} whisper-src
+          Push-Location whisper-src
+          $resolved = (git rev-parse HEAD).Trim()
+          Pop-Location
+          if ($resolved -ne "${{ steps.pin.outputs.commit }}") {
+            throw "tag resolved to $resolved, pin says ${{ steps.pin.outputs.commit }}"
+          }
+          cmake -S whisper-src -B whisper-build -DCMAKE_BUILD_TYPE=Release `
+            -DBUILD_SHARED_LIBS=OFF -DGGML_NATIVE=OFF `
+            -DWHISPER_BUILD_TESTS=OFF -DWHISPER_BUILD_SERVER=OFF
+          cmake --build whisper-build --config Release --target whisper-cli
+          $cli = Get-ChildItem -Path whisper-build -Recurse -Filter whisper-cli.exe | Select-Object -First 1
+          if (-not $cli) { throw "whisper-cli.exe was not produced" }
+          New-Item -ItemType Directory -Force whisper-out | Out-Null
+          Copy-Item $cli.FullName whisper-out/whisper-cli.exe
+          Get-ChildItem -Path $cli.Directory -Filter *.dll -ErrorAction SilentlyContinue |
+            ForEach-Object { Copy-Item $_.FullName whisper-out/ }
+
+      - name: Start it, including from an awkward path
+        shell: pwsh
+        run: |
+          $out = & whisper-out/whisper-cli.exe --help 2>&1 | Out-String
+          if ($out -notmatch 'model') { throw "whisper-cli.exe did not report its options:`n$out" }
+          $odd = "spaces and кириллица"
+          New-Item -ItemType Directory -Force $odd | Out-Null
+          Copy-Item whisper-out/* $odd -Recurse
+          $out2 = & "$odd/whisper-cli.exe" --help 2>&1 | Out-String
+          if ($out2 -notmatch 'model') { throw "whisper-cli.exe failed from '$odd':`n$out2" }
+          Write-Host "bundled whisper-cli.exe builds and starts"
+
+      # The application's own rules, exercised against the engine that will
+      # actually ship rather than against a script pretending to be it.
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Discover the real engine as a bundled backend
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force sim/whisper | Out-Null
+          Copy-Item whisper-out/* sim/whisper/
+          Copy-Item packaging/windows/README-WINDOWS.txt sim/
+          cargo build --release -p sciwhisper-cli
+          Copy-Item target/release/sciwhisper.exe sim/
+          Push-Location sim
+          $report = & ./sciwhisper.exe doctor 2>&1 | Out-String
+          $doctorExit = $LASTEXITCODE
+          Pop-Location
+          Write-Host $report
+          if ($report -notmatch 'источник движка: bundled') {
+            throw "the real whisper-cli.exe was not discovered as the bundled backend:`n$report"
+          }
+          if ($report -notmatch 'тип движка: whisper.cpp') {
+            throw "the real engine was not recognised as whisper.cpp:`n$report"
+          }
+          if ($report -match 'python') {
+            throw "a shipped bundle must never report a Python backend:`n$report"
+          }
+          if ($doctorExit -eq 0 -or $report -notmatch 'модель готова: нет') {
+            throw "doctor must fail here only because CI intentionally omits the separate model pack:`n$report"
+          }
+          exit 0
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ci-whisper-backend
+          path: whisper-out/
+          retention-days: 3

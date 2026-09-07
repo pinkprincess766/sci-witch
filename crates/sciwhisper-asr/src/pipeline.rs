@@ -66,8 +66,8 @@ fn transcribe_prepared(path: &Path, opts: PipelineOptions) -> Result<PipelineRes
 pub fn from_microphone(max_secs: Option<u64>, opts: PipelineOptions) -> Result<PipelineResult> {
     let rec = capture::record_wav(max_secs, opts.mic.as_deref())?;
     eprintln!(
-        "записано {:.1} с, peak {:.2} — Whisper…",
-        rec.duration_secs, rec.peak
+        "записано {:.1} с, peak {:.2}, SNR {:.0} дБ — Whisper…",
+        rec.duration_secs, rec.peak, rec.snr_db
     );
     transcribe_prepared(&rec.wav_path, opts)
 }
@@ -135,21 +135,10 @@ pub fn compile_transcript_with(
     }
 }
 fn engine_from(opts: &PipelineOptions) -> Result<WhisperCliEngine> {
-    if let Some(bin) = &opts.whisper_bin {
-        let kind = if bin
-            .file_name()
-            .and_then(|s| s.to_str())
-            .unwrap_or("")
-            .contains("cli")
-        {
-            crate::engine::EngineKind::WhisperCpp
-        } else {
-            crate::engine::EngineKind::OpenaiWhisper
-        };
-        let model = opts.model.clone().unwrap_or_else(|| "base".into());
-        return Ok(WhisperCliEngine::with_binary(bin.clone(), kind, model));
-    }
-    WhisperCliEngine::discover(opts.model.as_deref())
+    // The configured path, if any, goes through the same discovery rules as
+    // everything else, so its origin is reported honestly and a bad path is an
+    // error rather than a silent fallback.
+    WhisperCliEngine::discover_with(opts.whisper_bin.as_deref(), opts.model.as_deref())
 }
 
 #[cfg(test)]

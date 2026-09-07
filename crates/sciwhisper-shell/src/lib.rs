@@ -9,8 +9,10 @@ mod indicator;
 pub mod insert;
 mod key_listener;
 pub mod permissions;
+pub mod profile;
 pub mod tray;
 pub mod update;
+pub mod upgrade;
 pub mod word_win;
 
 pub use app::run;

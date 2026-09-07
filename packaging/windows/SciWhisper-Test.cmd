@@ -18,8 +18,9 @@ echo === SciWhisper: локальная проверка ===
 if errorlevel 1 goto failed
 
 echo.
-echo === Диагностика локального Whisper ===
-"%SCIWHISPER_BIN%" doctor
+echo === Диагностика: движок, модель, микрофон ===
+"%SCIWHISPER_BIN%" doctor --verify-model
+if errorlevel 1 goto failed
 
 echo.
 choice /C YN /N /M "Проверить микрофон в течение 6 секунд? [Y/N] "
