@@ -1,4 +1,11 @@
 schema_version: 2
+# Every unit lists the forms Russian numerals govern: «один паскаль»
+# (nominative singular), «два паскаля» (genitive singular) and «пять
+# паскалей» (genitive plural), plus the nominative plural where a speaker
+# would use it. A unit missing one of them is not a smaller vocabulary, it
+# is a unit that silently fails on four numbers out of five —
+# `unit_declension.rs` fails the build when a form is absent.
+#
 # `dimension` uses the seven SI base symbols M L T I Θ N J with optional
 # exact rational powers (`M L T^-2`, `L^1/2`, `1` for dimensionless).
 # Prefixes change the scale only, never the dimension.
@@ -10,52 +17,52 @@ si_base:
   - symbol: кг
     latex: r"\mathrm{kg}"
     dimension: M
-    spoken: [килограмм, килограмма, килограммов]
+    spoken: [килограмм, килограмма, килограммов, килограммы]
   - symbol: с
     latex: r"\mathrm{s}"
     dimension: T
-    spoken: [секунда, секунды, секунду, секунд]
+    spoken: [секунда, секунды, секунд, секунду]
   - symbol: А
     latex: r"\mathrm{A}"
     dimension: I
-    spoken: [ампер, ампера, ампер]
+    spoken: [ампер, ампера, амперов, амперы]
   - symbol: К
     latex: r"\mathrm{K}"
     dimension: Θ
-    spoken: [кельвин, кельвина]
+    spoken: [кельвин, кельвина, кельвинов, кельвины]
   - symbol: моль
     latex: r"\mathrm{mol}"
     dimension: N
-    spoken: [моль, моля]
+    spoken: [моль, моля, молей, моли]
   - symbol: кд
     latex: r"\mathrm{cd}"
     dimension: J
-    spoken: [кандела, канделы]
+    spoken: [кандела, канделы, кандел, канделу]
 derived:
   - symbol: Н
     dimension: M L T^-2
-    spoken: [ньютон, ньютона, ньютонов]
+    spoken: [ньютон, ньютона, ньютонов, ньютоны]
   - symbol: Дж
     dimension: M L^2 T^-2
-    spoken: [джоуль, джоуля, джоулей]
+    spoken: [джоуль, джоуля, джоулей, джоули]
   - symbol: Вт
     dimension: M L^2 T^-3
-    spoken: [ватт, ватта, ватт]
+    spoken: [ватт, ватта, ваттов, ватты]
   - symbol: Па
     dimension: M L^-1 T^-2
-    spoken: [паскаль, паскаля]
+    spoken: [паскаль, паскаля, паскалей, паскали]
   - symbol: Кл
     dimension: I T
-    spoken: [кулон, кулона]
+    spoken: [кулон, кулона, кулонов, кулоны]
   - symbol: В
     dimension: M L^2 T^-3 I^-1
-    spoken: [вольт, вольта]
+    spoken: [вольт, вольта, вольтов, вольты]
   - symbol: Ом
     dimension: M L^2 T^-3 I^-2
-    spoken: [ом, ома]
+    spoken: [ом, ома, омов, омы]
   - symbol: Гц
     dimension: T^-1
-    spoken: [герц]
+    spoken: [герц, герца, герцы]
 prefixes:
   - prefix: н
     spoken: [нано]
@@ -82,22 +89,22 @@ composed:
   - spoken: [нанометр, нанометра, нанометров, нанометры]
     symbol: нм
     dimension: L
-  - spoken: [миллиметр, миллиметра]
+  - spoken: [миллиметр, миллиметра, миллиметров, миллиметры]
     symbol: мм
     dimension: L
-  - spoken: [сантиметр, сантиметра]
+  - spoken: [сантиметр, сантиметра, сантиметров, сантиметры]
     symbol: см
     dimension: L
-  - spoken: [километр, километра]
+  - spoken: [километр, километра, километров, километры]
     symbol: км
     dimension: L
-  - spoken: [миллисекунда, миллисекунды]
+  - spoken: [миллисекунда, миллисекунды, миллисекунд, миллисекунду]
     symbol: мс
     dimension: T
-  - spoken: [килогерц]
+  - spoken: [килогерц, килогерца, килогерцы]
     symbol: кГц
     dimension: T^-1
-  - spoken: [мегагерц]
+  - spoken: [мегагерц, мегагерца, мегагерцы]
     symbol: МГц
     dimension: T^-1
 operators:

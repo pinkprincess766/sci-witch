@@ -7,18 +7,31 @@ research/
 ├── data/
 │   ├── build_dev_seed.py          # генератор корпуса; gold пишется руками
 │   ├── dev-seed-v1.jsonl          # 113 записей, dataset_schema_version 1
-│   └── dev-seed-v1.manifest.json  # sha256, состав, границы применимости
+│   ├── dev-seed-v1.manifest.json  # sha256, состав, границы применимости
+│   ├── VOICE_CORPUS_RU.md         # 0.3: как собрать голосовой корпус (schema 2)
+│   └── consent-ru-v1.md           # шаблон согласия на запись голоса
 ├── schema/
 │   ├── CANONICAL_AST_V1_RU.md     # контракт канонического AST
-│   └── severity-v1.json           # машиночитаемая taxonomy тяжести ошибок
+│   ├── severity-v1.json           # машиночитаемая taxonomy тяжести ошибок
+│   ├── release-gates-v1.json      # 0.5: ворота допуска, проверяемые программой
+│   └── ast-distance-v1.json       # веса d_sci и классы severity — один источник
 ├── reranker/
 │   ├── README_RU.md               # решение: обучаемый reranker пока не строится
 │   └── program.md                 # предзарегистрированная программа на будущее
 └── results/
-    └── deterministic-v1.json      # замороженный отчёт baseline
+    ├── deterministic-v1.json      # замороженный отчёт baseline (0.2)
+    └── deterministic-v2.json      # прогон 0.3: маршрутизатор + склонение единиц
 ```
 
 Практическое руководство по запуску — [`docs/development/ML_LAB_RU.md`](../docs/development/ML_LAB_RU.md).
+
+## Версии схемы
+
+`dataset_schema_version: 1` — только текст. `2` добавляет блок `audio`
+(файл, sha256, длительность, частота, каналы, микрофон, обстановка, SNR) и
+`consent`. Обе версии читаются: замороженный baseline измерялся на схеме 1,
+и если бы она перестала загружаться, baseline перестал бы быть
+воспроизводимым. Как собрать записи — [`data/VOICE_CORPUS_RU.md`](data/VOICE_CORPUS_RU.md).
 
 ## Что это за корпус
 

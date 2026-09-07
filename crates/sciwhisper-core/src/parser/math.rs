@@ -104,13 +104,7 @@ pub fn parse_math(
             reason: "empty input".into(),
         });
     }
-    let mut p = Parser {
-        toks: &toks,
-        i: 0,
-        warnings: Vec::new(),
-        alternatives: Vec::new(),
-        stop_at_differential: false,
-    };
+    let mut p = Parser::new(&toks, RootBinding::NextAtom);
     let ast = p.parse_eq()?;
     p.skip_commas();
     if p.i < p.toks.len() {
@@ -119,11 +113,35 @@ pub fn parse_math(
             reason: format!("trailing tokens from {:?}", p.peek()),
         });
     }
+
+    let mut alternatives = p.alternatives;
+    // The second reading is produced by parsing the same tokens again with
+    // the radical binding wider — not by editing the first tree. A rewrite
+    // would have to reproduce precedence rules that the parser already
+    // knows, and would drift from them at the first change.
+    if p.saw_open_root {
+        if let Some(wide) = reparse_with(&toks, RootBinding::RestOfTerm) {
+            if wide != ast && !alternatives.contains(&wide) {
+                alternatives.push(wide);
+            }
+        }
+    }
+
     Ok(MathParse {
         ast,
-        alternatives: p.alternatives,
+        alternatives,
         warnings: p.warnings,
     })
+}
+
+/// Re-runs the parser over the same tokens under a different binding rule.
+/// A failure is not an error: it only means this reading does not exist, so
+/// there is nothing to offer.
+fn reparse_with(toks: &[Tok], binding: RootBinding) -> Option<Math> {
+    let mut p = Parser::new(toks, binding);
+    let ast = p.parse_eq().ok()?;
+    p.skip_commas();
+    (p.i >= p.toks.len()).then_some(ast)
 }
 
 pub fn parse_math_node(
@@ -141,9 +159,46 @@ struct Parser<'a> {
     warnings: Vec<String>,
     alternatives: Vec<Math>,
     stop_at_differential: bool,
+    /// How far a spoken «корень из …» reaches when the speaker never said
+    /// «конец корня». See [`RootBinding`].
+    root_binding: RootBinding,
+    /// Whether this parse ever met that ambiguity. Set on the narrow pass so
+    /// the caller knows a second pass is worth running at all.
+    saw_open_root: bool,
+}
+
+/// «корень из икс плюс один» has two readings — `√x + 1` and `√(x+1)` — and
+/// speech carries no bracket to tell them apart.
+///
+/// The narrow reading is the default and always will be: it is the one that
+/// changes the least of what the speaker said, and a wrong narrow reading is
+/// visible («почему плюс один снаружи?») where a wrong wide one silently
+/// swallows the rest of the expression.
+///
+/// The wide reading is not discarded, though. It is parsed a second time and
+/// offered as an alternative, so the user picks instead of the parser
+/// guessing.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum RootBinding {
+    /// The radical covers the next atom only.
+    NextAtom,
+    /// The radical covers the whole additive expression that follows.
+    RestOfTerm,
 }
 
 impl<'a> Parser<'a> {
+    fn new(toks: &'a [Tok], root_binding: RootBinding) -> Self {
+        Parser {
+            toks,
+            i: 0,
+            warnings: Vec::new(),
+            alternatives: Vec::new(),
+            stop_at_differential: false,
+            root_binding,
+            saw_open_root: false,
+        }
+    }
+
     fn peek(&self) -> Option<&'a Tok> {
         self.toks.get(self.i)
     }
@@ -459,14 +514,15 @@ impl<'a> Parser<'a> {
                 })
             }
             Some(Tok::Root) => {
-                let rad = self.parse_postfix()?;
+                // A spoken root with no «конец корня» is where the two
+                // readings part company, and which one this parse takes is
+                // decided by `root_binding`, not here.
+                let rad = match self.root_binding {
+                    RootBinding::NextAtom => self.parse_postfix()?,
+                    RootBinding::RestOfTerm => self.parse_add()?,
+                };
                 if matches!(self.peek(), Some(Tok::Plus | Tok::Minus)) {
-                    // Ambiguous natural-speech root: default binds only the atom.
-                    // Offer the grouping alternative for preview.
-                    let saved = self.i;
-                    // reconstruct alternative sqrt(atom ± rest) at higher grouping
-                    // We only record a note; interpret.rs may also inspect.
-                    let _ = saved;
+                    self.saw_open_root = true;
                     self.warnings.push(
                         "root without end command binds the next atom only; use «начало корня» … «конец корня» for x+1 under the radical"
                             .into(),

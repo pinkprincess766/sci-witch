@@ -694,3 +694,67 @@ fn dictated_dimensioned_exponent_is_reported() {
         ["physics.dimensioned_exponent"]
     );
 }
+
+// ------------------------------------------------------------------- routing
+
+/// The domain `Domain::Auto` settles on, for a phrase that is expected to
+/// compile.
+fn resolved(text: &str) -> Domain {
+    let result = interpret(
+        text,
+        InterpretOptions {
+            domain: Domain::Auto,
+            ..Default::default()
+        },
+    );
+    assert!(
+        result.confidence > 0.0,
+        "{text:?} did not compile, so there is no routing decision to check"
+    );
+    result.domain
+}
+
+/// The physics grammar accepts everything the mathematics grammar does, so a
+/// formula with no physics in it parses in both and scores zero evidence in
+/// both. On that tie the narrower reading has to win: labelling «икс в
+/// квадрате» as physics would put a domain on the answer that the speaker
+/// never invoked, and it is the domain that decides how the result is
+/// rendered and which warnings apply.
+#[test]
+fn a_formula_with_no_physics_in_it_is_not_called_physics() {
+    for text in [
+        "икс в квадрате",
+        "модуль икс",
+        "икс плюс игрек в квадрате",
+        "альфа плюс бета",
+        "икс меньше игрек",
+        "начало корня икс плюс один конец корня",
+        "икс индекс один",
+        "икс делённое на игрек",
+    ] {
+        assert_eq!(resolved(text), Domain::Mathematics, "{text:?}");
+    }
+}
+
+/// A dictated unit, quantity or constant is what makes it physics — evidence
+/// present in the words, not the order the domains happen to be tried in.
+#[test]
+fn a_dictated_unit_makes_the_same_shape_physics() {
+    for text in [
+        "синус трёх метров",
+        "дельта же равно минус эн эф е",
+        "сто паскалей",
+        "триста кельвинов",
+    ] {
+        assert_eq!(resolved(text), Domain::Physics, "{text:?}");
+    }
+}
+
+/// A substance name carries chemistry on its own; it needs no keyword.
+#[test]
+fn a_bare_substance_name_routes_to_chemistry() {
+    for text in ["вода", "метан", "медный купорос", "серная кислота"]
+    {
+        assert_eq!(resolved(text), Domain::Chemistry, "{text:?}");
+    }
+}

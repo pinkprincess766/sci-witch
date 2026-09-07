@@ -66,8 +66,11 @@ pub enum UtteranceMode {
 impl UtteranceMode {
     pub fn as_str(self) -> &'static str {
         match self {
-            UtteranceMode::MixedText => "mixed_text",
-            UtteranceMode::ScientificOnly => "scientific_only",
+            // Short spellings: this string ends up in the config file and in
+            // the settings window's combo box, where a value that does not
+            // match the offered options would silently reset the choice.
+            UtteranceMode::MixedText => "mixed",
+            UtteranceMode::ScientificOnly => "scientific",
         }
     }
 }

@@ -546,13 +546,13 @@ $$
 | 2. End-to-end evaluator, error decomposition, оба вида oracle | выполнено | `crates/sciwhisper-eval` |
 | 3. Recall@K curve, выбор рабочего $K$ | выполнено; кривая плоская между `@2` и `@16`, поэтому $K=4$ выбран по стоимости, а не по приросту recall | [ML_LAB_RU.md §6](ML_LAB_RU.md) |
 | 4. RAW/OOD test и severity guide | выполнено | [severity-v1.json](../../research/schema/severity-v1.json), 28 RAW-записей корпуса |
-| 5. Измерение текущих правил | выполнено | [deterministic-v1.json](../../research/results/deterministic-v1.json) |
+| 5. Измерение текущих правил | выполнено | [deterministic-v1.json](../../research/results/deterministic-v1.json) (0.2), [deterministic-v2.json](../../research/results/deterministic-v2.json) (0.3, после починки маршрутизатора: 111/113) |
 | 6. Logistic и MLP baselines | **не начато по данным**: неоднозначных примеров 0 из 113, ранжировать нечего | [решение](../../research/reranker/README_RU.md) |
 | 7–11. Transformer, autoresearch, калибровка, stress, learning curves, абляции | не начато | — |
 
 Ограничения выполненной части, которые нельзя обходить молчанием:
 
-- корпус **текстовый**: реальных голосов нет, `ASR-first` помечено как `N/A`, точность ASR не измерена;
+- корпус **текстовый**: реальных голосов нет, `ASR-first` помечено как `N/A`, точность ASR не измерена. Схема с 0.3 умеет держать записи и согласие (`dataset_schema_version: 2`), а `sciwhisper-cli ingest` заполняет измеримую часть из файлов — но сами записи нужно собрать с живыми людьми, см. [VOICE_CORPUS_RU.md](../../research/data/VOICE_CORPUS_RU.md);
 - `EndToEndExactMatch` измерен **до вставки в ОС** и назван `pre_insertion_end_to_end_exact_match`; путь Word COM не проверен;
 - `confidence` ядра остаётся уровнем детерминированного разбора, а не вероятностью; калибровка (п. 11) не выполнялась;
 - `dev_holdout` корпуса `dev-seed-v1` — не `real-frozen-test` из раздела 6: он открывался при отладке лаборатории.

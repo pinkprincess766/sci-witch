@@ -166,38 +166,36 @@ impl Severity {
     }
 }
 
-/// Field names whose change alters a quantity, a direction or an operator.
-pub const S3_FIELDS: [&str; 9] = [
-    "coefficient",
-    "charge",
-    "arrow",
-    "op",
-    "order",
-    "direction",
-    "condition",
-    "power",
-    "divide",
-];
+/// One difference between two ASTs: the field that changed, and the variant
+/// it changed inside.
+///
+/// The variant matters. `kind` is a bracket style inside `Group` and the
+/// difference between a sine and a cosine inside `Function`; a classifier
+/// that saw only the field name had to price both the same.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Difference {
+    pub variant: String,
+    pub field: String,
+}
 
-/// Field names whose change alters a symbol, an index, an exponent, a unit or
-/// the grouping of an expression.
-pub const S2_FIELDS: [&str; 15] = [
-    "symbol",
-    "count",
-    "letter",
-    "case",
-    "alphabet",
-    "kind",
-    "exp",
-    "sub",
-    "index",
-    "Number",
-    "factors",
-    "marker",
-    "variables",
-    "left",
-    "right",
-];
+impl Difference {
+    fn new(variant: &str, field: &str) -> Self {
+        Difference {
+            variant: variant.to_string(),
+            field: field.to_string(),
+        }
+    }
+}
+
+/// The variant name to use for the children of an object, so that a field is
+/// priced by where it appears. An externally tagged enum is a single-key
+/// object whose key is the variant; anything else keeps the context it had.
+fn inner_variant<'a>(object: &'a serde_json::Map<String, Value>, current: &'a str) -> &'a str {
+    match object.len() {
+        1 => object.keys().next().map(String::as_str).unwrap_or(current),
+        _ => current,
+    }
+}
 
 /// Classifies one example's outcome. `None` means there was no error at all.
 ///
@@ -225,20 +223,28 @@ pub fn classify_severity(
                 };
             }
             let mut fields = Vec::new();
-            collect_differences(&gold_value, &produced_value, &mut fields, 0);
-            if fields
+            collect_differences(&gold_value, &produced_value, "", &mut fields, 0);
+            // The class of a difference now comes from
+            // `research/schema/ast-distance-v1.json`, the same file that
+            // carries the distance weights, instead of two arrays of field
+            // names in this file. The rule itself is unchanged: the worst
+            // class among the differences wins.
+            let weights = crate::distance::Weights::builtin();
+            let worst = fields
                 .iter()
-                .any(|field| S3_FIELDS.contains(&field.as_str()))
-            {
-                Some(Severity::S3)
-            } else if fields
-                .iter()
-                .any(|field| S2_FIELDS.contains(&field.as_str()))
-            {
-                Some(Severity::S2)
-            } else {
-                Some(Severity::S1)
-            }
+                .map(|difference| weights.severity_of(&difference.variant, &difference.field))
+                .max_by_key(|class| match *class {
+                    "S4" => 4,
+                    "S3" => 3,
+                    "S2" => 2,
+                    "S0" => 0,
+                    _ => 1,
+                });
+            Some(match worst {
+                Some("S3") => Severity::S3,
+                Some("S2") => Severity::S2,
+                _ => Severity::S1,
+            })
         }
     }
 }
@@ -247,7 +253,13 @@ pub fn classify_severity(
 /// they diverge. Recursion stops as soon as the two sides stop agreeing on
 /// their shape, so the reported names are the deepest ones that still
 /// describe the same slot in both trees.
-fn collect_differences(gold: &Value, produced: &Value, fields: &mut Vec<String>, depth: usize) {
+fn collect_differences(
+    gold: &Value,
+    produced: &Value,
+    variant: &str,
+    fields: &mut Vec<Difference>,
+    depth: usize,
+) {
     if depth > crate::canonical::MAX_CANONICAL_DEPTH {
         return;
     }
@@ -263,28 +275,34 @@ fn collect_differences(gold: &Value, produced: &Value, fields: &mut Vec<String>,
                         shared = true;
                         if gold_child != produced_child {
                             if is_leaf_pair(gold_child, produced_child) {
-                                fields.push(key.clone());
+                                fields.push(Difference::new(variant, key));
                             } else {
                                 let before = fields.len();
-                                collect_differences(gold_child, produced_child, fields, depth + 1);
+                                collect_differences(
+                                    gold_child,
+                                    produced_child,
+                                    inner_variant(a, variant),
+                                    fields,
+                                    depth + 1,
+                                );
                                 if fields.len() == before {
-                                    fields.push(key.clone());
+                                    fields.push(Difference::new(variant, key));
                                 }
                             }
                         }
                     }
-                    None => fields.push(key.clone()),
+                    None => fields.push(Difference::new(variant, key)),
                 }
             }
             for key in b.keys() {
                 if !a.contains_key(key) {
-                    fields.push(key.clone());
+                    fields.push(Difference::new(variant, key));
                 }
             }
             if !shared {
                 // Different variant tags entirely: record both names.
-                fields.extend(a.keys().cloned());
-                fields.extend(b.keys().cloned());
+                fields.extend(a.keys().map(|key| Difference::new(variant, key)));
+                fields.extend(b.keys().map(|key| Difference::new(variant, key)));
             }
         }
         (Value::Array(a), Value::Array(b)) => {
@@ -292,7 +310,7 @@ fn collect_differences(gold: &Value, produced: &Value, fields: &mut Vec<String>,
                 return;
             }
             for (gold_child, produced_child) in a.iter().zip(b.iter()) {
-                collect_differences(gold_child, produced_child, fields, depth + 1);
+                collect_differences(gold_child, produced_child, variant, fields, depth + 1);
             }
         }
         _ => {}
@@ -547,33 +565,81 @@ mod tests {
         assert_eq!(empty.probability_given_error["S4"], 0.0);
     }
 
+    /// The published taxonomy, the distance weights and the classifier must
+    /// all agree about which change is which class. They used to be three
+    /// places: a document, two arrays in this file, and the classifier. Now
+    /// `ast-distance-v1.json` is the one that decides, and this checks the
+    /// document still matches it.
     #[test]
-    fn the_severity_field_lists_match_the_published_taxonomy() {
-        // The taxonomy file is the machine-readable contract; the code must
-        // not drift away from it.
+    fn the_published_taxonomy_matches_the_file_the_classifier_reads() {
         let path = concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/../../research/schema/severity-v1.json"
         );
         let text = std::fs::read_to_string(path).expect("severity-v1.json must exist");
         let published: serde_json::Value = serde_json::from_str(&text).expect("valid JSON");
-        let list = |key: &str| -> Vec<String> {
-            published["ast_field_classes"][key]
+        let weights = crate::distance::Weights::builtin();
+        for class in ["S2", "S3"] {
+            let listed = published["ast_field_classes"][class]
                 .as_array()
-                .unwrap_or_else(|| panic!("missing ast_field_classes.{key}"))
-                .iter()
-                .map(|value| value.as_str().expect("string").to_string())
-                .collect()
-        };
-        let mut published_s3 = list("S3");
-        let mut published_s2 = list("S2");
-        published_s3.sort();
-        published_s2.sort();
-        let mut code_s3: Vec<String> = S3_FIELDS.iter().map(|f| f.to_string()).collect();
-        let mut code_s2: Vec<String> = S2_FIELDS.iter().map(|f| f.to_string()).collect();
-        code_s3.sort();
-        code_s2.sort();
-        assert_eq!(published_s3, code_s3);
-        assert_eq!(published_s2, code_s2);
+                .unwrap_or_else(|| panic!("missing ast_field_classes.{class}"));
+            for field in listed {
+                let field = field.as_str().expect("string");
+                assert_eq!(
+                    weights.severity_of("", field),
+                    class,
+                    "{field} is published as {class} but the weight file disagrees"
+                );
+            }
+        }
+    }
+
+    /// The migration off the two Rust arrays must not have moved any class
+    /// by accident. Every field those arrays named keeps the class it had —
+    /// with one deliberate exception, listed here so it cannot be silent.
+    #[test]
+    fn moving_the_classes_into_data_changed_exactly_one_of_them() {
+        const PREVIOUS_S3: [&str; 9] = [
+            "coefficient",
+            "charge",
+            "arrow",
+            "op",
+            "order",
+            "direction",
+            "condition",
+            "power",
+            "divide",
+        ];
+        const PREVIOUS_S2: [&str; 15] = [
+            "symbol",
+            "count",
+            "letter",
+            "case",
+            "alphabet",
+            "kind",
+            "exp",
+            "sub",
+            "index",
+            "Number",
+            "factors",
+            "marker",
+            "variables",
+            "left",
+            "right",
+        ];
+        let weights = crate::distance::Weights::builtin();
+        for field in PREVIOUS_S3 {
+            assert_eq!(weights.severity_of("", field), "S3", "{field}");
+        }
+        for field in PREVIOUS_S2 {
+            assert_eq!(weights.severity_of("", field), "S2", "{field}");
+        }
+
+        // The exception: a round bracket becoming a square one is
+        // presentation, and used to be classed with a changed element
+        // because both were called `kind`. Naming the variant is what makes
+        // the two separable at all.
+        assert_eq!(weights.severity_of("Group", "kind"), "S1");
+        assert_eq!(weights.severity_of("Function", "kind"), "S2");
     }
 }

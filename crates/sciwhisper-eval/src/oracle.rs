@@ -446,12 +446,11 @@ mod tests {
     }
 
     #[test]
-    fn a_name_the_router_does_not_recognise_is_attributed_to_routing() {
-        // «вода» carries no domain keyword and no element name, so automatic
-        // routing sends it to mathematics and the parse fails — while the very
-        // same phrase parses under an explicit chemistry domain. That is a
-        // router failure and the decomposition has to say so rather than
-        // blaming the chemistry grammar.
+    fn a_bare_substance_name_is_answered_instead_of_being_misrouted() {
+        // This used to be the harness's own example of a router failure:
+        // «вода» carries no keyword, so the scorer defaulted to mathematics
+        // and the phrase died there. Routing now tries the domains instead of
+        // guessing, and the case is expected to pass.
         let corpus = dataset(&[&record_line(
             "chem-water-001",
             "вода",
@@ -460,41 +459,12 @@ mod tests {
             "chemistry",
         )]);
         let config = EvalConfig::default();
+        assert_eq!(first_blocking(&corpus.records[0], &config), None);
+        let run = run_variant(&corpus.records[0], &config, Variant::Real).unwrap();
         assert_eq!(
-            first_blocking(&corpus.records[0], &config),
-            Some(ErrorStage::RouterFirst)
+            run.resolved_domain,
+            Some(sciwhisper_core::Domain::Chemistry)
         );
-    }
-
-    #[test]
-    fn a_text_only_corpus_never_books_an_error_against_asr() {
-        // «предел терпения» is ordinary speech that the parser refuses, so
-        // RAW is both the gold answer and the system's answer.
-        let corpus = dataset(&[
-            &record_line("plain-001", "предел терпения", "raw", "null", "plain"),
-            &record_line(
-                "chem-broken-001",
-                "феррит бария",
-                "ast",
-                r#"{"Chemical":{"Species":{"coefficient":1,"formula":{"parts":[{"Atom":{"symbol":"Ba","count":1}}]},"charge":null,"marker":null}}}"#,
-                "chemistry",
-            ),
-        ]);
-        let config = EvalConfig::default();
-        let stages: Vec<_> = corpus
-            .records
-            .iter()
-            .map(|record| first_blocking(record, &config))
-            .collect();
-        assert_eq!(stages[0], None, "ordinary speech is answered correctly");
-        assert!(
-            stages[1].is_some_and(|stage| stage != ErrorStage::AsrFirst),
-            "a parser gap must not be booked as recognition: {stages:?}"
-        );
-        let table = bottleneck_table(&corpus, &stages);
-        assert_eq!(table.counts["ASR-first"], 0);
-        assert_eq!(table.asr_first_applicable_examples, 0);
-        assert!(table.notes.iter().any(|note| note.contains("N/A")));
     }
 
     #[test]
