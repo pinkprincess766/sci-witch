@@ -16,6 +16,8 @@ use crate::error::{Error, Result};
 use crate::vad;
 
 pub const TARGET_HZ: u32 = 16_000;
+const RECORDING_TEMP_PREFIX: &str = "sciwhisper-recording-";
+const PREPARED_AUDIO_TEMP_PREFIX: &str = "sciwhisper-audio-";
 
 /// Names of every input device the default host reports, best-effort (a
 /// device whose name briefly fails to query is skipped, not fatal).
@@ -159,7 +161,7 @@ fn finalize_samples(
         ));
     };
     let peak = trimmed.iter().fold(0.0f32, |a, s| a.max(s.abs()));
-    let wav = write_wav(&trimmed, TARGET_HZ)?;
+    let wav = write_wav_with_prefix(&trimmed, TARGET_HZ, RECORDING_TEMP_PREFIX)?;
     Ok(Recording {
         wav_path: wav.path.clone(),
         duration_secs: trimmed.len() as f32 / TARGET_HZ as f32,
@@ -290,8 +292,12 @@ pub fn write_temp_wav(samples: &[f32], hz: u32) -> Result<PreparedAudio> {
 }
 
 fn write_wav(samples: &[f32], hz: u32) -> Result<PreparedAudio> {
+    write_wav_with_prefix(samples, hz, PREPARED_AUDIO_TEMP_PREFIX)
+}
+
+fn write_wav_with_prefix(samples: &[f32], hz: u32, prefix: &str) -> Result<PreparedAudio> {
     let temp_dir = tempfile::Builder::new()
-        .prefix("sciwhisper-")
+        .prefix(prefix)
         .tempdir()
         .map_err(|e| Error::Message(e.to_string()))?;
     let path = temp_dir.path().join("audio.wav");

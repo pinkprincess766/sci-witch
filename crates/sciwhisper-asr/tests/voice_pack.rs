@@ -21,17 +21,23 @@ use sciwhisper_asr::whisper_cli::WhisperCliEngine;
 const MODE_FILE: &str = "SCIWHISPER_TEST_BACKEND_MODE";
 
 /// Installs the Cargo-built stand-in for `whisper-cli` and selects its mode
-/// through a sidecar file, so parallel tests never race through environment
-/// variables and Windows never has to execute a renamed batch script.
+/// through a sidecar beside the per-test model, so parallel cases never race
+/// through environment variables.
 fn fake_whisper(dir: &Path, mode: &str) -> PathBuf {
     let path = dir.join(backend_file_name());
     let built = Path::new(env!("CARGO_BIN_EXE_sciwhisper-test-backend"));
-    // Some Linux CI filesystems can briefly reject execution of a file that
-    // has just been copied with ETXTBSY. A hard link points at Cargo's already
-    // closed executable and is also much cheaper across the parallel cases.
-    // Windows installations that disallow links still get the ordinary copy.
-    if std::fs::hard_link(built, &path).is_err() {
-        std::fs::copy(built, &path).unwrap();
+    #[cfg(unix)]
+    {
+        std::os::unix::fs::symlink(built, &path).unwrap();
+    }
+    #[cfg(windows)]
+    {
+        // Creating symlinks normally needs an elevated Windows process. A
+        // hard link needs no such permission and keeps the built executable
+        // closed; copying is the fallback for unusual filesystems.
+        if std::fs::hard_link(built, &path).is_err() {
+            std::fs::copy(built, &path).unwrap();
+        }
     }
     std::fs::write(dir.join(MODE_FILE), mode).unwrap();
     path
@@ -208,8 +214,10 @@ fn a_hanging_backend_is_stopped_at_the_deadline() {
     let dir = tempfile::tempdir().unwrap();
     let script = fake_whisper(dir.path(), HANGS);
     let started = std::time::Instant::now();
+    let mut command = Command::new(&script);
+    command.arg("-m").arg(dir.path().join("fake-model.bin"));
     let error = process::run(
-        Command::new(&script),
+        command,
         Limits {
             timeout: Duration::from_secs(1),
             max_output_bytes: process::MAX_OUTPUT_BYTES,
@@ -281,13 +289,13 @@ fn cancelling_a_real_capture_session_writes_no_audio() {
             return;
         }
     };
-    let before = sciwhisper_temp_dirs();
+    let before = sciwhisper_recording_temp_dirs();
     std::thread::sleep(Duration::from_millis(120));
 
     // This is the Esc path: the session is abandoned, not finished.
     session.cancel();
 
-    let after = sciwhisper_temp_dirs();
+    let after = sciwhisper_recording_temp_dirs();
     let new_dirs: Vec<&PathBuf> = after.iter().filter(|path| !before.contains(path)).collect();
     assert!(
         new_dirs.is_empty(),
@@ -298,7 +306,7 @@ fn cancelling_a_real_capture_session_writes_no_audio() {
 /// Temporary directories this application creates, for the cancel test — which
 /// cannot know a path in advance, because a cancelled session must never make
 /// one.
-fn sciwhisper_temp_dirs() -> Vec<PathBuf> {
+fn sciwhisper_recording_temp_dirs() -> Vec<PathBuf> {
     let Ok(entries) = std::fs::read_dir(std::env::temp_dir()) else {
         return Vec::new();
     };
@@ -308,7 +316,7 @@ fn sciwhisper_temp_dirs() -> Vec<PathBuf> {
         .filter(|path| {
             path.file_name()
                 .and_then(|name| name.to_str())
-                .is_some_and(|name| name.starts_with("sciwhisper-"))
+                .is_some_and(|name| name.starts_with("sciwhisper-recording-"))
         })
         .collect()
 }
