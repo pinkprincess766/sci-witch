@@ -151,6 +151,7 @@ jobs:
           Copy-Item target/release/sciwhisper.exe sim/
           Push-Location sim
           $report = & ./sciwhisper.exe doctor 2>&1 | Out-String
+          $doctorExit = $LASTEXITCODE
           Pop-Location
           Write-Host $report
           if ($report -notmatch 'источник движка: bundled') {
@@ -162,6 +163,10 @@ jobs:
           if ($report -match 'python') {
             throw "a shipped bundle must never report a Python backend:`n$report"
           }
+          if ($doctorExit -eq 0 -or $report -notmatch 'модель готова: нет') {
+            throw "doctor must fail here only because CI intentionally omits the separate model pack:`n$report"
+          }
+          exit 0
 
       - uses: actions/upload-artifact@v4
         with:

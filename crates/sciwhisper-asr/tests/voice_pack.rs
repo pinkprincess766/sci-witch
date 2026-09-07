@@ -1,7 +1,7 @@
 //! End-to-end checks for the autonomous Windows voice pack.
 //!
 //! Nothing here needs a microphone, a real Whisper model or a network. The
-//! backend is a tiny script that behaves the way `whisper-cli` does, so the
+//! backend is a tiny test executable that behaves the way `whisper-cli` does, so the
 //! rules around it — discovery order, deadlines, output ceilings and the
 //! deletion of temporary audio — can be exercised on any machine.
 
@@ -18,64 +18,22 @@ use sciwhisper_asr::whisper_cli::WhisperCliEngine;
 
 // ------------------------------------------------------------ fake backend
 
-/// Writes a stand-in for `whisper-cli` that follows the same command line.
-fn fake_whisper(dir: &Path, body: &str) -> PathBuf {
-    #[cfg(windows)]
-    {
-        let path = dir.join("whisper-cli.cmd");
-        std::fs::write(&path, body).unwrap();
-        path
-    }
-    #[cfg(not(windows))]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let path = dir.join("whisper-cli");
-        std::fs::write(&path, format!("#!/bin/sh\n{body}")).unwrap();
-        let mut permissions = std::fs::metadata(&path).unwrap().permissions();
-        permissions.set_mode(0o755);
-        std::fs::set_permissions(&path, permissions).unwrap();
-        path
-    }
+const MODE_FILE: &str = "SCIWHISPER_TEST_BACKEND_MODE";
+
+/// Installs the Cargo-built stand-in for `whisper-cli` and selects its mode
+/// through a sidecar file, so parallel tests never race through environment
+/// variables and Windows never has to execute a renamed batch script.
+fn fake_whisper(dir: &Path, mode: &str) -> PathBuf {
+    let path = dir.join(backend_file_name());
+    std::fs::copy(env!("CARGO_BIN_EXE_sciwhisper-test-backend"), &path).unwrap();
+    std::fs::write(dir.join(MODE_FILE), mode).unwrap();
+    path
 }
 
-/// whisper.cpp writes `<-of>.txt`; this reproduces that contract.
-#[cfg(not(windows))]
-const WRITES_TRANSCRIPT: &str = r#"
-of=""
-while [ $# -gt 0 ]; do
-  if [ "$1" = "-of" ]; then of="$2"; fi
-  shift
-done
-printf 'гидроксид меди два' > "$of.txt"
-exit 0
-"#;
-#[cfg(windows)]
-const WRITES_TRANSCRIPT: &str = r#"@echo off
-set "of="
-:loop
-if "%~1"=="" goto done
-if "%~1"=="-of" set "of=%~2"
-shift
-goto loop
-:done
->"%of%.txt" echo|set /p=гидроксид меди два
-exit /b 0
-"#;
-
-#[cfg(not(windows))]
-const FAILS: &str = "echo 'error: failed to load model' 1>&2\nexit 4\n";
-#[cfg(windows)]
-const FAILS: &str = "@echo error: failed to load model 1>&2\r\nexit /b 4\r\n";
-
-#[cfg(not(windows))]
-const HANGS: &str = "sleep 60\n";
-#[cfg(windows)]
-const HANGS: &str = "@ping -n 60 127.0.0.1 > nul\r\n";
-
-#[cfg(not(windows))]
-const SUCCEEDS_SILENTLY: &str = "exit 0\n";
-#[cfg(windows)]
-const SUCCEEDS_SILENTLY: &str = "@exit /b 0\r\n";
+const WRITES_TRANSCRIPT: &str = "write";
+const FAILS: &str = "fail";
+const HANGS: &str = "hang";
+const SUCCEEDS_SILENTLY: &str = "silent";
 
 // ------------------------------------------------------------ bundle setup
 
@@ -91,14 +49,7 @@ impl Bundle {
         std::fs::write(dir.path().join(BUNDLE_MARKER), "sci-witch").unwrap();
         let whisper = dir.path().join("whisper");
         std::fs::create_dir_all(&whisper).unwrap();
-        let produced = fake_whisper(&whisper, body);
-        // The application looks for an exact file name; on Unix the fake is
-        // already called that, on Windows the script keeps its .cmd suffix and
-        // is copied into place.
-        let wanted = whisper.join(backend_file_name());
-        if produced != wanted {
-            std::fs::copy(&produced, &wanted).unwrap();
-        }
+        fake_whisper(&whisper, body);
         if with_model {
             let bytes = b"pretend ggml weights".to_vec();
             std::fs::write(whisper.join("ggml-small-q5_1.bin"), &bytes).unwrap();
