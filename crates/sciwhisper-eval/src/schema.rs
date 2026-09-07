@@ -451,7 +451,13 @@ fn validate_audio(record: &Record) -> Result<(), String> {
     if audio.file.trim().is_empty() {
         return Err("audio.file is empty".into());
     }
-    if path.is_absolute() || audio.file.starts_with('\\') {
+    // `Path::is_absolute` follows the host platform. A corpus is portable,
+    // though, so reject roots from both path syntaxes even when the test is
+    // running on Windows (where `/etc/passwd` is only root-relative) or Unix
+    // (where `C:\\...` is just an ordinary string).
+    let has_windows_drive = audio.file.as_bytes().get(1) == Some(&b':')
+        && audio.file.as_bytes()[0].is_ascii_alphabetic();
+    if path.is_absolute() || audio.file.starts_with(['\\', '/']) || has_windows_drive {
         return Err(format!(
             "audio.file '{}' must be relative to the corpus file",
             audio.file
@@ -667,7 +673,12 @@ mod tests {
 
     #[test]
     fn an_audio_path_may_not_leave_the_corpus_directory() {
-        for bad in ["\"/etc/passwd\"", "\"../../secrets/a.wav\""] {
+        for bad in [
+            "\"/etc/passwd\"",
+            r#""C:\\secrets\\a.wav""#,
+            r#""\\\\server\\share\\a.wav""#,
+            "\"../../secrets/a.wav\"",
+        ] {
             let error =
                 Dataset::parse_jsonl(&voice_record(&[], Some(audio_block(&[("file", bad)]))))
                     .expect_err("must be rejected");

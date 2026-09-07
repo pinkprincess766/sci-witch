@@ -6,6 +6,13 @@ license.workspace = true
 authors.workspace = true
 description = "Replaceable Whisper ASR adapter for SciWhisper"
 
+[[bin]]
+name = "sciwhisper-test-backend"
+path = "tests/support/fake_backend.rs"
+test = false
+bench = false
+doc = false
+
 [dependencies]
 sciwhisper-core = { workspace = true }
 serde = { workspace = true }
