@@ -238,6 +238,11 @@ pub struct ExampleOutcome {
     pub latency_us: u64,
     pub severity: Option<Severity>,
     pub first_blocking: Option<ErrorStage>,
+    /// How far the answer is from the one the corpus asked for, in the units
+    /// of `research/schema/ast-distance-v1.json`. `None` where a distance
+    /// has no meaning: between `RAW` and an AST there is no tree to edit,
+    /// only a different decision.
+    pub ast_distance: Option<f64>,
 }
 
 /// Evaluates one record with the real pipeline. `first_blocking` is filled in
@@ -315,6 +320,12 @@ pub fn evaluate_record(record: &Record, config: &EvalConfig) -> Result<ExampleOu
         expected_payload,
         emitted_payload: run.emitted_payload,
         routing_correct,
+        ast_distance: match (&gold_target, &run.emitted) {
+            (Target::Ast(gold), Target::Ast(produced)) => {
+                Some(crate::distance::distance_nodes(gold, produced))
+            }
+            _ => None,
+        },
         structurally_valid,
         render_match,
         latency_us: run.latency_us,

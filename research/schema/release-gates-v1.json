@@ -1,0 +1,86 @@
+{
+  "gates_schema_version": 1,
+  "profile": "release-0.5",
+  "comment": "Admission gates for a public preview. Machine-readable on purpose: a checklist a person ticks is a checklist that gets ticked. `sciwhisper-eval gate` reads this file and a report, and exits non-zero unless every required gate passes.",
+  "principles": [
+    "A gate is judged on the bound, not on the point estimate. 90% of 20 examples is not 90%; the confidence interval says what the data can support, and that is what the gate reads.",
+    "A gate whose precondition is unmet is NOT passed. It is reported as not measurable, and that blocks the release exactly like a failure — otherwise a number measured on written text would be read as a claim about speech.",
+    "A rate observed as zero is judged on its upper bound. Zero false rewrites in 28 sentences is compatible with a 10% true rate, and shipping on that would be claiming something nobody measured."
+  ],
+  "gates": [
+    {
+      "id": "end-to-end-accuracy",
+      "title": "Точность итоговой вставки не ниже 90%",
+      "metric": "metrics.pre_insertion_end_to_end_exact_match.unicode",
+      "judge": "ci95_low",
+      "comparison": "at_least",
+      "threshold": 0.90,
+      "requires": {
+        "provenance_at_least": { "real_audio": 200 },
+        "min_speakers": 10,
+        "frozen": true
+      },
+      "rationale": "The roadmap criterion for 0.5. Measured before OS insertion, which is what the harness can see; the Word path is covered by the manual protocol instead."
+    },
+    {
+      "id": "auto-insert-precision",
+      "title": "Precision автоматической вставки не ниже 97%",
+      "metric": "metrics.auto_insert_exact_match",
+      "judge": "ci95_low",
+      "comparison": "at_least",
+      "threshold": 0.97,
+      "requires": {
+        "provenance_at_least": { "real_audio": 200 },
+        "min_speakers": 10,
+        "frozen": true
+      },
+      "rationale": "Of everything the system inserted without asking, how much was right. This is the number a user experiences as trust, and it is deliberately stricter than overall accuracy: abstaining is cheap, being confidently wrong is not."
+    },
+    {
+      "id": "no-dangerous-rewrites",
+      "title": "Обычный текст не превращается в формулу",
+      "metric": "metrics.false_scientific_rewrite_rate",
+      "judge": "ci95_high",
+      "comparison": "at_most",
+      "threshold": 0.02,
+      "requires": {
+        "provenance_at_least": { "real_audio": 150 },
+        "min_speakers": 10,
+        "frozen": true
+      },
+      "rationale": "The upper bound, not the count. An observed zero is not evidence of safety until the sample is large enough for the bound to mean something: 0/28 allows a true rate of 10%, 0/150 allows 2%."
+    },
+    {
+      "id": "no-s4-errors",
+      "title": "Ни одной ошибки класса S4",
+      "metric": "severity.count_by_severity.S4",
+      "judge": "value",
+      "comparison": "at_most",
+      "threshold": 0,
+      "requires": {
+        "provenance_at_least": { "real_audio": 150 },
+        "frozen": true
+      },
+      "rationale": "S4 is ordinary speech turned into a formula nobody dictated. One is too many, and unlike a rate this is a count: it is checked exactly."
+    },
+    {
+      "id": "structural-validity",
+      "title": "Всё вставленное структурно валидно",
+      "metric": "metrics.ast_validity",
+      "judge": "ci95_low",
+      "comparison": "at_least",
+      "threshold": 0.99,
+      "requires": { "frozen": true },
+      "rationale": "An insertion that is not a well-formed AST is a defect regardless of whether it matches the corpus, and it is the one class of failure that cannot be blamed on recognition."
+    },
+    {
+      "id": "split-hygiene",
+      "title": "Ни семейство, ни диктор не пересекают split",
+      "metric": "split_audit.clean",
+      "judge": "value",
+      "comparison": "is_true",
+      "requires": {},
+      "rationale": "A family or a speaker in two splits turns the benchmark into a memory test. Checked on whatever corpus the report was produced from, frozen or not."
+    }
+  ]
+}

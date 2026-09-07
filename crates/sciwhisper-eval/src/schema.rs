@@ -1,4 +1,10 @@
-//! Versioned research corpus format (`dataset_schema_version: 1`).
+//! Versioned research corpus format.
+//!
+//! Schema 1 is text only. Schema 2 adds the block a recording needs — the
+//! file, its checksum, how it was captured, and the speaker's consent —
+//! because until 0.3 there was nowhere in the corpus to put a voice, and a
+//! corpus that cannot hold audio cannot measure recognition. Both versions
+//! load; a record declares which one it follows.
 //!
 //! The loader is deliberately strict: an unknown schema version, a repeated
 //! `id`, an unknown enum value or a record whose action and AST disagree is a
@@ -11,7 +17,12 @@ use std::fmt;
 use sciwhisper_core::{Domain, Node};
 use serde::{Deserialize, Serialize};
 
-pub const DATASET_SCHEMA_VERSION: u32 = 1;
+/// Every version this build reads. Old corpora stay readable: a frozen
+/// baseline that stops loading is a baseline nobody can reproduce.
+pub const SUPPORTED_DATASET_SCHEMA_VERSIONS: [u32; 2] = [1, 2];
+
+/// The version in which recordings became representable.
+pub const AUDIO_SCHEMA_VERSION: u32 = 2;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -90,6 +101,45 @@ pub struct AsrHypothesis {
 
 /// Renders the corpus author fixed by hand, used only for render-first error
 /// attribution. Absent for most records; never generated from the parser.
+/// A recording behind a record. Present only for provenance that has audio.
+///
+/// The checksum is not decoration: a corpus whose audio can be swapped
+/// without the manifest changing is a corpus whose numbers cannot be
+/// reproduced.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct AudioSource {
+    /// Path relative to the corpus file's own directory. Absolute paths and
+    /// `..` are refused: a corpus must stay movable and must not reach
+    /// outside itself.
+    pub file: String,
+    pub sha256: String,
+    pub duration_secs: f64,
+    pub sample_rate_hz: u32,
+    pub channels: u32,
+    /// How it was captured. Left `None` when it was not recorded at the
+    /// time — an unknown microphone is written as unknown, never guessed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub microphone: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub environment: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub snr_db: Option<f64>,
+    pub consent: Consent,
+}
+
+/// A speaker's permission to keep and use their recording. Required for
+/// every recording of a real person, and checked at load: a corpus is not
+/// the place to discover that a voice was collected without asking.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Consent {
+    pub granted: bool,
+    /// Which consent text the speaker agreed to, so it can be produced on
+    /// request.
+    pub statement_id: String,
+    /// ISO date, as recorded by the person who collected it.
+    pub date: String,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct ExpectedRender {
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -115,6 +165,9 @@ pub struct Record {
     pub human_transcript: String,
     #[serde(default)]
     pub asr_hypotheses: Vec<AsrHypothesis>,
+    /// The recording, for schema 2 records whose provenance has audio.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub audio: Option<AudioSource>,
     pub target_domain: String,
     pub target_action: TargetAction,
     pub target_ast: Option<Node>,
@@ -202,14 +255,20 @@ impl Dataset {
             let version = value
                 .get("dataset_schema_version")
                 .and_then(serde_json::Value::as_u64);
-            match version {
-                Some(version) if version == u64::from(DATASET_SCHEMA_VERSION) => {}
+            let declared = match version {
+                Some(version)
+                    if SUPPORTED_DATASET_SCHEMA_VERSIONS
+                        .iter()
+                        .any(|supported| version == u64::from(*supported)) =>
+                {
+                    version as u32
+                }
                 Some(version) => {
                     return Err(SchemaError {
                         line: line_number,
                         id,
                         message: format!(
-                            "unsupported dataset_schema_version {version}; this build reads {DATASET_SCHEMA_VERSION}"
+                            "unsupported dataset_schema_version {version}; this build reads {SUPPORTED_DATASET_SCHEMA_VERSIONS:?}"
                         ),
                     })
                 }
@@ -220,13 +279,13 @@ impl Dataset {
                         message: "missing dataset_schema_version".into(),
                     })
                 }
-            }
+            };
             let record: Record = serde_json::from_value(value).map_err(|error| SchemaError {
                 line: line_number,
                 id: id.clone(),
                 message: format!("does not match the record schema: {error}"),
             })?;
-            validate_record(&record).map_err(|message| SchemaError {
+            validate_record(&record, declared).map_err(|message| SchemaError {
                 line: line_number,
                 id: id.clone(),
                 message,
@@ -282,6 +341,16 @@ impl Dataset {
         counts
     }
 
+    /// Which schema versions the records actually declare. Two are readable,
+    /// so the report has to say what it read rather than what this build is
+    /// capable of reading.
+    pub fn schema_versions(&self) -> BTreeSet<u32> {
+        self.records
+            .iter()
+            .map(|record| record.dataset_schema_version)
+            .collect()
+    }
+
     pub fn family_count(&self) -> usize {
         self.records
             .iter()
@@ -291,7 +360,7 @@ impl Dataset {
     }
 }
 
-fn validate_record(record: &Record) -> Result<(), String> {
+fn validate_record(record: &Record, declared_version: u32) -> Result<(), String> {
     if record.id.trim().is_empty() {
         return Err("empty id".into());
     }
@@ -331,6 +400,12 @@ fn validate_record(record: &Record) -> Result<(), String> {
     if record.target_action == TargetAction::Ast && record.target_domain == "plain" {
         return Err("target_action=ast needs a scientific target_domain".into());
     }
+    if declared_version < AUDIO_SCHEMA_VERSION && record.audio.is_some() {
+        return Err(format!(
+            "an audio block needs dataset_schema_version {AUDIO_SCHEMA_VERSION}, but this record declares {declared_version}"
+        ));
+    }
+    validate_audio(record)?;
     if !record.provenance.has_audio() {
         if !record.asr_hypotheses.is_empty() {
             return Err(format!(
@@ -348,6 +423,87 @@ fn validate_record(record: &Record) -> Result<(), String> {
     for hypothesis in &record.asr_hypotheses {
         if hypothesis.text.trim().is_empty() {
             return Err("an asr hypothesis has empty text".into());
+        }
+    }
+    Ok(())
+}
+
+/// Rules a recording has to satisfy before the corpus will hold it.
+fn validate_audio(record: &Record) -> Result<(), String> {
+    let Some(audio) = &record.audio else {
+        // A record whose provenance claims audio but carries none would let
+        // a voice benchmark be assembled out of text.
+        if record.provenance.has_audio() {
+            return Err(format!(
+                "provenance '{}' means there is a recording, so an audio block is required",
+                record.provenance.as_str()
+            ));
+        }
+        return Ok(());
+    };
+    if !record.provenance.has_audio() {
+        return Err(format!(
+            "provenance '{}' has no audio, so an audio block would be a fabrication",
+            record.provenance.as_str()
+        ));
+    }
+    let path = std::path::Path::new(&audio.file);
+    if audio.file.trim().is_empty() {
+        return Err("audio.file is empty".into());
+    }
+    // `Path::is_absolute` follows the host platform. A corpus is portable,
+    // though, so reject roots from both path syntaxes even when the test is
+    // running on Windows (where `/etc/passwd` is only root-relative) or Unix
+    // (where `C:\\...` is just an ordinary string).
+    let has_windows_drive = audio.file.as_bytes().get(1) == Some(&b':')
+        && audio.file.as_bytes()[0].is_ascii_alphabetic();
+    if path.is_absolute() || audio.file.starts_with(['\\', '/']) || has_windows_drive {
+        return Err(format!(
+            "audio.file '{}' must be relative to the corpus file",
+            audio.file
+        ));
+    }
+    if path
+        .components()
+        .any(|part| matches!(part, std::path::Component::ParentDir))
+    {
+        return Err(format!(
+            "audio.file '{}' must not escape the corpus directory",
+            audio.file
+        ));
+    }
+    if audio.sha256.len() != 64 || !audio.sha256.chars().all(|c| c.is_ascii_hexdigit()) {
+        return Err(format!(
+            "audio.sha256 '{}' is not a 64-character hex digest",
+            audio.sha256
+        ));
+    }
+    if !(audio.duration_secs.is_finite() && audio.duration_secs > 0.0) {
+        return Err("audio.duration_secs must be a positive number".into());
+    }
+    if audio.sample_rate_hz == 0 || audio.channels == 0 {
+        return Err("audio.sample_rate_hz and audio.channels must be non-zero".into());
+    }
+    if let Some(snr) = audio.snr_db {
+        if !snr.is_finite() {
+            return Err("audio.snr_db must be a number".into());
+        }
+    }
+    if record.provenance == Provenance::RealAudio {
+        if !audio.consent.granted {
+            return Err(
+                "a recording of a real person may only be kept with consent granted".into(),
+            );
+        }
+        if audio.consent.statement_id.trim().is_empty() || audio.consent.date.trim().is_empty() {
+            return Err(
+                "consent must name the statement the speaker agreed to and the date".into(),
+            );
+        }
+        if record.speaker_id.as_deref().unwrap_or("").trim().is_empty() {
+            return Err(
+                "a recording of a real person needs a speaker_id, so speaker leakage between splits can be checked".into(),
+            );
         }
     }
     Ok(())
@@ -394,9 +550,171 @@ mod tests {
 
     #[test]
     fn an_unknown_schema_version_is_rejected() {
-        let error = Dataset::parse_jsonl(&record_json(&[("dataset_schema_version", "2")]))
+        let error = Dataset::parse_jsonl(&record_json(&[("dataset_schema_version", "9")]))
             .expect_err("must be rejected");
         assert!(error.message.contains("unsupported dataset_schema_version"));
+    }
+
+    /// The frozen baseline was measured on a schema 1 corpus. If schema 2
+    /// stopped reading it, that baseline would become unreproducible, which
+    /// is the one thing a baseline may not be.
+    #[test]
+    fn schema_one_still_loads_after_schema_two_exists() {
+        let dataset = Dataset::parse_jsonl(&record_json(&[])).expect("must load");
+        assert_eq!(dataset.records[0].dataset_schema_version, 1);
+        assert!(dataset.records[0].audio.is_none());
+    }
+
+    // ------------------------------------------------------------- audio
+
+    const CONSENT: &str = r#"{"granted":true,"statement_id":"consent-ru-v1","date":"2026-09-05"}"#;
+
+    fn audio_block(overrides: &[(&str, &str)]) -> String {
+        let mut fields: BTreeMap<&str, String> = BTreeMap::new();
+        fields.insert("file", "\"audio/spk01-0001.wav\"".into());
+        fields.insert(
+            "sha256",
+            "\"0000000000000000000000000000000000000000000000000000000000000000\"".into(),
+        );
+        fields.insert("duration_secs", "1.5".into());
+        fields.insert("sample_rate_hz", "16000".into());
+        fields.insert("channels", "1".into());
+        fields.insert("consent", CONSENT.into());
+        for (key, value) in overrides {
+            fields.insert(key, (*value).into());
+        }
+        let body: Vec<String> = fields
+            .iter()
+            .map(|(key, value)| format!("\"{key}\":{value}"))
+            .collect();
+        format!("{{{}}}", body.join(","))
+    }
+
+    fn voice_record(overrides: &[(&str, &str)], audio: Option<String>) -> String {
+        let mut fields: BTreeMap<&str, String> = BTreeMap::new();
+        fields.insert("dataset_schema_version", "2".into());
+        fields.insert("id", "\"fam-001-a\"".into());
+        fields.insert("family_id", "\"fam-001\"".into());
+        fields.insert("provenance", "\"real_audio\"".into());
+        fields.insert("human_transcript", "\"вода\"".into());
+        fields.insert("asr_hypotheses", "[{\"text\":\"вода\"}]".into());
+        fields.insert("target_domain", "\"plain\"".into());
+        fields.insert("target_action", "\"raw\"".into());
+        fields.insert("target_ast", "null".into());
+        fields.insert("split", "\"train\"".into());
+        fields.insert("tags", "[]".into());
+        fields.insert("speaker_id", "\"spk01\"".into());
+        if let Some(audio) = audio {
+            fields.insert("audio", audio);
+        }
+        for (key, value) in overrides {
+            fields.insert(key, (*value).into());
+        }
+        let body: Vec<String> = fields
+            .iter()
+            .map(|(key, value)| format!("\"{key}\":{value}"))
+            .collect();
+        format!("{{{}}}", body.join(","))
+    }
+
+    #[test]
+    fn a_recording_with_consent_loads() {
+        let dataset =
+            Dataset::parse_jsonl(&voice_record(&[], Some(audio_block(&[])))).expect("must load");
+        let audio = dataset.records[0].audio.as_ref().expect("audio block");
+        assert_eq!(audio.sample_rate_hz, 16_000);
+        assert!(audio.consent.granted);
+    }
+
+    #[test]
+    fn a_recording_of_a_person_without_consent_is_refused() {
+        let without = audio_block(&[(
+            "consent",
+            r#"{"granted":false,"statement_id":"consent-ru-v1","date":"2026-09-05"}"#,
+        )]);
+        let error =
+            Dataset::parse_jsonl(&voice_record(&[], Some(without))).expect_err("must be rejected");
+        assert!(error.message.contains("consent"), "{}", error.message);
+    }
+
+    #[test]
+    fn a_recording_without_a_speaker_cannot_be_checked_for_leakage() {
+        let error = Dataset::parse_jsonl(&voice_record(
+            &[("speaker_id", "null")],
+            Some(audio_block(&[])),
+        ))
+        .expect_err("must be rejected");
+        assert!(error.message.contains("speaker_id"), "{}", error.message);
+    }
+
+    #[test]
+    fn provenance_with_audio_must_actually_carry_the_recording() {
+        let error = Dataset::parse_jsonl(&voice_record(&[], None)).expect_err("must be rejected");
+        assert!(
+            error.message.contains("audio block is required"),
+            "{}",
+            error.message
+        );
+    }
+
+    #[test]
+    fn text_provenance_may_not_carry_an_audio_block() {
+        let error = Dataset::parse_jsonl(&voice_record(
+            &[
+                ("provenance", "\"handcrafted_text\""),
+                ("asr_hypotheses", "[]"),
+                ("speaker_id", "null"),
+            ],
+            Some(audio_block(&[])),
+        ))
+        .expect_err("must be rejected");
+        assert!(error.message.contains("fabrication"), "{}", error.message);
+    }
+
+    #[test]
+    fn an_audio_path_may_not_leave_the_corpus_directory() {
+        for bad in [
+            "\"/etc/passwd\"",
+            r#""C:\\secrets\\a.wav""#,
+            r#""\\\\server\\share\\a.wav""#,
+            "\"../../secrets/a.wav\"",
+        ] {
+            let error =
+                Dataset::parse_jsonl(&voice_record(&[], Some(audio_block(&[("file", bad)]))))
+                    .expect_err("must be rejected");
+            assert!(
+                error.message.contains("relative") || error.message.contains("escape"),
+                "{}: {}",
+                bad,
+                error.message
+            );
+        }
+    }
+
+    #[test]
+    fn an_audio_checksum_must_be_a_real_digest() {
+        let error = Dataset::parse_jsonl(&voice_record(
+            &[],
+            Some(audio_block(&[("sha256", "\"deadbeef\"")])),
+        ))
+        .expect_err("must be rejected");
+        assert!(error.message.contains("hex digest"), "{}", error.message);
+    }
+
+    /// A schema 1 record with an audio block is a corpus that changed shape
+    /// without changing its version.
+    #[test]
+    fn an_audio_block_needs_the_version_that_defines_it() {
+        let error = Dataset::parse_jsonl(&voice_record(
+            &[("dataset_schema_version", "1")],
+            Some(audio_block(&[])),
+        ))
+        .expect_err("must be rejected");
+        assert!(
+            error.message.contains("dataset_schema_version 2"),
+            "{}",
+            error.message
+        );
     }
 
     #[test]

@@ -21,10 +21,10 @@ use crate::oracle::{
     bottleneck_table, component_isolation, first_blocking, oracle_replacement, BottleneckTable,
     ComponentIsolation, OracleReplacement,
 };
-use crate::schema::{Dataset, Record, TargetAction, DATASET_SCHEMA_VERSION};
+use crate::schema::{Dataset, Record, TargetAction};
 use crate::split::{audit_splits, SplitAudit};
 
-pub const REPORT_SCHEMA_VERSION: u32 = 1;
+pub const REPORT_SCHEMA_VERSION: u32 = 2;
 pub const SEVERITY_SCHEMA_VERSION: u32 = 1;
 pub const BASELINE_ID: &str = "deterministic-v1";
 
@@ -41,7 +41,10 @@ pub struct DatasetInfo {
     /// Bare file name only; an absolute path would not reproduce elsewhere.
     pub file: String,
     pub sha256: String,
-    pub dataset_schema_version: u32,
+    /// Every schema version present in the corpus. A list, because two
+    /// versions load and a report that printed the build's constant would
+    /// claim a text corpus carried audio.
+    pub dataset_schema_versions: Vec<u32>,
     pub records: usize,
     pub families: usize,
     pub counts_by_split: BTreeMap<String, usize>,
@@ -125,6 +128,55 @@ pub struct Breakdown {
     pub by_family: BTreeMap<String, [usize; 2]>,
 }
 
+/// How far the wrong answers were, aggregated.
+///
+/// Reported next to the severity histogram, not instead of it: a class says
+/// what kind of thing changed, a distance says how far the answer moved, and
+/// neither answers the other's question.
+#[derive(Clone, Debug, Serialize)]
+pub struct DistanceSummary {
+    pub distance_schema_version: u32,
+    /// Errors where both the expected and the produced answer are ASTs.
+    /// An abstention has no distance: there is no tree to edit, only a
+    /// different decision, which is what severity records.
+    pub comparable_errors: usize,
+    /// Errors with no comparable distance, and why there is none.
+    pub incomparable_errors: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mean: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub median: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max: Option<f64>,
+}
+
+fn distance_summary(outcomes: &[crate::evaluate::ExampleOutcome]) -> DistanceSummary {
+    let mut distances: Vec<f64> = outcomes
+        .iter()
+        .filter(|outcome| outcome.severity.is_some())
+        .filter_map(|outcome| outcome.ast_distance)
+        .filter(|value| value.is_finite())
+        .collect();
+    let incomparable = outcomes
+        .iter()
+        .filter(|outcome| outcome.severity.is_some())
+        .filter(|outcome| outcome.ast_distance.is_none_or(|value| !value.is_finite()))
+        .count();
+    distances.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    let round = |value: f64| (value * 1000.0).round() / 1000.0;
+    DistanceSummary {
+        distance_schema_version: crate::distance::DISTANCE_SCHEMA_VERSION,
+        comparable_errors: distances.len(),
+        incomparable_errors: incomparable,
+        mean: (!distances.is_empty())
+            .then(|| round(distances.iter().sum::<f64>() / distances.len() as f64)),
+        median: distances
+            .get(distances.len() / 2)
+            .map(|value| round(*value)),
+        max: distances.last().map(|value| round(*value)),
+    }
+}
+
 #[derive(Clone, Debug, Serialize)]
 pub struct ErrorEntry {
     pub id: String,
@@ -135,6 +187,12 @@ pub struct ErrorEntry {
     pub transcript: String,
     pub expected: String,
     pub produced: String,
+    /// Distance from the expected AST, where both sides are ASTs. A
+    /// severity class says what kind of thing went wrong; this says how far
+    /// the answer moved, which the class cannot: one differing field and
+    /// twelve land in the same class.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ast_distance: Option<f64>,
     pub candidates: usize,
     pub gold_rank: Option<usize>,
     pub selected_key: Option<String>,
@@ -167,6 +225,7 @@ pub struct Report {
     pub oracle_replacement: Vec<OracleReplacement>,
     pub component_isolation: ComponentIsolation,
     pub severity: SeverityReport,
+    pub ast_distance: DistanceSummary,
     pub errors: Vec<ErrorEntry>,
     pub notes: Vec<String>,
     /// Everything that legitimately differs between two runs of the same
@@ -218,6 +277,9 @@ pub fn build_report(inputs: &Inputs<'_>) -> Result<Report, String> {
             transcript: outcome.transcript.clone(),
             expected: outcome.expected_payload.clone(),
             produced: outcome.emitted_payload.clone(),
+            ast_distance: outcome
+                .ast_distance
+                .map(|value| (value * 1000.0).round() / 1000.0),
             candidates: outcome.candidate_count,
             gold_rank: outcome.gold_rank,
             selected_key: outcome.selected_key.clone(),
@@ -243,7 +305,7 @@ pub fn build_report(inputs: &Inputs<'_>) -> Result<Report, String> {
                 .map(|name| name.to_string_lossy().to_string())
                 .unwrap_or_else(|| "unknown".into()),
             sha256: sha256_hex(inputs.dataset_bytes),
-            dataset_schema_version: DATASET_SCHEMA_VERSION,
+            dataset_schema_versions: inputs.dataset.schema_versions().into_iter().collect(),
             records: inputs.dataset.records.len(),
             families: inputs.dataset.family_count(),
             counts_by_split: to_string_map(inputs.dataset.split_counts()),
@@ -269,6 +331,7 @@ pub fn build_report(inputs: &Inputs<'_>) -> Result<Report, String> {
         oracle_replacement: oracle_replacement(&inputs.selected, config),
         component_isolation: component_isolation(&inputs.selected, config),
         severity: severity_report(&severities),
+        ast_distance: distance_summary(&outcomes),
         errors,
         notes: notes(),
         timing: Timing {
@@ -783,21 +846,23 @@ mod tests {
     use super::*;
     use std::path::PathBuf;
 
-    /// A four-record corpus whose every metric was worked out by hand before
+    /// A five-record corpus whose every metric was worked out by hand before
     /// the harness was pointed at it.
     ///
     /// | record | gold | what the system does | correct? |
     /// |---|---|---|---|
-    /// | sulfuric | AST H₂SO₄ | routes to chemistry, parses, inserts | yes |
-    /// | water | AST H₂O | «вода» carries no routing cue, so auto sends it to mathematics, the parse fails and the words are kept | no |
+    /// | sulfuric | AST H₂SO₄ | parses, inserts | yes |
+    /// | water | AST H₂O | «вода» carries no routing keyword, but routing now tries the domains instead of guessing, so chemistry reads it | yes |
     /// | patience | RAW | no parse, words kept | yes |
     /// | boiled | RAW | no parse, words kept | yes |
+    /// | ferrite | AST BaFe₁₂O₁₉ | no grammar can build it, so the words are kept | no |
     fn hand_table_corpus() -> String {
         [
             r#"{"dataset_schema_version":1,"id":"chem-sulfuric-001-a","family_id":"chem-sulfuric-001","provenance":"handcrafted_text","human_transcript":"серная кислота","asr_hypotheses":[],"target_domain":"chemistry","target_action":"ast","target_ast":{"Chemical":{"Species":{"coefficient":1,"formula":{"parts":[{"Atom":{"symbol":"H","count":2}},{"Atom":{"symbol":"S","count":1}},{"Atom":{"symbol":"O","count":4}}]},"charge":null,"marker":null}}},"split":"train","tags":["formula"],"speaker_id":null}"#,
             r#"{"dataset_schema_version":1,"id":"chem-water-001-a","family_id":"chem-water-001","provenance":"handcrafted_text","human_transcript":"вода","asr_hypotheses":[],"target_domain":"chemistry","target_action":"ast","target_ast":{"Chemical":{"Species":{"coefficient":1,"formula":{"parts":[{"Atom":{"symbol":"H","count":2}},{"Atom":{"symbol":"O","count":1}}]},"charge":null,"marker":null}}},"split":"train","tags":["formula"],"speaker_id":null}"#,
             r#"{"dataset_schema_version":1,"id":"raw-patience-001-a","family_id":"raw-patience-001","provenance":"handcrafted_text","human_transcript":"предел терпения","asr_hypotheses":[],"target_domain":"plain","target_action":"raw","target_ast":null,"split":"train","tags":["raw"],"speaker_id":null}"#,
             r#"{"dataset_schema_version":1,"id":"raw-boiled-001-a","family_id":"raw-boiled-001","provenance":"handcrafted_text","human_transcript":"вода закипела в чайнике","asr_hypotheses":[],"target_domain":"plain","target_action":"raw","target_ast":null,"split":"train","tags":["raw"],"speaker_id":null}"#,
+            r#"{"dataset_schema_version":1,"id":"chem-ferrite-001-a","family_id":"chem-ferrite-001","provenance":"handcrafted_text","human_transcript":"феррит бария","asr_hypotheses":[],"target_domain":"chemistry","target_action":"ast","target_ast":{"Chemical":{"Species":{"coefficient":1,"formula":{"parts":[{"Atom":{"symbol":"Ba","count":1}},{"Atom":{"symbol":"Fe","count":12}},{"Atom":{"symbol":"O","count":19}}]},"charge":null,"marker":null}}},"split":"train","tags":["known-gap"],"speaker_id":null}"#,
         ]
         .join("\n")
     }
@@ -826,15 +891,17 @@ mod tests {
     fn every_headline_metric_matches_the_hand_table() {
         let report = hand_table_report();
         let m = &report.metrics;
-        assert_eq!(m.examples, 4);
-        // Three of four answers match what the corpus asked for.
-        assert_eq!(ratio(&m.overall_exact_match), (3, 4));
-        assert_eq!(ratio(&m.ast_exact_match), (3, 4));
-        // Only the sulfuric acid record is confident enough to be inserted.
-        assert_eq!(ratio(&m.coverage), (1, 4));
-        assert_eq!(ratio(&m.auto_insert_exact_match), (1, 1));
-        // Routing is scored only where a scientific domain was intended.
-        assert_eq!(ratio(&m.routing_accuracy), (1, 2));
+        assert_eq!(m.examples, 5);
+        // Four of five answers match what the corpus asked for.
+        assert_eq!(ratio(&m.overall_exact_match), (4, 5));
+        assert_eq!(ratio(&m.ast_exact_match), (4, 5));
+        // Only the two readable formulas are confident enough to be inserted.
+        assert_eq!(ratio(&m.coverage), (2, 5));
+        assert_eq!(ratio(&m.auto_insert_exact_match), (2, 2));
+        // Routing is scored only where a scientific domain was intended, and
+        // the record that ends in an abstention has no resolved domain to
+        // compare — the metric counts that as a miss.
+        assert_eq!(ratio(&m.routing_accuracy), (2, 3));
         // Both ordinary sentences keep their words, and neither becomes a formula.
         assert_eq!(ratio(&m.raw_accuracy), (2, 2));
         assert_eq!(ratio(&m.false_scientific_rewrite_rate), (0, 2));
@@ -844,13 +911,13 @@ mod tests {
                 .is_some_and(|bound| bound > 0.0),
             "an observed zero must still carry an upper bound"
         );
-        // One of the two scientific records is answered with an abstention.
-        assert_eq!(ratio(&m.false_abstention_rate), (1, 2));
-        assert_eq!(ratio(&m.ast_validity), (1, 1));
+        // One of the three scientific records is answered with an abstention.
+        assert_eq!(ratio(&m.false_abstention_rate), (1, 3));
+        assert_eq!(ratio(&m.ast_validity), (2, 2));
         for k in RECALL_K_GRID {
             assert_eq!(
                 ratio(&m.candidate_recall_at_k[&format!("{k}")]),
-                (3, 4),
+                (4, 5),
                 "recall@{k}"
             );
         }
@@ -858,7 +925,7 @@ mod tests {
         for renderer in ["unicode", "latex", "omml"] {
             assert_eq!(
                 ratio(&m.pre_insertion_end_to_end_exact_match[renderer]),
-                (3, 4),
+                (4, 5),
                 "{renderer}"
             );
         }
@@ -868,16 +935,20 @@ mod tests {
     fn the_hand_table_decomposition_and_severity_agree_with_the_walkthrough() {
         let report = hand_table_report();
         assert_eq!(report.error_decomposition.errors, 1);
-        assert_eq!(report.error_decomposition.counts["router-first"], 1);
+        // The one failure is a grammar gap, not a routing mistake: with a
+        // perfect transcript and a perfect domain the answer still cannot be
+        // built.
+        assert_eq!(report.error_decomposition.counts["candidate-first"], 1);
+        assert_eq!(report.error_decomposition.counts["router-first"], 0);
         assert_eq!(report.error_decomposition.counts["ASR-first"], 0);
-        assert_eq!(report.error_decomposition.counts["candidate-first"], 0);
         assert_eq!(report.error_decomposition.asr_first_applicable_examples, 0);
-        // The single failure is an abstention: safe, and nothing was invented.
+        // The failure is an abstention: safe, and nothing was invented.
         assert_eq!(report.severity.errors, 1);
         assert_eq!(report.severity.count_by_severity["S1"], 1);
         assert_eq!(report.severity.count_by_severity["S4"], 0);
         assert_eq!(report.severity.max_severity.as_deref(), Some("S1"));
-        // Perfect routing is the only replacement that recovers the failure.
+        // A perfect domain cannot recover a word the grammar does not know, so
+        // no oracle replacement moves the number on its own.
         let by_variant = |name: &str| {
             report
                 .oracle_replacement
@@ -887,16 +958,16 @@ mod tests {
                 .overall_exact_match
                 .numerator
         };
-        assert_eq!(by_variant("real"), 3);
+        assert_eq!(by_variant("real"), 4);
         assert_eq!(by_variant("oracle_domain"), 4);
-        assert_eq!(by_variant("oracle_transcript"), 3);
+        assert_eq!(by_variant("oracle_transcript"), 4);
     }
 
     #[test]
     fn the_reranker_verdict_is_computed_not_asserted() {
         let report = hand_table_report();
         let readiness = &report.metrics.reranker_readiness;
-        assert_eq!(readiness.scientific_examples, 2);
+        assert_eq!(readiness.scientific_examples, 3);
         // Neither record offers a second distinct scientific answer, so there
         // is nothing for a ranking model to learn.
         assert_eq!(

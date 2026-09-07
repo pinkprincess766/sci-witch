@@ -6,12 +6,15 @@
 
 mod candidates;
 mod canonical;
+mod distance;
 mod evaluate;
+mod gate;
 mod metrics;
 mod oracle;
 mod report;
 mod schema;
 mod split;
+mod stability;
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -138,6 +141,36 @@ enum Command {
         #[arg(long, default_value_t = 40)]
         limit: usize,
     },
+    /// Seal a corpus as the frozen test for a release. Writes once and
+    /// refuses to overwrite.
+    Seal {
+        #[arg(long)]
+        dataset: PathBuf,
+        #[arg(long)]
+        out: PathBuf,
+        /// Which release this corpus is frozen for, e.g. `0.5`.
+        #[arg(long)]
+        release: String,
+        /// ISO date of the sealing, supplied rather than read from the
+        /// clock so that the same inputs produce the same file.
+        #[arg(long)]
+        date: String,
+    },
+    /// Check a report against the admission gates and refuse a release that
+    /// the measurements do not support.
+    Gate {
+        #[arg(long)]
+        report: PathBuf,
+        #[arg(long, default_value = "research/schema/release-gates-v1.json")]
+        gates: PathBuf,
+        /// The sealed frozen test. Without it, every gate that requires one
+        /// is reported as not measurable — which blocks, rather than passes.
+        #[arg(long)]
+        seal: Option<PathBuf>,
+        /// Print the machine-readable result instead of the table.
+        #[arg(long)]
+        json: bool,
+    },
     /// Diff two reports, ignoring timing.
     Compare {
         #[arg(long)]
@@ -163,11 +196,17 @@ fn run() -> Result<ExitCode, String> {
         Command::ValidateDataset { dataset } => {
             let (corpus, _) = load(&dataset)?;
             let audit = audit_splits(&corpus);
+            let versions: Vec<String> = corpus
+                .schema_versions()
+                .into_iter()
+                .map(|version| version.to_string())
+                .collect();
             println!(
-                "{} records, {} families, schema version {}",
+                "{} records, {} families, schema version {} (this build reads {:?})",
                 corpus.records.len(),
                 corpus.family_count(),
-                schema::DATASET_SCHEMA_VERSION
+                versions.join(", "),
+                schema::SUPPORTED_DATASET_SCHEMA_VERSIONS
             );
             for (split, count) in &audit.counts_by_split {
                 println!("  split {split:<12} {count} records");
@@ -181,8 +220,14 @@ fn run() -> Result<ExitCode, String> {
             for (provenance, count) in corpus.provenance_counts() {
                 println!("  provenance {provenance:<7} {count} records");
             }
+            // Zero speakers is the normal state of a text corpus, and it is
+            // the reason ASR-first reads N/A — worth printing, not hiding.
+            println!("  speakers {:<9} {}", "", audit.speakers);
+            for (split, count) in &audit.speakers_by_split {
+                println!("    {split:<12} {count} speakers");
+            }
             if audit.clean {
-                println!("family/split leakage: none");
+                println!("family/split and speaker/split leakage: none");
                 Ok(ExitCode::SUCCESS)
             } else {
                 for family in &audit.leaking_families {
@@ -191,7 +236,22 @@ fn run() -> Result<ExitCode, String> {
                         family.family_id, family.splits, family.ids
                     );
                 }
-                Err("family leakage between splits".into())
+                for speaker in &audit.leaking_speakers {
+                    eprintln!(
+                        "speaker '{}' appears in splits {:?} ({:?}), so a holdout would measure how well the system knows that voice",
+                        speaker.speaker_id, speaker.splits, speaker.ids
+                    );
+                }
+                Err(
+                    match (
+                        audit.leaking_families.is_empty(),
+                        audit.leaking_speakers.is_empty(),
+                    ) {
+                        (false, true) => "family leakage between splits".into(),
+                        (true, false) => "speaker leakage between splits".into(),
+                        _ => "family and speaker leakage between splits".to_string(),
+                    },
+                )
             }
         }
         Command::Evaluate {
@@ -279,6 +339,82 @@ fn run() -> Result<ExitCode, String> {
                 }
             }
             Ok(ExitCode::SUCCESS)
+        }
+        Command::Seal {
+            dataset,
+            out,
+            release,
+            date,
+        } => {
+            let sealed = gate::seal(&dataset, &out, &release, &date)?;
+            println!(
+                "запечатано: {} sha256 {} для {} ({})",
+                sealed.file, sealed.sha256, sealed.sealed_for, sealed.sealed_at
+            );
+            println!("отчёты, полученные на другом файле, ворота больше не пройдут");
+            Ok(ExitCode::SUCCESS)
+        }
+        Command::Gate {
+            report,
+            gates,
+            seal,
+            json,
+        } => {
+            let read = |path: &Path| -> Result<serde_json::Value, String> {
+                let text = std::fs::read_to_string(path)
+                    .map_err(|error| format!("{}: {error}", path.display()))?;
+                serde_json::from_str(&text).map_err(|error| format!("{}: {error}", path.display()))
+            };
+            let gate_file: gate::GateFile = serde_json::from_value(read(&gates)?)
+                .map_err(|error| format!("{}: {error}", gates.display()))?;
+            let report_json = read(&report)?;
+            let seal = match &seal {
+                Some(path) => Some(
+                    serde_json::from_value::<gate::FrozenSeal>(read(path)?)
+                        .map_err(|error| format!("{}: {error}", path.display()))?,
+                ),
+                None => None,
+            };
+            let outcome = gate::evaluate(&gate_file, &report_json, seal.as_ref())?;
+            if json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&outcome).map_err(|e| e.to_string())?
+                );
+            } else {
+                match &seal {
+                    Some(seal) => println!(
+                        "frozen test: {} (запечатан {} для {})",
+                        seal.file, seal.sealed_at, seal.sealed_for
+                    ),
+                    None => println!("frozen test: не запечатан"),
+                }
+                print!("{outcome}");
+                // A blocked gate prints why it exists. Somebody reading a
+                // failing release run should not have to open a JSON file to
+                // find out what the number is for.
+                for result in outcome.blocking() {
+                    println!();
+                    println!("  {} — {}", result.id, result.title);
+                    if let Some(gate) = gate_file.gates.iter().find(|gate| gate.id == result.id) {
+                        if !gate.rationale.is_empty() {
+                            println!("    {}", gate.rationale);
+                        }
+                    }
+                }
+            }
+            if outcome.admits_release() {
+                Ok(ExitCode::SUCCESS)
+            } else {
+                // Non-zero on purpose: this is meant to sit in a release
+                // workflow, where a printed complaint nobody reads is the
+                // same as no check at all.
+                Err(format!(
+                    "{} из {} ворот не пройдено",
+                    outcome.blocking().len(),
+                    outcome.results.len()
+                ))
+            }
         }
         Command::InspectErrors {
             report,
