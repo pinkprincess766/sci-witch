@@ -14,3 +14,25 @@ thiserror = { workspace = true }
 tempfile = { workspace = true }
 cpal = { workspace = true }
 hound = { workspace = true }
+sha2 = { workspace = true }
+
+# Killing a stuck recogniser means killing its children too, which needs the
+# platform's own process-group facilities.
+[target.'cfg(unix)'.dependencies]
+libc = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.58", features = [
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_System_JobObjects",
+    "Win32_System_Threading",
+] }
+
+[dev-dependencies]
+# Integration tests are separate crates, so the fake-backend harness needs its
+# own copies of what it uses. These are already workspace dependencies.
+serde = { workspace = true }
+serde_json = { workspace = true }
+hound = { workspace = true }
+tempfile = { workspace = true }

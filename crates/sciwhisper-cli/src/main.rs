@@ -1,8 +1,10 @@
+mod ingest;
+
 use std::io::{self, IsTerminal, Read, Write};
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
-use sciwhisper_asr::{doctor, from_audio, from_microphone, PipelineOptions, PipelineResult};
+use sciwhisper_asr::{from_audio, from_microphone, PipelineOptions, PipelineResult};
 use sciwhisper_core::{
     interpret, interpret_utterance, render, render_result, Domain, InterpretOptions, Renderer,
     UtteranceMode, UtteranceOptions,
@@ -76,7 +78,12 @@ enum Command {
         whisper: Option<PathBuf>,
     },
     /// Show Whisper binary, backend and cached models.
-    Doctor,
+    Doctor {
+        /// Also hash the model file in full. Slower, and the only way to catch
+        /// a file that is the right size but corrupted.
+        #[arg(long)]
+        verify_model: bool,
+    },
     /// Run a local smoke test without microphone or network.
     SelfTest,
     /// Show representative chemistry, mathematics and physics conversions.
@@ -97,6 +104,23 @@ enum Command {
         model: Option<String>,
         #[arg(long, default_value = "ru")]
         language: String,
+    },
+    /// Fill a research corpus manifest from its recordings: measure each
+    /// WAV and transcribe it. Consent, transcript and targets must already
+    /// be in the manifest; this command never invents them.
+    Ingest {
+        /// JSONL manifest. Audio paths are relative to its directory.
+        #[arg(long)]
+        manifest: PathBuf,
+        #[arg(long)]
+        output: PathBuf,
+        #[arg(long)]
+        model: Option<String>,
+        #[arg(long, default_value = "ru")]
+        language: String,
+        /// Measure the audio, skip the recogniser.
+        #[arg(long)]
+        describe_only: bool,
     },
 }
 
@@ -189,9 +213,18 @@ fn run(cli: Cli) -> Result<(), String> {
             .map_err(|e| e.to_string())?;
             print_pipeline(&result, &renderer, json)
         }
-        Some(Command::Doctor) => {
-            println!("{}", doctor());
-            Ok(())
+        Some(Command::Doctor { verify_model }) => {
+            let report = sciwhisper_asr::whisper_cli::DoctorReport::collect(verify_model);
+            println!("{}", report.render());
+            // The exit code is what SciWhisper-Test.cmd checks, so an
+            // incomplete pack has to fail rather than merely print badly.
+            match (&report.backend, report.model_ready) {
+                (Err(reason), _) => Err(format!("движок распознавания не готов: {reason}")),
+                // The reason is already worked out and printed above; repeating
+                // a generic sentence here would contradict it.
+                (Ok(_), false) => Err(format!("модель не готова: {}", report.model)),
+                (Ok(_), true) => Ok(()),
+            }
         }
         Some(Command::SelfTest) => run_self_test(),
         Some(Command::Demo) => run_demo(),
@@ -203,6 +236,13 @@ fn run(cli: Cli) -> Result<(), String> {
             model,
             language,
         }) => run_corpus(dir, &domain, model, language),
+        Some(Command::Ingest {
+            manifest,
+            output,
+            model,
+            language,
+            describe_only,
+        }) => run_ingest(manifest, output, model, language, describe_only),
     }
 }
 
@@ -240,6 +280,7 @@ fn show_settings(config: &Config) -> Result<(), String> {
     println!("  config:          {}", Config::path().display());
     println!("  domain:          {}", config.domain);
     println!("  output:          {}", config.output);
+    println!("  dictation:       {}", config.dictation);
     println!("  language:        {}", config.language);
     println!(
         "  model:           {}",
@@ -279,6 +320,13 @@ fn configure_settings() -> Result<(), String> {
         &mut config,
         "output",
         "Формат [auto/unicode/latex/word]",
+        &current,
+    )?;
+    let current = config.dictation.clone();
+    update_from_prompt(
+        &mut config,
+        "dictation",
+        "Диктовка [mixed = сохранять речь / scientific = только формула]",
         &current,
     )?;
     let current = config.language.clone();
@@ -420,6 +468,35 @@ fn run_corpus(
     }
     println!("done: {ok}/{} transcribed", files.len());
     Ok(())
+}
+
+fn run_ingest(
+    manifest: PathBuf,
+    output: PathBuf,
+    model: Option<String>,
+    language: String,
+    describe_only: bool,
+) -> Result<(), String> {
+    let options = ingest::IngestOptions {
+        manifest,
+        output,
+        describe_only,
+    };
+    ingest::run(options, &mut |path| {
+        from_audio(
+            path,
+            PipelineOptions {
+                domain: Domain::Auto,
+                mode: UtteranceMode::MixedText,
+                language: language.clone(),
+                model: model.clone(),
+                whisper_bin: None,
+                mic: None,
+            },
+        )
+        .map(|result| result.transcript.text)
+        .map_err(|e| e.to_string())
+    })
 }
 
 fn preview_cases() -> [(Domain, &'static str, &'static str); 8] {

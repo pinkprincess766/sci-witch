@@ -40,6 +40,12 @@ pub struct Config {
     /// `None` uses the system default microphone.
     #[serde(default)]
     pub mic: Option<String>,
+    /// Which format each target application gets, in the user's own order.
+    /// Consulted only when `output` is `auto`; an explicit choice in the
+    /// tray always wins, because a user who just picked LaTeX by hand did
+    /// not mean "unless a profile disagrees".
+    #[serde(default = "crate::profile::defaults")]
+    pub profiles: Vec<crate::profile::Profile>,
 }
 
 fn default_ptt() -> String {
@@ -82,6 +88,7 @@ impl Default for Config {
             language: default_lang(),
             persist_history: false,
             mic: None,
+            profiles: crate::profile::defaults(),
         }
     }
 }
@@ -169,6 +176,12 @@ impl Config {
             }
             "output" | "format" => {
                 self.output = OutputMode::try_parse(value)?.as_str().into();
+            }
+            "dictation" | "mode" => {
+                let mode = value
+                    .parse::<sciwhisper_core::UtteranceMode>()
+                    .map_err(Error::Message)?;
+                self.dictation = mode.as_str().into();
             }
             "model" => {
                 self.model = match value {
@@ -314,5 +327,29 @@ mod tests {
         config.save_to(&path).unwrap();
         let loaded = Config::load_from(&path).unwrap();
         assert_eq!(loaded.model.as_deref(), Some("/models/base.pt"));
+    }
+
+    /// A configuration file written before profiles existed must keep
+    /// working, and get the rules that used to be hard-coded.
+    #[test]
+    fn an_older_config_without_profiles_gets_the_defaults() {
+        let config: Config = serde_yaml::from_str("ptt: Ctrl+Shift+Space\n").unwrap();
+        assert_eq!(config.profiles, crate::profile::defaults());
+    }
+
+    #[test]
+    fn profiles_survive_a_round_trip_through_the_file() {
+        let config = Config {
+            profiles: vec![crate::profile::Profile {
+                name: "Мой редактор".into(),
+                r#match: vec!["myeditor".into()],
+                output: "latex".into(),
+                dictation: None,
+            }],
+            ..Config::default()
+        };
+        let text = serde_yaml::to_string(&config).unwrap();
+        let back: Config = serde_yaml::from_str(&text).unwrap();
+        assert_eq!(back.profiles, config.profiles);
     }
 }

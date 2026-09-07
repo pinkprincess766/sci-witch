@@ -41,7 +41,7 @@ $settings = Read-Settings
 
 $form = New-Object System.Windows.Forms.Form
 $form.Text = "Si-Witch — настройки"
-$form.ClientSize = New-Object System.Drawing.Size(620, 606)
+$form.ClientSize = New-Object System.Drawing.Size(620, 647)
 $form.StartPosition = "CenterScreen"
 $form.FormBorderStyle = "FixedDialog"
 $form.MaximizeBox = $false
@@ -104,44 +104,46 @@ Add-Label "Научный домен" 112
 $domain = Add-ComboBox @("auto", "chemistry", "mathematics", "physics", "plain") $settings.domain 112
 Add-Label "Формат вставки" 153
 $output = Add-ComboBox @("auto", "unicode", "latex", "word") $settings.output 153
-Add-Label "Язык распознавания" 194
-$language = Add-TextBox $settings.language 194
-Add-Label "Локальная модель" 235
+Add-Label "Диктовка" 194
+$dictation = Add-ComboBox @("mixed", "scientific") $settings.dictation 194
+Add-Label "Язык распознавания" 235
+$language = Add-TextBox $settings.language 235
+Add-Label "Локальная модель" 276
 $modelValue = $settings.model
 if ($modelValue -eq "default local model") { $modelValue = "" }
-$model = Add-TextBox $modelValue 235
-Add-Label "Запись по удержанию" 294
-$ptt = Add-TextBox $settings.ptt 294
+$model = Add-TextBox $modelValue 276
+Add-Label "Запись по удержанию" 335
+$ptt = Add-TextBox $settings.ptt 335
 
 $doubleControl = New-Object System.Windows.Forms.CheckBox
 $doubleControl.Text = "Двойной Control запускает и завершает запись"
 $doubleControl.Checked = ($settings.double_control -eq "true")
-$doubleControl.Location = New-Object System.Drawing.Point(205, 329)
+$doubleControl.Location = New-Object System.Drawing.Point(205, 370)
 $doubleControl.Size = New-Object System.Drawing.Size(375, 28)
 $form.Controls.Add($doubleControl)
 
-Add-Label "Быстрый LaTeX" 376
-$pttLatex = Add-TextBox $settings.ptt_latex 376
-Add-Label "Быстрый Word" 417
-$pttWord = Add-TextBox $settings.ptt_word 417
+Add-Label "Быстрый LaTeX" 417
+$pttLatex = Add-TextBox $settings.ptt_latex 417
+Add-Label "Быстрый Word" 458
+$pttWord = Add-TextBox $settings.ptt_word 458
 
 $history = New-Object System.Windows.Forms.CheckBox
 $history.Text = "Хранить локальную историю распознаваний"
 $history.Checked = ($settings.persist_history -eq "true")
-$history.Location = New-Object System.Drawing.Point(205, 458)
+$history.Location = New-Object System.Drawing.Point(205, 499)
 $history.Size = New-Object System.Drawing.Size(375, 28)
 $form.Controls.Add($history)
 
 $status = New-Object System.Windows.Forms.Label
 $status.Text = "Все настройки хранятся локально."
 $status.ForeColor = [System.Drawing.Color]::FromArgb(95, 100, 96)
-$status.Location = New-Object System.Drawing.Point(32, 499)
+$status.Location = New-Object System.Drawing.Point(32, 540)
 $status.Size = New-Object System.Drawing.Size(360, 25)
 $form.Controls.Add($status)
 
 $doctor = New-Object System.Windows.Forms.Button
 $doctor.Text = "Диагностика"
-$doctor.Location = New-Object System.Drawing.Point(32, 540)
+$doctor.Location = New-Object System.Drawing.Point(32, 581)
 $doctor.Size = New-Object System.Drawing.Size(130, 36)
 $doctor.Add_Click({
     try {
@@ -156,14 +158,14 @@ $form.Controls.Add($doctor)
 $cancel = New-Object System.Windows.Forms.Button
 $cancel.Text = "Отмена"
 $cancel.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
-$cancel.Location = New-Object System.Drawing.Point(354, 540)
+$cancel.Location = New-Object System.Drawing.Point(354, 581)
 $cancel.Size = New-Object System.Drawing.Size(105, 36)
 $form.Controls.Add($cancel)
 $form.CancelButton = $cancel
 
 $save = New-Object System.Windows.Forms.Button
 $save.Text = "Сохранить"
-$save.Location = New-Object System.Drawing.Point(475, 540)
+$save.Location = New-Object System.Drawing.Point(475, 581)
 $save.Size = New-Object System.Drawing.Size(105, 36)
 $save.BackColor = [System.Drawing.Color]::FromArgb(206, 143, 55)
 $save.FlatStyle = "Flat"
@@ -171,6 +173,7 @@ $save.Add_Click({
     try {
         Invoke-SciWhisper -Arguments @("settings", "set", "domain", $domain.SelectedItem) | Out-Null
         Invoke-SciWhisper -Arguments @("settings", "set", "output", $output.SelectedItem) | Out-Null
+        Invoke-SciWhisper -Arguments @("settings", "set", "dictation", $dictation.SelectedItem) | Out-Null
         Invoke-SciWhisper -Arguments @("settings", "set", "language", $language.Text) | Out-Null
         $modelSetting = $model.Text.Trim()
         if ([string]::IsNullOrWhiteSpace($modelSetting)) { $modelSetting = "default" }

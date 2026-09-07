@@ -9,6 +9,7 @@ description = "Tray, global PTT, clipboard paste and Word insertion for SciWhisp
 [dependencies]
 sciwhisper-core = { workspace = true }
 sciwhisper-asr = { workspace = true }
+sciwhisper-update = { workspace = true }
 serde = { workspace = true }
 serde_yaml = { workspace = true }
 serde_json = { workspace = true }
