@@ -11,56 +11,86 @@ schema_version: 2
 # Prefixes change the scale only, never the dimension.
 si_base:
   - symbol: м
+    forms: {one: метр, few: метра, many: метров}
+    gender: m
     latex: r"\mathrm{m}"
     dimension: L
     spoken: [метр, метра, метров, метры]
   - symbol: кг
+    forms: {one: килограмм, few: килограмма, many: килограммов}
+    gender: m
     latex: r"\mathrm{kg}"
     dimension: M
     spoken: [килограмм, килограмма, килограммов, килограммы]
   - symbol: с
+    forms: {one: секунда, few: секунды, many: секунд}
+    gender: f
     latex: r"\mathrm{s}"
     dimension: T
     spoken: [секунда, секунды, секунд, секунду]
   - symbol: А
+    forms: {one: ампер, few: ампера, many: амперов}
+    gender: m
     latex: r"\mathrm{A}"
     dimension: I
     spoken: [ампер, ампера, амперов, амперы]
   - symbol: К
+    forms: {one: кельвин, few: кельвина, many: кельвинов}
+    gender: m
     latex: r"\mathrm{K}"
     dimension: Θ
     spoken: [кельвин, кельвина, кельвинов, кельвины]
   - symbol: моль
+    forms: {one: моль, few: моля, many: молей}
+    gender: m
     latex: r"\mathrm{mol}"
     dimension: N
     spoken: [моль, моля, молей, моли]
   - symbol: кд
+    forms: {one: кандела, few: канделы, many: кандел}
+    gender: f
     latex: r"\mathrm{cd}"
     dimension: J
     spoken: [кандела, канделы, кандел, канделу]
 derived:
   - symbol: Н
+    forms: {one: ньютон, few: ньютона, many: ньютонов}
+    gender: m
     dimension: M L T^-2
     spoken: [ньютон, ньютона, ньютонов, ньютоны]
   - symbol: Дж
+    forms: {one: джоуль, few: джоуля, many: джоулей}
+    gender: m
     dimension: M L^2 T^-2
     spoken: [джоуль, джоуля, джоулей, джоули]
   - symbol: Вт
+    forms: {one: ватт, few: ватта, many: ваттов}
+    gender: m
     dimension: M L^2 T^-3
     spoken: [ватт, ватта, ваттов, ватты]
   - symbol: Па
+    forms: {one: паскаль, few: паскаля, many: паскалей}
+    gender: m
     dimension: M L^-1 T^-2
     spoken: [паскаль, паскаля, паскалей, паскали]
   - symbol: Кл
+    forms: {one: кулон, few: кулона, many: кулонов}
+    gender: m
     dimension: I T
     spoken: [кулон, кулона, кулонов, кулоны]
   - symbol: В
+    forms: {one: вольт, few: вольта, many: вольтов}
+    gender: m
     dimension: M L^2 T^-3 I^-1
     spoken: [вольт, вольта, вольтов, вольты]
   - symbol: Ом
+    forms: {one: ом, few: ома, many: омов}
+    gender: m
     dimension: M L^2 T^-3 I^-2
     spoken: [ом, ома, омов, омы]
   - symbol: Гц
+    forms: {one: герц, few: герца, many: герц}
+    gender: m
     dimension: T^-1
     spoken: [герц, герца, герцы]
 prefixes:
@@ -88,24 +118,52 @@ prefixes:
 composed:
   - spoken: [нанометр, нанометра, нанометров, нанометры]
     symbol: нм
+    forms: {one: нанометр, few: нанометра, many: нанометров}
+    gender: m
+    base: м
+    scale_exponent: -9
     dimension: L
   - spoken: [миллиметр, миллиметра, миллиметров, миллиметры]
     symbol: мм
+    forms: {one: миллиметр, few: миллиметра, many: миллиметров}
+    gender: m
+    base: м
+    scale_exponent: -3
     dimension: L
   - spoken: [сантиметр, сантиметра, сантиметров, сантиметры]
     symbol: см
+    forms: {one: сантиметр, few: сантиметра, many: сантиметров}
+    gender: m
+    base: м
+    scale_exponent: -2
     dimension: L
   - spoken: [километр, километра, километров, километры]
     symbol: км
+    forms: {one: километр, few: километра, many: километров}
+    gender: m
+    base: м
+    scale_exponent: 3
     dimension: L
   - spoken: [миллисекунда, миллисекунды, миллисекунд, миллисекунду]
     symbol: мс
+    forms: {one: миллисекунда, few: миллисекунды, many: миллисекунд}
+    gender: f
+    base: с
+    scale_exponent: -3
     dimension: T
   - spoken: [килогерц, килогерца, килогерцы]
     symbol: кГц
+    forms: {one: килогерц, few: килогерца, many: килогерц}
+    gender: m
+    base: Гц
+    scale_exponent: 3
     dimension: T^-1
   - spoken: [мегагерц, мегагерца, мегагерцы]
     symbol: МГц
+    forms: {one: мегагерц, few: мегагерца, many: мегагерц}
+    gender: m
+    base: Гц
+    scale_exponent: 6
     dimension: T^-1
 operators:
   per: [на, в]

@@ -198,6 +198,29 @@ pub struct Element {
     pub names: Vec<String>,
     pub diatomic: bool,
     pub default_oxidation: Option<i32>,
+    /// Every oxidation state `elements.yaml` records for this element.
+    ///
+    /// Empty means the file lists none, which is not the same as "none
+    /// exist" — it means nobody wrote them down, and a rule that needs to
+    /// know must refuse rather than assume. A list of length one, or an
+    /// empty list with a `default_oxidation`, is what
+    /// [`Element::unambiguous_oxidation`] treats as settled.
+    pub oxidations: Vec<i32>,
+}
+
+impl Element {
+    /// The single oxidation state this element can be taken to have without
+    /// the speaker saying which, or `None` when that would be a guess.
+    ///
+    /// Copper has `[1, 2]` and therefore no answer here: «феррит меди» must
+    /// be refused, not silently read as copper(II).
+    pub fn unambiguous_oxidation(&self) -> Option<i32> {
+        match self.oxidations.as_slice() {
+            [] => self.default_oxidation,
+            [single] => Some(*single),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -237,6 +260,42 @@ pub struct NamedUnit {
     pub names: Vec<String>,
     pub symbol: String,
     pub dimension: Dimension,
+    /// The one form of each kind used when *printing* the unit in words.
+    ///
+    /// Separate from `names`, which lists every form the recogniser may
+    /// hear. Recognition accepts many spellings; generation has to pick
+    /// one, and picking it out of an unlabelled list would be guessing.
+    pub forms: UnitForms,
+    pub gender: Gender,
+    /// The base unit this one is a decimal multiple of, and by which power
+    /// of ten. `None` for a unit that *is* the base.
+    pub scale: Option<UnitScale>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct UnitForms {
+    /// «один метр»
+    pub one: String,
+    /// «два метра»
+    pub few: String,
+    /// «пять метров»
+    pub many: String,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Gender {
+    #[serde(rename = "m")]
+    Masculine,
+    #[serde(rename = "f")]
+    Feminine,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UnitScale {
+    pub base: String,
+    /// Power of ten: `км` is `м` with exponent 3.
+    pub exponent: i32,
 }
 
 #[derive(Clone, Debug)]
@@ -395,6 +454,8 @@ struct ElementEntry {
     diatomic: bool,
     #[serde(default)]
     default_oxidation: Option<i32>,
+    #[serde(default)]
+    oxidations: Vec<i32>,
 }
 
 fn load_elements(lex: &mut Lexicon, yaml: &str) -> Result<()> {
@@ -409,6 +470,7 @@ fn load_elements(lex: &mut Lexicon, yaml: &str) -> Result<()> {
             names: e.names.clone(),
             diatomic: e.diatomic,
             default_oxidation: e.default_oxidation,
+            oxidations: e.oxidations.clone(),
         };
         lex.elements_by_symbol.insert(e.symbol.clone(), el.clone());
         for n in e.names {
@@ -597,6 +659,12 @@ struct UnitsFile {
 #[derive(Deserialize)]
 struct UnitEntry {
     symbol: String,
+    forms: UnitForms,
+    gender: Gender,
+    #[serde(default)]
+    base: Option<String>,
+    #[serde(default)]
+    scale_exponent: Option<i32>,
     /// Required: every unit must state its SI dimension, and an unparsable
     /// one fails the whole build of the lexicon rather than silently
     /// disabling dimensional analysis for that unit.
@@ -646,10 +714,30 @@ fn load_units(lex: &mut Lexicon, yaml: &str) -> Result<()> {
         if e.spoken.is_empty() {
             continue;
         }
+        let scale: Option<UnitScale> = match (&e.base, e.scale_exponent) {
+            (Some(base), Some(exponent)) => Some(UnitScale {
+                base: base.clone(),
+                exponent,
+            }),
+            (None, None) => None,
+            // Half a declaration is a unit whose size nobody can compute.
+            _ => {
+                return Err(Error::Parse {
+                    domain: "physics",
+                    reason: format!(
+                        "units.yaml: unit '{}' declares only half of base/scale_exponent",
+                        e.symbol
+                    ),
+                })
+            }
+        };
         lex.units.push(NamedUnit {
             names: e.spoken.into_iter().map(|n| normalize_word(&n)).collect(),
             symbol: e.symbol,
             dimension,
+            forms: e.forms,
+            gender: e.gender,
+            scale,
         });
     }
     Ok(())
@@ -953,7 +1041,7 @@ mod tests {
         // Schema 1 predates dimensions entirely and must be refused, not
         // loaded with silently missing physics.
         let yaml =
-            "schema_version: 1\nsi_base:\n  - symbol: м\n    dimension: L\n    spoken: [метр]\n";
+            "schema_version: 1\nsi_base:\n  - symbol: м\n    dimension: L\n    forms: {one: метр, few: метра, many: метров}\n    gender: m\n    spoken: [метр]\n";
         let error = load_units(&mut empty_lexicon(), yaml)
             .unwrap_err()
             .to_string();
@@ -961,13 +1049,13 @@ mod tests {
         assert!(error.contains("supports only 2"), "{error}");
 
         let future =
-            "schema_version: 3\nsi_base:\n  - symbol: м\n    dimension: L\n    spoken: [метр]\n";
+            "schema_version: 3\nsi_base:\n  - symbol: м\n    dimension: L\n    forms: {one: метр, few: метра, many: метров}\n    gender: m\n    spoken: [метр]\n";
         assert!(load_units(&mut empty_lexicon(), future).is_err());
     }
 
     #[test]
     fn units_file_rejects_a_conflicting_duplicate_symbol() {
-        let yaml = "schema_version: 2\nsi_base:\n  - symbol: Кл\n    dimension: I T\n    spoken: [кулон]\nderived:\n  - symbol: Кл\n    dimension: M L^2\n    spoken: [кулон]\n";
+        let yaml = "schema_version: 2\nsi_base:\n  - symbol: Кл\n    dimension: I T\n    forms: {one: кулон, few: кулона, many: кулонов}\n    gender: m\n    spoken: [кулон]\nderived:\n  - symbol: Кл\n    dimension: M L^2\n    forms: {one: кулон, few: кулона, many: кулонов}\n    gender: m\n    spoken: [кулон]\n";
         let error = load_units(&mut empty_lexicon(), yaml)
             .unwrap_err()
             .to_string();
@@ -977,7 +1065,7 @@ mod tests {
 
     #[test]
     fn units_file_rejects_a_repeated_symbol_even_when_consistent() {
-        let yaml = "schema_version: 2\nsi_base:\n  - symbol: м\n    dimension: L\n    spoken: [метр]\n  - symbol: м\n    dimension: L\n    spoken: [метра]\n";
+        let yaml = "schema_version: 2\nsi_base:\n  - symbol: м\n    dimension: L\n    forms: {one: метр, few: метра, many: метров}\n    gender: m\n    spoken: [метр]\n  - symbol: м\n    dimension: L\n    forms: {one: метр, few: метра, many: метров}\n    gender: m\n    spoken: [метра]\n";
         let error = load_units(&mut empty_lexicon(), yaml)
             .unwrap_err()
             .to_string();
@@ -987,7 +1075,7 @@ mod tests {
     #[test]
     fn units_file_rejects_an_invalid_dimension() {
         let yaml =
-            "schema_version: 2\nsi_base:\n  - symbol: м\n    dimension: Q^2\n    spoken: [метр]\n";
+            "schema_version: 2\nsi_base:\n  - symbol: м\n    dimension: Q^2\n    forms: {one: метр, few: метра, many: метров}\n    gender: m\n    spoken: [метр]\n";
         let error = load_units(&mut empty_lexicon(), yaml)
             .unwrap_err()
             .to_string();

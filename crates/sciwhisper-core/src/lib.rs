@@ -2,6 +2,7 @@
 
 pub mod ast;
 pub mod balance;
+pub mod coordination;
 pub mod dimension;
 pub mod error;
 pub mod formula;
@@ -9,8 +10,10 @@ pub mod interpret;
 pub mod lexicon;
 pub mod normalize;
 pub mod numbers;
+pub mod organic;
 pub mod parser;
 pub mod render;
+pub mod units;
 pub mod utterance;
 pub mod validate;
 

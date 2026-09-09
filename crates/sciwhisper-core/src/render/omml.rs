@@ -100,6 +100,45 @@ fn formula(f: &Formula) -> String {
                     out.push_str(&s_sub(")", &count.to_string()));
                 }
             }
+            Part::Electron => out.push_str(&run("e")),
+            Part::Complex(complex) => {
+                out.push_str(&run("["));
+                out.push_str(&run(&complex.center.symbol));
+                for ligand in &complex.ligands {
+                    let body = formula(&ligand.formula);
+                    if ligand.needs_brackets() {
+                        out.push_str(&run("("));
+                        out.push_str(&body);
+                        if ligand.count == 1 {
+                            out.push_str(&run(")"));
+                        } else {
+                            out.push_str(&s_sub(")", &ligand.count.to_string()));
+                        }
+                    } else if ligand.count == 1 {
+                        out.push_str(&body);
+                    } else {
+                        // A bare repeated ligand is a single atom by the
+                        // definition of `needs_brackets`, so the count is a
+                        // real subscript on that symbol. Emitting it as a
+                        // separate run put a literal "4" next to "Cl" and
+                        // Word showed «Cl4».
+                        match ligand.formula.parts.as_slice() {
+                            [Part::Atom { symbol, .. }] => {
+                                out.push_str(&s_sub(symbol, &ligand.count.to_string()));
+                            }
+                            _ => {
+                                out.push_str(&body);
+                                out.push_str(&run(&ligand.count.to_string()));
+                            }
+                        }
+                    }
+                }
+                if complex.count == 1 {
+                    out.push_str(&run("]"));
+                } else {
+                    out.push_str(&s_sub("]", &complex.count.to_string()));
+                }
+            }
             Part::Hydrate { count } => {
                 out.push_str(&run("·"));
                 if *count != 1 {
@@ -180,6 +219,17 @@ fn math(m: &Math) -> String {
         Math::Factorial(inner) => format!("{}{}", math(inner), run("!")),
         Math::Function { kind, arg } => {
             format!("{}{}{}{}", run(kind.name()), run("("), math(arg), run(")"))
+        }
+        Math::Apply { name, args } => {
+            let mut out = format!("{}{}", math(name), run("("));
+            for (index, arg) in args.iter().enumerate() {
+                if index > 0 {
+                    out.push_str(&run(", "));
+                }
+                out.push_str(&math(arg));
+            }
+            out.push_str(&run(")"));
+            out
         }
         Math::Sum {
             var,

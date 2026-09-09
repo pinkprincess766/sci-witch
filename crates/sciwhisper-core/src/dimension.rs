@@ -284,6 +284,10 @@ fn infer_with(math: &Math, lex: &Lexicon, depth: u32, warnings: &mut Vec<Warning
         // A pure number is dimensionless; a bare symbol is simply unknown.
         Math::Number(_) => Inferred::Known(Dimension::DIMENSIONLESS),
         Math::Symbol(_) | Math::Infinity | Math::Ellipsis => Inferred::Unknown,
+        // The dimension of `f(x)` depends on what `f` is, and nothing here
+        // knows that. Unknown is the honest answer — never "dimensionless",
+        // which would be a claim.
+        Math::Apply { .. } => Inferred::Unknown,
         Math::Unit(expr) => unit_dimension(expr, lex),
 
         Math::Delta(inner)

@@ -91,6 +91,13 @@ pub struct MathParse {
     pub warnings: Vec<String>,
 }
 
+/// Arguments one dictated function may take.
+///
+/// Explicit and small: past this, a run of commas is a misrecognition
+/// rather than a formula, and the parser should say so instead of building
+/// an ever-longer argument list.
+pub const MAX_FUNCTION_ARGS: usize = 8;
+
 pub fn parse_math(
     words: &[String],
     lex: &Lexicon,
@@ -159,6 +166,9 @@ struct Parser<'a> {
     warnings: Vec<String>,
     alternatives: Vec<Math>,
     stop_at_differential: bool,
+    /// While reading a function's arguments, a comma separates them and
+    /// must not be skipped as punctuation.
+    stop_at_comma: bool,
     /// How far a spoken «корень из …» reaches when the speaker never said
     /// «конец корня». See [`RootBinding`].
     root_binding: RootBinding,
@@ -194,6 +204,7 @@ impl<'a> Parser<'a> {
             warnings: Vec::new(),
             alternatives: Vec::new(),
             stop_at_differential: false,
+            stop_at_comma: false,
             root_binding,
             saw_open_root: false,
         }
@@ -218,6 +229,9 @@ impl<'a> Parser<'a> {
         }
     }
     fn skip_commas(&mut self) {
+        if self.stop_at_comma {
+            return;
+        }
         while self.eat(|t| matches!(t, Tok::Comma)) {}
     }
 
@@ -440,7 +454,23 @@ impl<'a> Parser<'a> {
                 }
                 Ok(node)
             }
-            Some(Tok::Sym(s)) => Ok(Math::Symbol(s.clone())),
+            Some(Tok::FuncFiller) => {
+                // «функция эф от икс» — the filler introduces a named
+                // function and is not part of the expression.
+                let inner = self.parse_atom()?;
+                Ok(inner)
+            }
+            Some(Tok::Sym(s)) => {
+                let name = Math::Symbol(s.clone());
+                // «эф от икс» — a function the speaker named, applied. The
+                // `от` here cannot be anything else: the constructions that
+                // use it for bounds (integral, sum, product) are introduced
+                // by their own token, never by a bare symbol.
+                if matches!(self.peek(), Some(Tok::From)) {
+                    return self.parse_application(name);
+                }
+                Ok(name)
+            }
             Some(Tok::Inf) => Ok(Math::Infinity),
             Some(Tok::Ellipsis) => Ok(Math::Ellipsis),
             Some(Tok::Delta) => {
@@ -714,6 +744,43 @@ impl<'a> Parser<'a> {
             integrand,
             wrt,
         })
+    }
+
+    /// `<symbol> от <arg> [запятая <arg>]*` — a named function applied.
+    ///
+    /// Each argument is parsed as a term, so «плюс» ends the list:
+    /// «эф от икс плюс один» is `f(x) + 1`, not `f(x + 1)`. That is the same
+    /// narrow-binding convention the spoken root uses, and for the same
+    /// reason — speech carries no closing bracket.
+    fn parse_application(&mut self, name: Math) -> Result<Math> {
+        self.bump(); // «от»
+                     // Ordinary punctuation is skipped everywhere else; here a comma is
+                     // the separator, so the skipping is switched off for the arguments
+                     // and restored afterwards.
+        let outer = std::mem::replace(&mut self.stop_at_comma, true);
+        let parsed = self.parse_arguments();
+        self.stop_at_comma = outer;
+        Ok(Math::Apply {
+            name: Box::new(name),
+            args: parsed?,
+        })
+    }
+
+    fn parse_arguments(&mut self) -> Result<Vec<Math>> {
+        let mut args = vec![self.parse_mul()?];
+        while matches!(self.peek(), Some(Tok::Comma)) {
+            if args.len() >= MAX_FUNCTION_ARGS {
+                return Err(Error::Parse {
+                    domain: "mathematics",
+                    reason: format!(
+                        "у функции больше {MAX_FUNCTION_ARGS} аргументов; это не похоже на продиктованную формулу"
+                    ),
+                });
+            }
+            self.bump();
+            args.push(self.parse_mul()?);
+        }
+        Ok(args)
     }
 
     /// `[<ordinal>] [частная] производная [<ordinal> порядка] <expr> по <var> (и по <var>)*`

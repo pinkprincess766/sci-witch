@@ -1,6 +1,7 @@
 use crate::ast::{
-    derivative_total_order, Arrow, BinOp, Chemical, DerivativeKind, DerivativeVariable, Equation,
-    Formula, GroupKind, LimitDirection, Math, Node, Part, Species, StateMarker, UnitExpr,
+    derivative_total_order, Alphabet, Arrow, BinOp, Case, Chemical, DerivativeKind,
+    DerivativeVariable, Equation, Formula, GroupKind, LimitDirection, Math, Node, Part, Species,
+    StateMarker, UnitExpr,
 };
 
 pub fn render(node: &Node) -> String {
@@ -70,6 +71,27 @@ fn formula(f: &Formula) -> String {
                     out.push_str(&sub_num(*count));
                 }
             }
+            Part::Electron => out.push('e'),
+            Part::Complex(complex) => {
+                out.push('[');
+                out.push_str(&complex.center.symbol);
+                for ligand in &complex.ligands {
+                    if ligand.needs_brackets() {
+                        out.push('(');
+                        out.push_str(&formula(&ligand.formula));
+                        out.push(')');
+                    } else {
+                        out.push_str(&formula(&ligand.formula));
+                    }
+                    if ligand.count != 1 {
+                        out.push_str(&sub_num(ligand.count));
+                    }
+                }
+                out.push(']');
+                if complex.count != 1 {
+                    out.push_str(&sub_num(complex.count));
+                }
+            }
             Part::Hydrate { count } => {
                 out.push('·');
                 if *count != 1 {
@@ -132,6 +154,9 @@ fn math(m: &Math) -> String {
                     return format!("{b}{}", sub_digits(n));
                 }
             }
+            if let Some(letters) = sub_letters(sub) {
+                return format!("{b}{letters}");
+            }
             format!("{b}_{{{}}}", math(sub))
         }
         Math::Root { index, radicand } => {
@@ -152,6 +177,11 @@ fn math(m: &Math) -> String {
         Math::Abs(inner) => format!("|{}|", math(inner)),
         Math::Factorial(inner) => format!("{}!", math_maybe_group(inner)),
         Math::Function { kind, arg } => format!("{}({})", kind.name(), math(arg)),
+        Math::Apply { name, args } => format!(
+            "{}({})",
+            math_maybe_group(name),
+            args.iter().map(math).collect::<Vec<_>>().join(", ")
+        ),
         Math::Sum {
             var,
             from,
@@ -358,6 +388,49 @@ fn math_maybe_group(m: &Math) -> String {
 }
 
 const SUB: [char; 10] = ['₀', '₁', '₂', '₃', '₄', '₅', '₆', '₇', '₈', '₉'];
+
+/// Unicode subscript for a Latin letter, where one exists.
+///
+/// The block is famously incomplete — there is no subscript `b`, `c`, `d`,
+/// `f`, `g`, `q`, `w`, `y` or `z` — so this answers `None` for those and the
+/// caller keeps the `x_{b}` form. Rendering `xₙ` where Unicode can and
+/// `x_{b}` where it cannot is honest; rendering `x_{n}` everywhere put
+/// LaTeX syntax into a string that is supposed to be plain text.
+fn sub_letter(letter: char) -> Option<char> {
+    Some(match letter {
+        'a' => 'ₐ',
+        'e' => 'ₑ',
+        'h' => 'ₕ',
+        'i' => 'ᵢ',
+        'j' => 'ⱼ',
+        'k' => 'ₖ',
+        'l' => 'ₗ',
+        'm' => 'ₘ',
+        'n' => 'ₙ',
+        'o' => 'ₒ',
+        'p' => 'ₚ',
+        'r' => 'ᵣ',
+        's' => 'ₛ',
+        't' => 'ₜ',
+        'u' => 'ᵤ',
+        'v' => 'ᵥ',
+        'x' => 'ₓ',
+        _ => return None,
+    })
+}
+
+/// The whole subscript as Unicode subscript letters, or `None` if any part
+/// of it has no such character. All or nothing: a half-subscripted `xₙ_{b}`
+/// would be worse than either form.
+fn sub_letters(sub: &Math) -> Option<String> {
+    let Math::Symbol(symbol) = sub else {
+        return None;
+    };
+    if symbol.alphabet != Alphabet::Latin || symbol.case != Case::Lower {
+        return None;
+    }
+    symbol.letter.chars().map(sub_letter).collect()
+}
 const SUP: [char; 10] = ['⁰', '¹', '²', '³', '⁴', '⁵', '⁶', '⁷', '⁸', '⁹'];
 
 fn sub_num(n: u32) -> String {

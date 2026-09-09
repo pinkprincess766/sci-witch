@@ -102,6 +102,19 @@ impl Formula {
                     let multiplier = multiplier.checked_mul(u64::from(*count))?;
                     Self::collect_atoms(inner, multiplier, atoms)?;
                 }
+                // An electron contributes no atoms. Saying so here is what
+                // keeps `balance_equation` correct for half-reactions.
+                Part::Electron => {}
+                Part::Complex(complex) => {
+                    let multiplier = multiplier.checked_mul(u64::from(complex.count))?;
+                    let mut center = Formula::atom(&complex.center.symbol, 1);
+                    Self::collect_atoms(&center, multiplier, atoms)?;
+                    center.parts.clear();
+                    for ligand in &complex.ligands {
+                        let inner = multiplier.checked_mul(u64::from(ligand.count))?;
+                        Self::collect_atoms(&ligand.formula, inner, atoms)?;
+                    }
+                }
                 Part::Hydrate { count } => {
                     let waters = multiplier.checked_mul(u64::from(*count))?;
                     let h = waters.checked_mul(2)?;
@@ -118,9 +131,112 @@ impl Formula {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Part {
-    Atom { symbol: String, count: u32 },
-    Group { inner: Formula, count: u32 },
-    Hydrate { count: u32 },
+    Atom {
+        symbol: String,
+        count: u32,
+    },
+    Group {
+        inner: Formula,
+        count: u32,
+    },
+    Hydrate {
+        count: u32,
+    },
+    /// The electron of a half-reaction: `Fe²⁺ → Fe³⁺ + e⁻`.
+    ///
+    /// A `Part` rather than a flag on `Species` because that is what makes
+    /// it disappear from [`Formula::atom_counts`] for free: an electron is
+    /// not an atom, so it must not affect the atom balance, while its
+    /// charge — carried by the enclosing `Species` — must affect the charge
+    /// balance.
+    Electron,
+    /// A coordination sphere: the part that is written in square brackets.
+    ///
+    /// It is a variant rather than a `Group` with a bracket flag because a
+    /// coordination sphere is not a group that happens to be drawn
+    /// differently — it is a centre with ligands around it, and the charge
+    /// arithmetic that produced the counter-ion count is only checkable if
+    /// the pieces are still separable afterwards.
+    Complex(Complex),
+}
+
+/// The contents of one coordination sphere.
+///
+/// Everything here was *used* to build the surrounding formula, and is kept
+/// so that [`Complex::charge_balances`] can re-derive the charge from the
+/// AST alone. A validator that had to consult the ligand table again would
+/// be re-deciding chemistry the parser already decided, which is exactly
+/// what renderers and validators are forbidden to do.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Complex {
+    pub center: Center,
+    pub ligands: Vec<LigandSlot>,
+    /// Charge of the sphere as a whole. Positive, negative or zero.
+    pub charge: i32,
+    /// How many spheres appear in the compound.
+    pub count: u32,
+}
+
+impl Complex {
+    /// Whether the recorded charge is the one the recorded parts imply:
+    /// `z(centre) + Σ nᵢ·zᵢ = charge`.
+    ///
+    /// `None` on overflow rather than a wrapped answer that would look like
+    /// a passing check.
+    pub fn charge_balances(&self) -> Option<bool> {
+        let mut total = i64::from(self.center.oxidation);
+        for ligand in &self.ligands {
+            let contribution = i64::from(ligand.charge).checked_mul(i64::from(ligand.count))?;
+            total = total.checked_add(contribution)?;
+        }
+        Some(total == i64::from(self.charge))
+    }
+
+    /// Total atoms contributed by one sphere, before the sphere count is
+    /// applied.
+    pub fn ligand_count(&self) -> Option<u32> {
+        self.ligands
+            .iter()
+            .try_fold(0u32, |sum, ligand| sum.checked_add(ligand.count))
+    }
+}
+
+/// The central atom and the oxidation state it was taken to have.
+///
+/// The oxidation state is stored, not recomputed: it is an *input* to the
+/// construction — supplied by the speaker («гексацианоферрат **три** калия»)
+/// or by an element with only one known state — and recovering it from the
+/// finished formula would mean guessing again.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Center {
+    pub symbol: String,
+    pub oxidation: i32,
+}
+
+/// One kind of ligand and how many of it surround the centre.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LigandSlot {
+    pub formula: Formula,
+    pub charge: i32,
+    pub count: u32,
+}
+
+impl LigandSlot {
+    /// Whether a repeated ligand has to be wrapped before its subscript.
+    ///
+    /// `(NH₃)₄` and `(CN)₆` need it; `Cl₄` does not. The rule is the
+    /// renderers' shared answer to one question, kept here so the three of
+    /// them cannot drift into disagreeing about it.
+    pub fn needs_brackets(&self) -> bool {
+        if self.count == 1 {
+            return false;
+        }
+        match self.formula.parts.as_slice() {
+            [Part::Atom { count, .. }] => *count != 1,
+            [_] => true,
+            _ => true,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -161,6 +277,20 @@ pub enum Math {
     Function {
         kind: FunctionKind,
         arg: Box<Math>,
+    },
+    /// A function the speaker named applied to arguments: `f(x)`, `g(x, y)`.
+    ///
+    /// Distinct from [`Math::Function`], which is the closed set of named
+    /// functions the renderers know how to spell (`sin`, `log`). Here the
+    /// name is whatever was dictated, so it is a `Math` — usually a
+    /// [`Math::Symbol`] — rather than a string: a symbol already carries its
+    /// alphabet and case, and re-encoding that in text would lose the
+    /// difference between `f` and `φ`.
+    ///
+    /// Nothing here evaluates or substitutes. `f(x)` stays `f(x)`.
+    Apply {
+        name: Box<Math>,
+        args: Vec<Math>,
     },
     Sum {
         var: Option<Box<Math>>,

@@ -10,6 +10,34 @@ use crate::ast::{derivative_defect, Chemical, Equation, Math, Node, Species, War
 /// rather than exhaust the stack.
 const MAX_MATH_DEPTH: u32 = 128;
 
+/// Offers the same quantity in its base unit, when that reads more easily.
+///
+/// A **suggestion**, never a substitution: what the speaker dictated is
+/// what gets inserted, exactly as with an unbalanced equation. The
+/// coefficient warning set that precedent and this follows it.
+fn unit_equivalent(items: &[Math], warnings: &mut Vec<Warning>) {
+    // The shape a dictated quantity takes: a number next to a unit.
+    let [Math::Number(value), Math::Unit(unit)] = items else {
+        return;
+    };
+    let [factor] = unit.factors.as_slice() else {
+        return;
+    };
+    // A power or a division is a compound unit, and converting one part of
+    // it would state something the speaker did not.
+    if factor.power != 1 || factor.divide {
+        return;
+    }
+    let lexicon = crate::lexicon::Lexicon::builtin();
+    let Some(equivalent) = crate::units::equivalent(value, &factor.symbol, lexicon) else {
+        return;
+    };
+    warnings.push(Warning {
+        code: "physics.unit_equivalent".into(),
+        message: format!("то же самое: {}", equivalent.to_message()),
+    });
+}
+
 pub fn semantic_warnings(node: &Node) -> Vec<Warning> {
     let mut warnings = Vec::new();
     collect_warnings(node, &mut warnings);
@@ -114,6 +142,12 @@ fn validate_math(math: &Math, depth: u32, warnings: &mut Vec<Warning>) {
         | Math::Factorial(inner)
         | Math::Group { inner, .. } => validate_math(inner, depth, warnings),
         Math::Function { arg, .. } => validate_math(arg, depth, warnings),
+        Math::Apply { name, args } => {
+            validate_math(name, depth, warnings);
+            for arg in args {
+                validate_math(arg, depth, warnings);
+            }
+        }
         Math::Binary { left, right, .. } => {
             validate_math(left, depth, warnings);
             validate_math(right, depth, warnings);
@@ -137,6 +171,7 @@ fn validate_math(math: &Math, depth: u32, warnings: &mut Vec<Warning>) {
             validate_math(radicand, depth, warnings);
         }
         Math::Juxt(items) => {
+            unit_equivalent(items, warnings);
             for item in items {
                 validate_math(item, depth, warnings);
             }

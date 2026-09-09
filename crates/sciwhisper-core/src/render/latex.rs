@@ -64,6 +64,27 @@ fn formula(f: &Formula) -> String {
                     out.push_str(&count.to_string());
                 }
             }
+            Part::Electron => out.push('e'),
+            Part::Complex(complex) => {
+                out.push('[');
+                out.push_str(&complex.center.symbol);
+                for ligand in &complex.ligands {
+                    if ligand.needs_brackets() {
+                        out.push('(');
+                        out.push_str(&formula(&ligand.formula));
+                        out.push(')');
+                    } else {
+                        out.push_str(&formula(&ligand.formula));
+                    }
+                    if ligand.count != 1 {
+                        out.push_str(&ligand.count.to_string());
+                    }
+                }
+                out.push(']');
+                if complex.count != 1 {
+                    out.push_str(&complex.count.to_string());
+                }
+            }
             Part::Hydrate { count } => {
                 out.push('.');
                 if *count != 1 {
@@ -140,6 +161,11 @@ fn math(m: &Math) -> String {
         Math::Function { kind, arg } => {
             format!("\\{}\\left({}\\right)", kind.name(), math(arg))
         }
+        Math::Apply { name, args } => format!(
+            "{}\\left({}\\right)",
+            math(name),
+            args.iter().map(math).collect::<Vec<_>>().join(", ")
+        ),
         Math::Sum {
             var,
             from,

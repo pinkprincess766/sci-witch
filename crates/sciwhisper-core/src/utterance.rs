@@ -528,6 +528,24 @@ fn is_chemistry_cue(tokens: &[Token], index: usize) -> bool {
     }) {
         return true;
     }
+    // A material class opens a candidate the same way a substance name does.
+    // Being a cue only means the span is *tried*; «феррит оказался
+    // нестабильным» still parses to nothing and stays prose.
+    if crate::coordination::MaterialClasses::builtin()
+        .class_of(word)
+        .is_some()
+    {
+        return true;
+    }
+    // A word that decomposes into prefix + ligand + centre is a coordination
+    // name. A partial decomposition is not: «гексациано» alone names no
+    // centre, so «гексациано соединение» is not opened as chemistry.
+    if crate::coordination::Coordination::builtin()
+        .split(word)
+        .is_ok()
+    {
+        return true;
+    }
     // A stoichiometric coefficient in front of a formula.
     let numbers = crate::numbers::NumberLex::new();
     if numbers.lookup(word).is_some() || word.parse::<u32>().is_ok() {
@@ -1399,6 +1417,32 @@ struct Found {
 /// Longest wins because a whole reaction is a better answer than its first
 /// substance, but a stretch may not end on a dangling preposition and may not
 /// cross a sentence boundary.
+/// Whether the span ending at `end` stops on an element that the following
+/// word is about to qualify.
+fn stops_before_an_oxidation_state(utterance: &Utterance<'_>, end: usize) -> bool {
+    let lexicon = crate::lexicon::Lexicon::builtin();
+    if lexicon.element(&utterance.words[end - 1]).is_none() {
+        return false;
+    }
+    let Some(next) = utterance.words.get(end) else {
+        return false;
+    };
+    if is_number_word(next) {
+        return true;
+    }
+    // A marker only counts when a number actually follows it. «плюс» is
+    // both the sign of an oxidation state and the plus of a reaction, and
+    // treating «... + партнёр» as an oxidation state cut «2NaOH» out of an
+    // equation.
+    match crate::coordination::Coordination::builtin().oxidation_marker(&utterance.words, end) {
+        Some((_, used)) => utterance
+            .words
+            .get(end + used)
+            .is_some_and(|word| is_number_word(word)),
+        None => false,
+    }
+}
+
 fn grow_span(
     utterance: &Utterance<'_>,
     word: usize,
@@ -1424,6 +1468,16 @@ fn grow_span(
                 .get(end)
                 .is_some_and(|next| is_number_word(next))
         {
+            continue;
+        }
+        // The same shape of problem for a systematic salt. «гидроксид железа
+        // минус три» must not settle for the two-word «гидроксид железа» and
+        // answer Fe(OH)₃: the speaker named an oxidation state, and
+        // answering with the element's default answers a different question.
+        // So a span of two words or more may not stop on an element when the
+        // next word begins an oxidation state — either that number belongs
+        // inside the span, or there is no compound here at all.
+        if end - word >= 2 && stops_before_an_oxidation_state(utterance, end) {
             continue;
         }
         if *budget == 0 {
