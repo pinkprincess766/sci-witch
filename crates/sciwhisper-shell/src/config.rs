@@ -36,6 +36,15 @@ pub struct Config {
     pub language: String,
     #[serde(default)]
     pub persist_history: bool,
+    /// Whether a correction the user makes is written to a local file.
+    ///
+    /// Off by default, like `persist_history`, and for the same reason: it
+    /// records what the user dictated. Turning it on is how a testing
+    /// session produces the corpus that
+    /// `research/data/VOICE_CORPUS_RU.md` otherwise has to be organised to
+    /// collect. Nothing is ever sent anywhere.
+    #[serde(default)]
+    pub remember_corrections: bool,
     /// Input device name from `sciwhisper_asr::capture::input_devices()`;
     /// `None` uses the system default microphone.
     #[serde(default)]
@@ -87,6 +96,7 @@ impl Default for Config {
             model: None,
             language: default_lang(),
             persist_history: false,
+            remember_corrections: false,
             mic: None,
             profiles: crate::profile::defaults(),
         }
@@ -219,9 +229,12 @@ impl Config {
             "persist_history" | "history" => {
                 self.persist_history = parse_bool(value)?;
             }
+            "remember_corrections" | "corrections" => {
+                self.remember_corrections = parse_bool(value)?;
+            }
             _ => {
                 return Err(Error::Message(format!(
-                    "unknown setting '{key}'. Expected domain, output, model, language, mic, ptt, double_control, ptt_latex, ptt_word or persist_history"
+                    "unknown setting '{key}'. Expected domain, output, model, language, mic, ptt, double_control, ptt_latex, ptt_word, persist_history or remember_corrections"
                 )));
             }
         }

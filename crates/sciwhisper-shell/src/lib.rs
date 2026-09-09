@@ -1,6 +1,7 @@
 pub mod app;
 pub mod clipboard;
 pub mod config;
+pub mod corrections;
 pub mod error;
 pub mod front;
 pub mod history;

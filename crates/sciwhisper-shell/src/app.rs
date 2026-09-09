@@ -238,6 +238,7 @@ impl ApplicationHandler<Msg> for DesktopApp {
             self.state.dictation,
             self.state.config.mic.as_deref(),
             "загрузка Whisper…",
+            self.state.config.remember_corrections,
         ) {
             Ok(tray) => {
                 self.tray = Some(tray);
@@ -673,6 +674,14 @@ fn handle_msg(
                 if let Some(notice) = chemistry_balance_notice(&res.interpretation.warnings) {
                     insert::notify("SciWhisper", &notice);
                 }
+                // Same shape as the balance notice: the dictated quantity is
+                // what was inserted, and the other way of writing it is
+                // offered beside it.
+                for warning in &res.interpretation.warnings {
+                    if warning.code == "physics.unit_equivalent" {
+                        insert::notify("SciWhisper", &warning.message);
+                    }
+                }
             }
         },
     }
@@ -874,6 +883,10 @@ fn replace_insertion(tray: &mut Tray, st: &mut State, index: usize) {
         profiles: &st.config.profiles,
     }) {
         Ok(out) => {
+            // Recorded before `last_insert` is replaced below: the entry
+            // needs what was heard and what had been inserted, and both
+            // live in the old value.
+            remember_correction(st, choice);
             tray::set_status(
                 tray,
                 StatusIcon::Idle,
@@ -886,6 +899,41 @@ fn replace_insertion(tray: &mut Tray, st: &mut State, index: usize) {
             });
         }
         Err(error) => insert::notify("SciWhisper", &error.to_string()),
+    }
+}
+
+/// Writes down that the user disagreed, if they asked for that to be
+/// written down.
+///
+/// This is the cheapest labelled data the project can get: the words that
+/// were heard, what was inserted, and what the person actually wanted. It
+/// is also the user's own speech, so it is off unless they turned it on,
+/// and a failure to write is never allowed to interrupt the insertion that
+/// just succeeded.
+fn remember_correction(st: &State, choice: &Choice) {
+    let Some(last) = st.last_insert.as_ref() else {
+        return;
+    };
+    let record = crate::corrections::Correction::new(
+        &last.raw,
+        &last.payload,
+        &choice.unicode,
+        if choice.compiled {
+            crate::corrections::Kind::Alternative
+        } else {
+            crate::corrections::Kind::RawTranscript
+        },
+        st.history.last().map(|item| item.domain.as_str()),
+    );
+    let file = crate::corrections::path(&Config::path());
+    if let Err(error) = crate::corrections::record(&file, &record, st.config.remember_corrections) {
+        // Only worth a word when the user asked for this and it still did
+        // not happen; the ordinary "switched off" case is not news.
+        if st.config.remember_corrections
+            && !matches!(error, crate::corrections::Refusal::Uninformative)
+        {
+            insert::notify("SciWhisper", &format!("исправление не записано: {error}"));
+        }
     }
 }
 
@@ -999,6 +1047,24 @@ fn handle_menu(
                 insert::notify("SciWhisper", &error.to_string());
             }
         }
+        return;
+    }
+    if id == ids.remember_corrections.id().as_ref() {
+        // The item toggled itself when clicked; the config follows it.
+        st.config.remember_corrections = ids.remember_corrections.is_checked();
+        let file = crate::corrections::path(&Config::path());
+        insert::notify(
+            "SciWhisper",
+            &if st.config.remember_corrections {
+                format!(
+                    "Исправления записываются в {} — только на этом компьютере, ничего никуда не отправляется.",
+                    file.display()
+                )
+            } else {
+                "Исправления больше не записываются. Уже записанное остаётся на месте.".into()
+            },
+        );
+        let _ = st.config.save();
         return;
     }
     if id == ids.mic_refresh.as_ref() {

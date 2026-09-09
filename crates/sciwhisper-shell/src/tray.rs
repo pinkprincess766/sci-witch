@@ -36,6 +36,11 @@ pub struct MenuIds {
     /// re-labelled, because a tray menu cannot be grown and shrunk at will
     /// without losing the ids the event loop matches on.
     pub choices: Vec<MenuId>,
+    /// Whether a correction the user makes is written to a local file.
+    /// A check item rather than a plain one, because its state is the whole
+    /// point: a user must be able to see at a glance that their dictation
+    /// is being recorded.
+    pub remember_corrections: CheckMenuItem,
 }
 
 pub struct Tray {
@@ -66,8 +71,9 @@ impl Tray {
         mic: Option<&str>,
     ) {
         let status_text = self.status.text();
+        let remember = self.ids.remember_corrections.is_checked();
         let (menu, ids, status, action, notes, slots) =
-            build_menu(domain, output, dictation, mic, &status_text);
+            build_menu(domain, output, dictation, mic, &status_text, remember);
         self.icon.set_menu(Some(Box::new(menu)));
         self.ids = ids;
         self.status = status;
@@ -145,6 +151,7 @@ fn build_menu(
     dictation: UtteranceMode,
     mic: Option<&str>,
     status: &str,
+    remember: bool,
 ) -> BuiltMenu {
     let menu = Menu::new();
     let rec = MenuItem::new("Начать / завершить запись (Control ×2)", true, None);
@@ -156,6 +163,12 @@ fn build_menu(
     let update_check = MenuItem::new("Проверить обновления", true, None);
     let update_action = MenuItem::new(NO_UPDATE_LABEL, false, None);
     let update_notes = MenuItem::new("Что нового", false, None);
+    let remember_corrections = CheckMenuItem::new(
+        "Запоминать мои исправления (локально)",
+        true,
+        remember,
+        None,
+    );
     let choice_slots: Vec<MenuItem> = (0..MAX_CHOICES)
         .map(|_| MenuItem::new(EMPTY_CHOICE_LABEL, false, None))
         .collect();
@@ -237,6 +250,8 @@ fn build_menu(
     for slot in &choice_slots {
         let _ = choices_menu.append(slot);
     }
+    let _ = choices_menu.append(&PredefinedMenuItem::separator());
+    let _ = choices_menu.append(&remember_corrections);
     let _ = menu.append(&choices_menu);
 
     let _ = menu.append(&PredefinedMenuItem::separator());
@@ -265,6 +280,7 @@ fn build_menu(
         update_action: update_action.id().clone(),
         update_notes: update_notes.id().clone(),
         choices: choice_slots.iter().map(|slot| slot.id().clone()).collect(),
+        remember_corrections,
     };
 
     (menu, ids, status, update_action, update_notes, choice_slots)
@@ -276,9 +292,10 @@ pub fn build(
     dictation: UtteranceMode,
     mic: Option<&str>,
     status: &str,
+    remember_corrections: bool,
 ) -> tray_icon::Result<Tray> {
     let (menu, ids, status, update_action, update_notes, choice_slots) =
-        build_menu(domain, output, dictation, mic, status);
+        build_menu(domain, output, dictation, mic, status, remember_corrections);
 
     let icon = TrayIconBuilder::new()
         .with_menu(Box::new(menu))

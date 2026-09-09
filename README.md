@@ -184,9 +184,18 @@ sciwhisper settings set domain chemistry
 sciwhisper settings set output latex
 sciwhisper settings set ptt Ctrl+Alt+Space
 sciwhisper settings set double_control true
+sciwhisper settings set remember_corrections true
+sciwhisper corrections
 sciwhisper settings path
 sciwhisper settings reset --yes
 ```
+
+`remember_corrections` по умолчанию выключен. Если его включить, выбор другого
+варианта прочтения сохраняется в локальный журнал рядом с настройками: что
+было распознано, что программа показала и что выбрал пользователь. Аудио туда
+не попадает, данные никуда не отправляются, журнал ограничен 10 000 записями
+и 16 МиБ. Команда `sciwhisper corrections` позволяет посмотреть накопленное.
+Это материал для ручного улучшения словаря, а не автоматическое дообучение.
 
 На Windows откройте двойным нажатием `SciWhisper-Settings.cmd`. Это небольшое локальное окно меняет те же настройки; приложение не использует интернет.
 

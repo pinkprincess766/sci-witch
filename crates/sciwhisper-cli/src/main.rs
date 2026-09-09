@@ -105,6 +105,12 @@ enum Command {
         #[arg(long, default_value = "ru")]
         language: String,
     },
+    /// Show the corrections recorded locally, if that was switched on.
+    Corrections {
+        /// Print the raw JSONL instead of the table, for piping into review.
+        #[arg(long)]
+        json: bool,
+    },
     /// Fill a research corpus manifest from its recordings: measure each
     /// WAV and transcribe it. Consent, transcript and targets must already
     /// be in the manifest; this command never invents them.
@@ -236,6 +242,7 @@ fn run(cli: Cli) -> Result<(), String> {
             model,
             language,
         }) => run_corpus(dir, &domain, model, language),
+        Some(Command::Corrections { json }) => run_corrections(json),
         Some(Command::Ingest {
             manifest,
             output,
@@ -467,6 +474,47 @@ fn run_corpus(
         }
     }
     println!("done: {ok}/{} transcribed", files.len());
+    Ok(())
+}
+
+/// Shows what the user has disagreed with.
+///
+/// Deliberately read-only, and deliberately **not** an export to the
+/// research corpus. A corpus entry needs a gold AST, and deriving one by
+/// re-parsing the user's chosen text would be gold produced by the parser —
+/// exactly what `research/README_RU.md` forbids. Turning these into corpus
+/// records is a human step.
+fn run_corrections(json: bool) -> Result<(), String> {
+    let file = sciwhisper_shell::corrections::path(&Config::path());
+    let entries = sciwhisper_shell::corrections::read(&file);
+    if entries.is_empty() {
+        println!("исправлений нет: {}", file.display());
+        println!("включить запись можно в меню значка или командой");
+        println!("  sciwhisper settings set remember_corrections true");
+        return Ok(());
+    }
+    if json {
+        for entry in &entries {
+            println!(
+                "{}",
+                serde_json::to_string(entry).map_err(|error| error.to_string())?
+            );
+        }
+        return Ok(());
+    }
+    println!("{} исправлений в {}", entries.len(), file.display());
+    for entry in &entries {
+        println!();
+        println!("  услышано : {}", entry.transcript);
+        println!("  вставлено: {}", entry.inserted);
+        println!("  выбрано  : {}  [{}]", entry.chosen, entry.kind);
+        if let Some(domain) = &entry.domain {
+            println!("  домен    : {domain}");
+        }
+    }
+    println!();
+    println!("Это материал для корпуса, а не корпус: gold-разметку по нему");
+    println!("нужно проставить руками — см. research/README_RU.md.");
     Ok(())
 }
 
