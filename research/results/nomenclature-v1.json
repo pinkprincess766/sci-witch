@@ -1,0 +1,1038 @@
+{
+  "report_schema_version": 4,
+  "canonical_schema_version": 1,
+  "severity_schema_version": 1,
+  "program": {
+    "name": "sciwhisper-eval",
+    "version": "0.1.1-rc1",
+    "git_commit": "f036eb62648c1ace871999afcc75b501b0bf029d",
+    "git_dirty": false
+  },
+  "dataset": {
+    "file": "nomenclature-v1.jsonl",
+    "sha256": "a2e265d7c97a69858d662c4a99c9f1e9e31e89f61e0737a4c75303736a14e528",
+    "dataset_schema_versions": [
+      1
+    ],
+    "records": 53,
+    "families": 48,
+    "counts_by_split": {
+      "train": 40,
+      "validation": 13
+    },
+    "counts_by_domain": {
+      "chemistry": 22,
+      "mathematics": 4,
+      "plain": 27
+    },
+    "counts_by_action": {
+      "ast": 26,
+      "raw": 27
+    },
+    "counts_by_provenance": {
+      "handcrafted_text": 53
+    }
+  },
+  "config": {
+    "baseline_id": "deterministic-v1",
+    "k": 4,
+    "recall_k_grid": [
+      1,
+      2,
+      4,
+      8,
+      16
+    ],
+    "auto_insert_threshold": 0.9,
+    "domain_policy": "auto",
+    "primary_renderer": "unicode",
+    "bootstrap_seed": 20260904,
+    "bootstrap_resamples": 2000,
+    "evaluated_split": "all"
+  },
+  "split_audit": {
+    "families": 48,
+    "records": 53,
+    "speakers": 0,
+    "counts_by_split": {
+      "train": 40,
+      "validation": 13
+    },
+    "families_by_split": {
+      "train": 40,
+      "validation": 8
+    },
+    "speakers_by_split": {},
+    "leaking_families": [],
+    "leaking_speakers": [],
+    "clean": true
+  },
+  "metrics": {
+    "examples": 53,
+    "ast_exact_match": {
+      "numerator": 53,
+      "denominator": 53,
+      "value": 1.0,
+      "ci95_low": 0.932418011423458,
+      "ci95_high": 0.9999999999999999,
+      "ci_method": "wilson"
+    },
+    "pre_insertion_end_to_end_exact_match": {
+      "latex": {
+        "numerator": 53,
+        "denominator": 53,
+        "value": 1.0,
+        "ci95_low": 0.932418011423458,
+        "ci95_high": 0.9999999999999999,
+        "ci_method": "wilson"
+      },
+      "omml": {
+        "numerator": 53,
+        "denominator": 53,
+        "value": 1.0,
+        "ci95_low": 0.932418011423458,
+        "ci95_high": 0.9999999999999999,
+        "ci_method": "wilson"
+      },
+      "unicode": {
+        "numerator": 53,
+        "denominator": 53,
+        "value": 1.0,
+        "ci95_low": 0.932418011423458,
+        "ci95_high": 0.9999999999999999,
+        "ci_method": "wilson"
+      }
+    },
+    "auto_insert_exact_match": {
+      "numerator": 26,
+      "denominator": 26,
+      "value": 1.0,
+      "ci95_low": 0.8712710781407846,
+      "ci95_high": 1.0,
+      "ci_method": "wilson"
+    },
+    "coverage": {
+      "numerator": 26,
+      "denominator": 53,
+      "value": 0.49056603773584906,
+      "ci95_low": 0.3612424984784323,
+      "ci95_high": 0.6211647088532004,
+      "ci_method": "wilson"
+    },
+    "overall_exact_match": {
+      "numerator": 53,
+      "denominator": 53,
+      "value": 1.0,
+      "ci95_low": 0.932418011423458,
+      "ci95_high": 0.9999999999999999,
+      "ci_method": "wilson"
+    },
+    "overall_exact_match_bootstrap": {
+      "numerator": 53,
+      "denominator": 53,
+      "value": 1.0,
+      "ci95_low": 1.0,
+      "ci95_high": 1.0,
+      "ci_method": "bootstrap"
+    },
+    "candidate_recall_at_k": {
+      "1": {
+        "numerator": 53,
+        "denominator": 53,
+        "value": 1.0,
+        "ci95_low": 0.932418011423458,
+        "ci95_high": 0.9999999999999999,
+        "ci_method": "wilson"
+      },
+      "16": {
+        "numerator": 53,
+        "denominator": 53,
+        "value": 1.0,
+        "ci95_low": 0.932418011423458,
+        "ci95_high": 0.9999999999999999,
+        "ci_method": "wilson"
+      },
+      "2": {
+        "numerator": 53,
+        "denominator": 53,
+        "value": 1.0,
+        "ci95_low": 0.932418011423458,
+        "ci95_high": 0.9999999999999999,
+        "ci_method": "wilson"
+      },
+      "4": {
+        "numerator": 53,
+        "denominator": 53,
+        "value": 1.0,
+        "ci95_low": 0.932418011423458,
+        "ci95_high": 0.9999999999999999,
+        "ci_method": "wilson"
+      },
+      "8": {
+        "numerator": 53,
+        "denominator": 53,
+        "value": 1.0,
+        "ci95_low": 0.932418011423458,
+        "ci95_high": 0.9999999999999999,
+        "ci_method": "wilson"
+      }
+    },
+    "routing_accuracy": {
+      "numerator": 26,
+      "denominator": 26,
+      "value": 1.0,
+      "ci95_low": 0.8712710781407846,
+      "ci95_high": 1.0,
+      "ci_method": "wilson"
+    },
+    "raw_accuracy": {
+      "numerator": 27,
+      "denominator": 27,
+      "value": 1.0,
+      "ci95_low": 0.8754449702581328,
+      "ci95_high": 0.9999999999999998,
+      "ci_method": "wilson"
+    },
+    "false_scientific_rewrite_rate": {
+      "numerator": 0,
+      "denominator": 27,
+      "value": 0.0,
+      "ci95_low": 0.0,
+      "ci95_high": 0.12455502974186705,
+      "ci_method": "wilson",
+      "zero_count_upper95": 0.10501923017634429
+    },
+    "false_abstention_rate": {
+      "numerator": 0,
+      "denominator": 26,
+      "value": 0.0,
+      "ci95_low": 0.0,
+      "ci95_high": 0.1287289218592153,
+      "ci_method": "wilson",
+      "zero_count_upper95": 0.10883035576078481
+    },
+    "ast_validity": {
+      "numerator": 26,
+      "denominator": 26,
+      "value": 1.0,
+      "ci95_low": 0.8712710781407846,
+      "ci95_high": 1.0,
+      "ci_method": "wilson"
+    },
+    "candidates": {
+      "p50": 1,
+      "p95": 2,
+      "max": 2,
+      "examples_with_more_than_one_candidate": 26,
+      "examples_with_more_than_one_ast_candidate": 0
+    },
+    "reranker_readiness": {
+      "scientific_examples": 26,
+      "examples_with_at_least_two_distinct_ast_candidates": 0,
+      "examples_where_gold_is_present_but_not_first": 0,
+      "ambiguous_by_split": {},
+      "required_ambiguous_examples": 50,
+      "required_gold_not_first": 20,
+      "required_per_split": 10,
+      "verdict": "insufficient",
+      "note": "A logistic reranker is statistically meaningless on this corpus: 0 examples offer more than one distinct scientific AST and 0 have the right answer outside first place, against a pre-registered requirement of 50 and 20. Training here would only learn to tell a single AST from RAW."
+    }
+  },
+  "breakdown": {
+    "by_domain": {
+      "chemistry": {
+        "numerator": 22,
+        "denominator": 22,
+        "value": 1.0,
+        "ci95_low": 0.8513451253913791,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "mathematics": {
+        "numerator": 4,
+        "denominator": 4,
+        "value": 1.0,
+        "ci95_low": 0.5101091635454027,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "plain": {
+        "numerator": 27,
+        "denominator": 27,
+        "value": 1.0,
+        "ci95_low": 0.8754449702581328,
+        "ci95_high": 0.9999999999999998,
+        "ci_method": "wilson"
+      }
+    },
+    "by_tag": {
+      "alkane": {
+        "numerator": 4,
+        "denominator": 4,
+        "value": 1.0,
+        "ci95_low": 0.5101091635454027,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "alkene": {
+        "numerator": 1,
+        "denominator": 1,
+        "value": 1.0,
+        "ci95_low": 0.20654931437723745,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "alkyne": {
+        "numerator": 1,
+        "denominator": 1,
+        "value": 1.0,
+        "ci95_low": 0.20654931437723745,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "coordination_negative": {
+        "numerator": 8,
+        "denominator": 8,
+        "value": 1.0,
+        "ci95_low": 0.6755924351161198,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "coordination_positive": {
+        "numerator": 4,
+        "denominator": 4,
+        "value": 1.0,
+        "ci95_low": 0.5101091635454027,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "counterfactual_pair": {
+        "numerator": 9,
+        "denominator": 9,
+        "value": 1.0,
+        "ci95_low": 0.7008549515804559,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "equation": {
+        "numerator": 2,
+        "denominator": 2,
+        "value": 1.0,
+        "ci95_low": 0.34238022750665303,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "function_application": {
+        "numerator": 3,
+        "denominator": 3,
+        "value": 1.0,
+        "ci95_low": 0.4385029682449546,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "half_reaction": {
+        "numerator": 2,
+        "denominator": 2,
+        "value": 1.0,
+        "ci95_low": 0.34238022750665303,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "hydrates": {
+        "numerator": 2,
+        "denominator": 2,
+        "value": 1.0,
+        "ci95_low": 0.34238022750665303,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "ion_charge": {
+        "numerator": 2,
+        "denominator": 2,
+        "value": 1.0,
+        "ci95_low": 0.34238022750665303,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "ionic": {
+        "numerator": 6,
+        "denominator": 6,
+        "value": 1.0,
+        "ci95_low": 0.6096657120978346,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "material_classes": {
+        "numerator": 2,
+        "denominator": 2,
+        "value": 1.0,
+        "ci95_low": 0.34238022750665303,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "ordinary_prose_with_chemical_terms": {
+        "numerator": 15,
+        "denominator": 15,
+        "value": 1.0,
+        "ci95_low": 0.7961166989641515,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "organic": {
+        "numerator": 6,
+        "denominator": 6,
+        "value": 1.0,
+        "ci95_low": 0.6096657120978346,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "organic_negative": {
+        "numerator": 4,
+        "denominator": 4,
+        "value": 1.0,
+        "ci95_low": 0.5101091635454027,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "oxidation_state_ambiguity": {
+        "numerator": 2,
+        "denominator": 2,
+        "value": 1.0,
+        "ci95_low": 0.34238022750665303,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "raw": {
+        "numerator": 27,
+        "denominator": 27,
+        "value": 1.0,
+        "ci95_low": 0.8754449702581328,
+        "ci95_high": 0.9999999999999998,
+        "ci_method": "wilson"
+      },
+      "subscript": {
+        "numerator": 1,
+        "denominator": 1,
+        "value": 1.0,
+        "ci95_low": 0.20654931437723745,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      }
+    },
+    "by_family": {
+      "coord-hexacyanoferrate": [
+        2,
+        2
+      ],
+      "coord-tetraamminecopper": [
+        1,
+        1
+      ],
+      "coord-tetrahydroxozincate": [
+        1,
+        1
+      ],
+      "half-reaction-family": [
+        2,
+        2
+      ],
+      "hydrate-copper-sulfate-penta": [
+        1,
+        1
+      ],
+      "hydrate-sodium-carbonate-deca": [
+        1,
+        1
+      ],
+      "ion-chloride": [
+        1,
+        1
+      ],
+      "ion-neutralisation": [
+        1,
+        1
+      ],
+      "ion-precipitation": [
+        1,
+        1
+      ],
+      "ion-prose-charge": [
+        1,
+        1
+      ],
+      "ion-prose-electron": [
+        1,
+        1
+      ],
+      "ion-prose-halfreaction": [
+        1,
+        1
+      ],
+      "ion-silver": [
+        1,
+        1
+      ],
+      "material-zinc-ferrite": [
+        1,
+        1
+      ],
+      "material-zinc-ferrite-adj": [
+        1,
+        1
+      ],
+      "math-apply-family": [
+        2,
+        2
+      ],
+      "math-apply-two-args": [
+        1,
+        1
+      ],
+      "math-subscript-letter": [
+        1,
+        1
+      ],
+      "neg-ferrite-barium": [
+        1,
+        1
+      ],
+      "neg-ferrite-copper": [
+        1,
+        1
+      ],
+      "neg-hexacyano-alone": [
+        1,
+        1
+      ],
+      "neg-hydrate-alone": [
+        1,
+        1
+      ],
+      "neg-multivalent-centre": [
+        1,
+        1
+      ],
+      "neg-no-counter-ion": [
+        1,
+        1
+      ],
+      "neg-unknown-center": [
+        1,
+        1
+      ],
+      "neg-unknown-ligand": [
+        1,
+        1
+      ],
+      "organic-decane": [
+        1,
+        1
+      ],
+      "organic-neg-cyclohexane": [
+        1,
+        1
+      ],
+      "organic-neg-isobutane": [
+        1,
+        1
+      ],
+      "organic-neg-methene": [
+        1,
+        1
+      ],
+      "organic-neg-methyne": [
+        1,
+        1
+      ],
+      "organic-octane": [
+        1,
+        1
+      ],
+      "organic-pentane": [
+        1,
+        1
+      ],
+      "organic-propane-family": [
+        3,
+        3
+      ],
+      "organic-prose-boiling": [
+        1,
+        1
+      ],
+      "organic-prose-dean": [
+        1,
+        1
+      ],
+      "organic-prose-isomers": [
+        1,
+        1
+      ],
+      "oxidation-plus-three": [
+        1,
+        1
+      ],
+      "oxidation-roman-three": [
+        1,
+        1
+      ],
+      "prose-coordination-number": [
+        1,
+        1
+      ],
+      "prose-copper-complex": [
+        1,
+        1
+      ],
+      "prose-ferrite-unstable": [
+        1,
+        1
+      ],
+      "prose-ferrites-discussed": [
+        1,
+        1
+      ],
+      "prose-hexacyano-compound": [
+        1,
+        1
+      ],
+      "prose-hydrate-formed": [
+        1,
+        1
+      ],
+      "prose-iron-washed": [
+        1,
+        1
+      ],
+      "prose-ligand-chosen": [
+        1,
+        1
+      ],
+      "prose-oxidation-later": [
+        1,
+        1
+      ]
+    }
+  },
+  "error_decomposition": {
+    "counts": {
+      "ASR-first": 0,
+      "candidate-first": 0,
+      "dataset-invalid": 0,
+      "decision-first": 0,
+      "rank-first": 0,
+      "render-first": 0,
+      "router-first": 0
+    },
+    "share_of_errors": {
+      "ASR-first": 0.0,
+      "candidate-first": 0.0,
+      "dataset-invalid": 0.0,
+      "decision-first": 0.0,
+      "rank-first": 0.0,
+      "render-first": 0.0,
+      "router-first": 0.0
+    },
+    "errors": 0,
+    "examples": 53,
+    "asr_first_applicable_examples": 0,
+    "notes": [
+      "ASR-first is N/A: no record in this corpus carries an ASR hypothesis, so no failure can be attributed to recognition."
+    ]
+  },
+  "oracle_replacement": [
+    {
+      "variant": "real",
+      "overall_exact_match": {
+        "numerator": 53,
+        "denominator": 53,
+        "value": 1.0,
+        "ci95_low": 0.932418011423458,
+        "ci95_high": 0.9999999999999999,
+        "ci_method": "wilson"
+      },
+      "delta_vs_real": 0.0,
+      "applicable_examples": 53
+    },
+    {
+      "variant": "oracle_transcript",
+      "overall_exact_match": {
+        "numerator": 53,
+        "denominator": 53,
+        "value": 1.0,
+        "ci95_low": 0.932418011423458,
+        "ci95_high": 0.9999999999999999,
+        "ci_method": "wilson"
+      },
+      "delta_vs_real": 0.0,
+      "applicable_examples": 0
+    },
+    {
+      "variant": "oracle_domain",
+      "overall_exact_match": {
+        "numerator": 53,
+        "denominator": 53,
+        "value": 1.0,
+        "ci95_low": 0.932418011423458,
+        "ci95_high": 0.9999999999999999,
+        "ci_method": "wilson"
+      },
+      "delta_vs_real": 0.0,
+      "applicable_examples": 26
+    },
+    {
+      "variant": "oracle_candidates",
+      "overall_exact_match": {
+        "numerator": 53,
+        "denominator": 53,
+        "value": 1.0,
+        "ci95_low": 0.932418011423458,
+        "ci95_high": 0.9999999999999999,
+        "ci_method": "wilson"
+      },
+      "delta_vs_real": 0.0,
+      "applicable_examples": 53
+    },
+    {
+      "variant": "oracle_ranker",
+      "overall_exact_match": {
+        "numerator": 53,
+        "denominator": 53,
+        "value": 1.0,
+        "ci95_low": 0.932418011423458,
+        "ci95_high": 0.9999999999999999,
+        "ci_method": "wilson"
+      },
+      "delta_vs_real": 0.0,
+      "applicable_examples": 53
+    },
+    {
+      "variant": "oracle_decision",
+      "overall_exact_match": {
+        "numerator": 53,
+        "denominator": 53,
+        "value": 1.0,
+        "ci95_low": 0.932418011423458,
+        "ci95_high": 0.9999999999999999,
+        "ci_method": "wilson"
+      },
+      "delta_vs_real": 0.0,
+      "applicable_examples": 53
+    }
+  ],
+  "component_isolation": {
+    "router_isolated_accuracy": {
+      "numerator": 26,
+      "denominator": 26,
+      "value": 1.0,
+      "ci95_low": 0.8712710781407846,
+      "ci95_high": 1.0,
+      "ci_method": "wilson"
+    },
+    "candidate_isolated_recall_at_k": {
+      "numerator": 53,
+      "denominator": 53,
+      "value": 1.0,
+      "ci95_low": 0.932418011423458,
+      "ci95_high": 0.9999999999999999,
+      "ci_method": "wilson"
+    },
+    "rank_isolated_accuracy": {
+      "numerator": 53,
+      "denominator": 53,
+      "value": 1.0,
+      "ci95_low": 0.932418011423458,
+      "ci95_high": 0.9999999999999999,
+      "ci_method": "wilson"
+    },
+    "decision_isolated_accuracy": {
+      "numerator": 53,
+      "denominator": 53,
+      "value": 1.0,
+      "ci95_low": 0.932418011423458,
+      "ci95_high": 0.9999999999999999,
+      "ci_method": "wilson"
+    },
+    "note": "Isolated numbers are laboratory component quality, not a product improvement ceiling; they are not additive with the oracle replacement deltas."
+  },
+  "severity": {
+    "errors": 0,
+    "count_by_severity": {
+      "S0": 0,
+      "S1": 0,
+      "S2": 0,
+      "S3": 0,
+      "S4": 0
+    },
+    "probability_given_error": {
+      "S0": 0.0,
+      "S1": 0.0,
+      "S2": 0.0,
+      "S3": 0.0,
+      "S4": 0.0
+    },
+    "max_severity": null
+  },
+  "ast_distance": {
+    "distance_schema_version": 1,
+    "comparable_errors": 0,
+    "incomparable_errors": 0
+  },
+  "selective_prediction": {
+    "curve": [
+      {
+        "threshold": 0.0,
+        "coverage": {
+          "numerator": 26,
+          "denominator": 53,
+          "value": 0.49056603773584906,
+          "ci95_low": 0.3612424984784323,
+          "ci95_high": 0.6211647088532004,
+          "ci_method": "wilson"
+        },
+        "risk": {
+          "numerator": 0,
+          "denominator": 26,
+          "value": 0.0,
+          "ci95_low": 0.0,
+          "ci95_high": 0.1287289218592153,
+          "ci_method": "wilson",
+          "zero_count_upper95": 0.10883035576078481
+        },
+        "accuracy": {
+          "numerator": 53,
+          "denominator": 53,
+          "value": 1.0,
+          "ci95_low": 0.932418011423458,
+          "ci95_high": 0.9999999999999999,
+          "ci_method": "wilson"
+        }
+      },
+      {
+        "threshold": 0.5,
+        "coverage": {
+          "numerator": 26,
+          "denominator": 53,
+          "value": 0.49056603773584906,
+          "ci95_low": 0.3612424984784323,
+          "ci95_high": 0.6211647088532004,
+          "ci_method": "wilson"
+        },
+        "risk": {
+          "numerator": 0,
+          "denominator": 26,
+          "value": 0.0,
+          "ci95_low": 0.0,
+          "ci95_high": 0.1287289218592153,
+          "ci_method": "wilson",
+          "zero_count_upper95": 0.10883035576078481
+        },
+        "accuracy": {
+          "numerator": 53,
+          "denominator": 53,
+          "value": 1.0,
+          "ci95_low": 0.932418011423458,
+          "ci95_high": 0.9999999999999999,
+          "ci_method": "wilson"
+        }
+      },
+      {
+        "threshold": 0.7,
+        "coverage": {
+          "numerator": 26,
+          "denominator": 53,
+          "value": 0.49056603773584906,
+          "ci95_low": 0.3612424984784323,
+          "ci95_high": 0.6211647088532004,
+          "ci_method": "wilson"
+        },
+        "risk": {
+          "numerator": 0,
+          "denominator": 26,
+          "value": 0.0,
+          "ci95_low": 0.0,
+          "ci95_high": 0.1287289218592153,
+          "ci_method": "wilson",
+          "zero_count_upper95": 0.10883035576078481
+        },
+        "accuracy": {
+          "numerator": 53,
+          "denominator": 53,
+          "value": 1.0,
+          "ci95_low": 0.932418011423458,
+          "ci95_high": 0.9999999999999999,
+          "ci_method": "wilson"
+        }
+      },
+      {
+        "threshold": 0.8,
+        "coverage": {
+          "numerator": 26,
+          "denominator": 53,
+          "value": 0.49056603773584906,
+          "ci95_low": 0.3612424984784323,
+          "ci95_high": 0.6211647088532004,
+          "ci_method": "wilson"
+        },
+        "risk": {
+          "numerator": 0,
+          "denominator": 26,
+          "value": 0.0,
+          "ci95_low": 0.0,
+          "ci95_high": 0.1287289218592153,
+          "ci_method": "wilson",
+          "zero_count_upper95": 0.10883035576078481
+        },
+        "accuracy": {
+          "numerator": 53,
+          "denominator": 53,
+          "value": 1.0,
+          "ci95_low": 0.932418011423458,
+          "ci95_high": 0.9999999999999999,
+          "ci_method": "wilson"
+        }
+      },
+      {
+        "threshold": 0.9,
+        "coverage": {
+          "numerator": 26,
+          "denominator": 53,
+          "value": 0.49056603773584906,
+          "ci95_low": 0.3612424984784323,
+          "ci95_high": 0.6211647088532004,
+          "ci_method": "wilson"
+        },
+        "risk": {
+          "numerator": 0,
+          "denominator": 26,
+          "value": 0.0,
+          "ci95_low": 0.0,
+          "ci95_high": 0.1287289218592153,
+          "ci_method": "wilson",
+          "zero_count_upper95": 0.10883035576078481
+        },
+        "accuracy": {
+          "numerator": 53,
+          "denominator": 53,
+          "value": 1.0,
+          "ci95_low": 0.932418011423458,
+          "ci95_high": 0.9999999999999999,
+          "ci_method": "wilson"
+        }
+      },
+      {
+        "threshold": 0.95,
+        "coverage": {
+          "numerator": 26,
+          "denominator": 53,
+          "value": 0.49056603773584906,
+          "ci95_low": 0.3612424984784323,
+          "ci95_high": 0.6211647088532004,
+          "ci_method": "wilson"
+        },
+        "risk": {
+          "numerator": 0,
+          "denominator": 26,
+          "value": 0.0,
+          "ci95_low": 0.0,
+          "ci95_high": 0.1287289218592153,
+          "ci_method": "wilson",
+          "zero_count_upper95": 0.10883035576078481
+        },
+        "accuracy": {
+          "numerator": 53,
+          "denominator": 53,
+          "value": 1.0,
+          "ci95_low": 0.932418011423458,
+          "ci95_high": 0.9999999999999999,
+          "ci_method": "wilson"
+        }
+      },
+      {
+        "threshold": 1.0,
+        "coverage": {
+          "numerator": 0,
+          "denominator": 53,
+          "value": 0.0,
+          "ci95_low": 0.0,
+          "ci95_high": 0.06758198857654187,
+          "ci_method": "wilson",
+          "zero_count_upper95": 0.05495548846517784
+        },
+        "accuracy": {
+          "numerator": 27,
+          "denominator": 53,
+          "value": 0.5094339622641509,
+          "ci95_low": 0.3788352911467995,
+          "ci95_high": 0.6387575015215675,
+          "ci_method": "wilson"
+        }
+      }
+    ],
+    "configured_threshold": 0.9,
+    "no_worse_than_configured": [
+      0.0,
+      0.5,
+      0.7,
+      0.8,
+      0.95
+    ],
+    "calibration": {
+      "levels": [
+        {
+          "confidence": 0.95,
+          "examples": 26,
+          "accuracy": {
+            "numerator": 26,
+            "denominator": 26,
+            "value": 1.0,
+            "ci95_low": 0.8712710781407846,
+            "ci95_high": 1.0,
+            "ci_method": "wilson"
+          },
+          "trustworthy": false
+        }
+      ],
+      "brier": 0.0025,
+      "expected_calibration_error": 0.05,
+      "scored_examples": 26,
+      "errors": 0,
+      "verdict": "порог нельзя выбрать по данным: ошибок среди отвеченного 0, нужно не менее 20. При таком числе ошибок любые два порога различаются в пределах шума, и «лучший» из них будет выбран случайно. Оценка приняла 1 различных значений — калибровать шкалу почти без размаха тоже нечем."
+    }
+  },
+  "user_path": {
+    "declared_expectations": 27,
+    "evaluated_records": 53,
+    "mixed_exact_match": {
+      "numerator": 53,
+      "denominator": 53,
+      "value": 1.0,
+      "ci95_low": 0.932418011423458,
+      "ci95_high": 0.9999999999999999,
+      "ci_method": "wilson"
+    },
+    "false_scientific_rewrite_rate": {
+      "numerator": 0,
+      "denominator": 27,
+      "value": 0.0,
+      "ci95_low": 0.0,
+      "ci95_high": 0.12455502974186705,
+      "ci_method": "wilson",
+      "zero_count_upper95": 0.10501923017634429
+    },
+    "rewritten": []
+  },
+  "errors": [],
+  "notes": [
+    "This is a text-level development corpus. There are no real voices in it, and ASR accuracy is not measured here.",
+    "pre_insertion_end_to_end_exact_match stops before the operating-system insertion step. The Word COM path is not exercised by this harness and must not be called verified.",
+    "The confidence produced by sciwhisper-core is a deterministic parse level, not a calibrated probability. No metric here treats it as one.",
+    "Oracle replacement deltas answer the product question and are not additive; component isolation answers the laboratory question and is a different quantity.",
+    "An observed count of zero for a rare safety error is reported with its exact one-sided 95% upper bound, never as a proven zero.",
+    "The insert/abstain threshold is reported as a risk–coverage curve rather than defended. `no_worse_than_configured` lists only thresholds that give up nothing on coverage, accuracy and risk at once; a trade between them is the owner's decision."
+  ],
+  "timing": {
+    "latency_us_p50": 1343,
+    "latency_us_p95": 4486
+  }
+}
