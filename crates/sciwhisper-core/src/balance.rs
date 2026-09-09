@@ -9,7 +9,7 @@
 //! enough steps, and this crate abstains on overflow rather than wrapping
 //! into a wrong suggestion or panicking on a debug build.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::ast::{Arrow, Equation, Species};
 
@@ -78,34 +78,25 @@ fn gcd(a: u128, b: u128) -> u128 {
 }
 
 /// Column `j` is species `j` for `j < left.len()`, else `right[j - left.len()]`.
-fn build_matrix(equation: &Equation) -> (Vec<Vec<Frac>>, usize) {
-    let all_species = equation.left.iter().chain(equation.right.iter());
-    let elements: BTreeSet<String> = all_species
-        .flat_map(|s| s.formula.atom_counts().into_keys())
-        .collect();
-    let has_charge = equation
-        .left
+/// `None` if any species' atom count overflows `u64` (see
+/// [`crate::ast::Formula::atom_counts`]) rather than building a matrix from
+/// a silently-wrapped count.
+fn build_matrix(equation: &Equation) -> Option<(Vec<Vec<Frac>>, usize)> {
+    let species: Vec<&Species> = equation.left.iter().chain(equation.right.iter()).collect();
+    let counts: Vec<BTreeMap<String, u64>> = species
         .iter()
-        .chain(equation.right.iter())
-        .any(|s| s.charge.unwrap_or(0) != 0);
+        .map(|s| s.formula.atom_counts())
+        .collect::<Option<_>>()?;
+    let elements: BTreeSet<&String> = counts.iter().flat_map(BTreeMap::keys).collect();
+    let has_charge = species.iter().any(|s| s.charge.unwrap_or(0) != 0);
 
-    let n = equation.left.len() + equation.right.len();
+    let n = species.len();
     let mut rows: Vec<Vec<Frac>> = Vec::with_capacity(elements.len() + has_charge as usize);
 
     for element in &elements {
         let mut row = vec![Frac::from_i128(0); n];
-        for (j, species) in equation
-            .left
-            .iter()
-            .chain(equation.right.iter())
-            .enumerate()
-        {
-            let count = species
-                .formula
-                .atom_counts()
-                .get(element)
-                .copied()
-                .unwrap_or(0) as i128;
+        for (j, count) in counts.iter().enumerate() {
+            let count = count.get(*element).copied().unwrap_or(0) as i128;
             let sign = if j < equation.left.len() { 1 } else { -1 };
             row[j] = Frac::from_i128(sign * count);
         }
@@ -114,20 +105,15 @@ fn build_matrix(equation: &Equation) -> (Vec<Vec<Frac>>, usize) {
 
     if has_charge {
         let mut row = vec![Frac::from_i128(0); n];
-        for (j, species) in equation
-            .left
-            .iter()
-            .chain(equation.right.iter())
-            .enumerate()
-        {
-            let charge = i128::from(species.charge.unwrap_or(0));
+        for (j, s) in species.iter().enumerate() {
+            let charge = i128::from(s.charge.unwrap_or(0));
             let sign = if j < equation.left.len() { 1 } else { -1 };
             row[j] = Frac::from_i128(sign * charge);
         }
         rows.push(row);
     }
 
-    (rows, n)
+    Some((rows, n))
 }
 
 /// Reduces `a` to reduced row-echelon form in place and returns the pivot
@@ -177,7 +163,7 @@ pub fn balance_equation(equation: &Equation) -> Option<Vec<u32>> {
     if equation.left.is_empty() || equation.right.is_empty() {
         return None;
     }
-    let (mut matrix, n) = build_matrix(equation);
+    let (mut matrix, n) = build_matrix(equation)?;
     let pivots = rref(&mut matrix)?;
 
     let free_cols: Vec<usize> = (0..n).filter(|c| !pivots.contains(c)).collect();
@@ -434,6 +420,31 @@ mod tests {
     }
 
     #[test]
+    fn balance_equation_abstains_when_atom_counting_overflows() {
+        // `atom_counts` itself (not just the RREF/rational-arithmetic layer)
+        // can overflow on an artificially deep or wide Formula. This must
+        // surface as a clean `None` from `balance_equation`, not a panic.
+        let huge = Formula {
+            parts: vec![Part::Group {
+                inner: Formula {
+                    parts: vec![Part::Group {
+                        inner: Formula::atom("X", u32::MAX),
+                        count: u32::MAX,
+                    }],
+                },
+                count: u32::MAX,
+            }],
+        };
+        let equation = Equation {
+            left: vec![Species::new(huge)],
+            arrow: Arrow::Forward,
+            right: vec![Species::new(Formula::atom("X", 1))],
+            condition: None,
+        };
+        assert_eq!(balance_equation(&equation), None);
+    }
+
+    #[test]
     fn large_full_rank_system_never_panics() {
         // Breadth smoke test at roughly the reported repro's shape (~20
         // elements, 21 species, indices 1-9): this particular matrix stays
@@ -474,7 +485,12 @@ mod tests {
                         .zip(&coeffs[offset..offset + side.len()])
                         .map(|(s, &c)| {
                             u64::from(c)
-                                * s.formula.atom_counts().get(&symbol).copied().unwrap_or(0)
+                                * s.formula
+                                    .atom_counts()
+                                    .unwrap()
+                                    .get(&symbol)
+                                    .copied()
+                                    .unwrap_or(0)
                         })
                         .sum()
                 };

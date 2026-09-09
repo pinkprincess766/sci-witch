@@ -1,6 +1,7 @@
 pub mod app;
 pub mod clipboard;
 pub mod config;
+pub mod corrections;
 pub mod error;
 pub mod front;
 pub mod history;
@@ -9,7 +10,10 @@ mod indicator;
 pub mod insert;
 mod key_listener;
 pub mod permissions;
+pub mod profile;
 pub mod tray;
+pub mod update;
+pub mod upgrade;
 pub mod word_win;
 
 pub use app::run;

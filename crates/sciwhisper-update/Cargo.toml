@@ -1,0 +1,24 @@
+[package]
+name = "sciwhisper-update"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Staging, verification and atomic replacement of a SciWhisper installation"
+
+# The helper runs after the application has exited, so it must not depend on
+# the tray, the window system or the recogniser. Keeping it in its own crate
+# is what makes that a compile-time fact rather than a promise.
+[[bin]]
+name = "sciwhisper-updater"
+path = "src/bin/sciwhisper-updater.rs"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+zip = { version = "2", default-features = false, features = ["deflate"] }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+serde_json = { workspace = true }

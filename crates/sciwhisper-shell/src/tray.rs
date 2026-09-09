@@ -4,7 +4,7 @@ use tray_icon::{Icon, TrayIcon, TrayIconBuilder};
 use image::imageops::FilterType;
 
 use crate::config::OutputMode;
-use sciwhisper_core::Domain;
+use sciwhisper_core::{Domain, UtteranceMode};
 
 pub struct MenuIds {
     pub quit: MenuId,
@@ -17,17 +17,43 @@ pub struct MenuIds {
     pub domain_checks: Vec<(CheckMenuItem, Domain)>,
     /// One entry per output option; exactly one should be checked at a time.
     pub output_checks: Vec<(CheckMenuItem, OutputMode)>,
+    /// One entry per dictation mode; exactly one should be checked at a time.
+    pub dictation_checks: Vec<(CheckMenuItem, UtteranceMode)>,
     /// One entry per microphone option (`None` = system default), plus every
     /// device `capture::input_devices()` reported when the menu was last
     /// (re)built. Exactly one should be checked at a time.
     pub mic_checks: Vec<(CheckMenuItem, Option<String>)>,
     pub mic_refresh: MenuId,
+    /// Asks GitHub whether a newer preview exists. The only network request
+    /// the application makes, and it happens only when this is pressed.
+    pub update_check: MenuId,
+    /// Advances the update one step: download, then install. Its text says
+    /// which step it is on, and it is disabled while there is nothing to do
+    /// — a greyed-out item is honest, an item that does nothing is not.
+    pub update_action: MenuId,
+    pub update_notes: MenuId,
+    /// Fixed slots for the readings of the last utterance. Created once and
+    /// re-labelled, because a tray menu cannot be grown and shrunk at will
+    /// without losing the ids the event loop matches on.
+    pub choices: Vec<MenuId>,
+    /// Whether a correction the user makes is written to a local file.
+    /// A check item rather than a plain one, because its state is the whole
+    /// point: a user must be able to see at a glance that their dictation
+    /// is being recorded.
+    pub remember_corrections: CheckMenuItem,
 }
 
 pub struct Tray {
     pub icon: TrayIcon,
     pub ids: MenuIds,
     status: MenuItem,
+    update_action: MenuItem,
+    update_notes: MenuItem,
+    choice_slots: Vec<MenuItem>,
+    choice_labels: Vec<String>,
+    /// Kept so a menu rebuilt for a new microphone list does not throw away
+    /// what the user was told about an update.
+    update_label: Option<(String, bool)>,
 }
 
 impl Tray {
@@ -37,21 +63,96 @@ impl Tray {
 
     /// Rebuilds the menu in place — same tray icon, fresh microphone list —
     /// so a newly plugged-in device shows up without restarting the app.
-    pub fn refresh(&mut self, domain: Domain, output: OutputMode, mic: Option<&str>) {
+    pub fn refresh(
+        &mut self,
+        domain: Domain,
+        output: OutputMode,
+        dictation: UtteranceMode,
+        mic: Option<&str>,
+    ) {
         let status_text = self.status.text();
-        let (menu, ids, status) = build_menu(domain, output, mic, &status_text);
+        let remember = self.ids.remember_corrections.is_checked();
+        let (menu, ids, status, action, notes, slots) =
+            build_menu(domain, output, dictation, mic, &status_text, remember);
         self.icon.set_menu(Some(Box::new(menu)));
         self.ids = ids;
         self.status = status;
+        self.update_action = action;
+        self.update_notes = notes;
+        self.choice_slots = slots;
+        let labels = std::mem::take(&mut self.choice_labels);
+        self.set_choices(&labels);
+        if let Some((label, notes_available)) = self.update_label.clone() {
+            self.set_update_step(&label, notes_available);
+        }
+    }
+
+    /// Sets what the update item offers next. `None` means there is nothing
+    /// to offer, and the item is disabled rather than left saying something
+    /// it can no longer do.
+    pub fn set_update_step(&mut self, label: &str, notes_available: bool) {
+        self.update_action.set_text(label);
+        self.update_action.set_enabled(true);
+        self.update_notes.set_enabled(notes_available);
+        self.update_label = Some((label.to_string(), notes_available));
+    }
+
+    pub fn clear_update_step(&mut self) {
+        self.update_action.set_text(NO_UPDATE_LABEL);
+        self.update_action.set_enabled(false);
+        self.update_notes.set_enabled(false);
+        self.update_label = None;
     }
 }
+
+/// What the update item says when there is nothing staged or offered.
+pub const NO_UPDATE_LABEL: &str = "Обновление не найдено";
+
+/// How many readings of one utterance the menu can show.
+///
+/// Three, because a list a user has to read through is not a choice — it is
+/// a second problem. If a future grammar produces more, the extra ones are
+/// dropped rather than shown: an unusable menu would be worse than an
+/// incomplete one, and anything beyond three competing readings means the
+/// utterance was too ambiguous to answer at all.
+pub const MAX_CHOICES: usize = 3;
+
+impl Tray {
+    /// Labels the reading slots. Fewer labels than slots leaves the rest
+    /// disabled; an empty list disables all of them.
+    pub fn set_choices(&mut self, labels: &[String]) {
+        for (index, slot) in self.choice_slots.iter().enumerate() {
+            match labels.get(index) {
+                Some(label) => {
+                    slot.set_text(label);
+                    slot.set_enabled(true);
+                }
+                None => {
+                    slot.set_text(EMPTY_CHOICE_LABEL);
+                    slot.set_enabled(false);
+                }
+            }
+        }
+        self.choice_labels = labels.to_vec();
+    }
+
+    pub fn clear_choices(&mut self) {
+        self.set_choices(&[]);
+    }
+}
+
+const EMPTY_CHOICE_LABEL: &str = "—";
+
+type BuiltMenu = (Menu, MenuIds, MenuItem, MenuItem, MenuItem, Vec<MenuItem>);
 
 fn build_menu(
     domain: Domain,
     output: OutputMode,
+    dictation: UtteranceMode,
     mic: Option<&str>,
     status: &str,
-) -> (Menu, MenuIds, MenuItem) {
+    remember: bool,
+) -> BuiltMenu {
     let menu = Menu::new();
     let rec = MenuItem::new("Начать / завершить запись (Control ×2)", true, None);
     let paste_last = MenuItem::new("Повторить вставку", true, None);
@@ -59,6 +160,18 @@ fn build_menu(
     let undo = MenuItem::new("Undo вставки", true, None);
     let clear = MenuItem::new("Очистить историю", true, None);
     let quit = MenuItem::new("Выход", true, None);
+    let update_check = MenuItem::new("Проверить обновления", true, None);
+    let update_action = MenuItem::new(NO_UPDATE_LABEL, false, None);
+    let update_notes = MenuItem::new("Что нового", false, None);
+    let remember_corrections = CheckMenuItem::new(
+        "Запоминать мои исправления (локально)",
+        true,
+        remember,
+        None,
+    );
+    let choice_slots: Vec<MenuItem> = (0..MAX_CHOICES)
+        .map(|_| MenuItem::new(EMPTY_CHOICE_LABEL, false, None))
+        .collect();
 
     let domains_menu = Submenu::new("Домен", true);
     let mut domain_checks = Vec::new();
@@ -87,6 +200,23 @@ fn build_menu(
         output_checks.push((item, value));
     }
 
+    // What happens to the ordinary words around a formula. The default keeps
+    // everything the speaker said, so the destructive-looking option is never
+    // the one a user lands on by accident.
+    let dictation_menu = Submenu::new("Диктовка", true);
+    let mut dictation_checks = Vec::new();
+    for (label, value) in [
+        ("Смешанный текст: сохранять речь", UtteranceMode::MixedText),
+        (
+            "Только формула: убирать вводные",
+            UtteranceMode::ScientificOnly,
+        ),
+    ] {
+        let item = CheckMenuItem::new(label, true, value == dictation, None);
+        let _ = dictation_menu.append(&item);
+        dictation_checks.push((item, value));
+    }
+
     let mics_menu = Submenu::new("Микрофон", true);
     let default_item = CheckMenuItem::new("Системный по умолчанию", true, mic.is_none(), None);
     let _ = mics_menu.append(&default_item);
@@ -111,7 +241,25 @@ fn build_menu(
     let _ = menu.append(&PredefinedMenuItem::separator());
     let _ = menu.append(&domains_menu);
     let _ = menu.append(&outputs_menu);
+    let _ = menu.append(&dictation_menu);
     let _ = menu.append(&mics_menu);
+    // Readings of the last utterance. Placed next to «Undo вставки» because
+    // they do the same thing from the user's side: take back what was
+    // inserted and put something else there.
+    let choices_menu = Submenu::new("Варианты прочтения", true);
+    for slot in &choice_slots {
+        let _ = choices_menu.append(slot);
+    }
+    let _ = choices_menu.append(&PredefinedMenuItem::separator());
+    let _ = choices_menu.append(&remember_corrections);
+    let _ = menu.append(&choices_menu);
+
+    let _ = menu.append(&PredefinedMenuItem::separator());
+    let updates_menu = Submenu::new("Обновления", true);
+    let _ = updates_menu.append(&update_check);
+    let _ = updates_menu.append(&update_action);
+    let _ = updates_menu.append(&update_notes);
+    let _ = menu.append(&updates_menu);
     let _ = menu.append(&PredefinedMenuItem::separator());
     let _ = menu.append(&clear);
     let _ = menu.append(&quit);
@@ -125,20 +273,29 @@ fn build_menu(
         clear: clear.id().clone(),
         domain_checks,
         output_checks,
+        dictation_checks,
         mic_checks,
         mic_refresh: mic_refresh.id().clone(),
+        update_check: update_check.id().clone(),
+        update_action: update_action.id().clone(),
+        update_notes: update_notes.id().clone(),
+        choices: choice_slots.iter().map(|slot| slot.id().clone()).collect(),
+        remember_corrections,
     };
 
-    (menu, ids, status)
+    (menu, ids, status, update_action, update_notes, choice_slots)
 }
 
 pub fn build(
     domain: Domain,
     output: OutputMode,
+    dictation: UtteranceMode,
     mic: Option<&str>,
     status: &str,
+    remember_corrections: bool,
 ) -> tray_icon::Result<Tray> {
-    let (menu, ids, status) = build_menu(domain, output, mic, status);
+    let (menu, ids, status, update_action, update_notes, choice_slots) =
+        build_menu(domain, output, dictation, mic, status, remember_corrections);
 
     let icon = TrayIconBuilder::new()
         .with_menu(Box::new(menu))
@@ -151,7 +308,16 @@ pub fn build(
         .with_title("")
         .build()?;
 
-    Ok(Tray { icon, ids, status })
+    Ok(Tray {
+        icon,
+        ids,
+        status,
+        update_action,
+        update_notes,
+        update_label: None,
+        choice_slots,
+        choice_labels: Vec::new(),
+    })
 }
 
 #[derive(Clone, Copy)]

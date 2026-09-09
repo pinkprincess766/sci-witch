@@ -1,31 +1,114 @@
-schema_version: 1
-phrases:
-  - from: [превращается в, превращаются в, превращается, превращаются, переходит в, переходят в, окисляется до, окисляются до, восстанавливается до, восстанавливаются до, дает, даёт, получается]
-    to: ARROW
-  - from: [равновесная стрелка, обратимо, равновесие]
-    to: EQ_ARROW
-  - from: [стрелка]
-    to: ARROW
-  - from: [плюс]
-    to: PLUS
-  - from: [газ, в виде газа]
-    to: GAS
-  - from: [осадок, выпадает в осадок]
-    to: PPT
-  - from: [ион, иона]
-    to: ION
-  - from: [при нагревании, при нагреве, нагревание]
-    to: COND_HEAT
-  - from: [катализатор]
-    to: COND_CAT
-  - from: [дважды]
-    to: TIMES2
-  - from: [трижды]
-    to: TIMES3
-phonetic:
-  - from: [аш два о, н два о]
-    to_formula: H2O
-  - from: [о два]
-    to_formula: O2
-  - from: [аш два]
-    to_formula: H2
+schema_version: 2
+# Single source of truth for spoken chemistry connectives.
+#
+# The Rust parser reads this file and holds no second copy of these phrases.
+# Every list is matched longest-first, and one phrase may not carry two
+# different meanings: the loader refuses such a file instead of letting the
+# order of lines decide the chemistry.
+#
+# These are *connectives*, not whole sentences. The grammar assembles subject,
+# reagent, product and arrow from them, so a new sentence shape needs no new
+# entry here.
+reaction:
+  # LEFT <phrase> RIGHT
+  forward:
+    - превращается в
+    - превращаются в
+    - переходит в
+    - переходят в
+    - окисляется до
+    - окисляются до
+    - восстанавливается до
+    - восстанавливаются до
+    - разлагается до
+    - превращается
+    - превращаются
+    - образует
+    - образуют
+    - даёт
+    - стрелка
+  equilibrium:
+    - равновесная стрелка
+    - обратимо
+    - находится в равновесии с
+    - в равновесии с
+  # LEFT <phrase> LEFT — adds another reagent to the same side
+  join_reagent:
+    - реагирует с
+    - реагируют с
+    - взаимодействует с
+    - взаимодействуют с
+    - вступает в реакцию с
+    - вступают в реакцию с
+  # … <phrase> RIGHT — opens the product side without being an arrow by itself
+  product_marker:
+    - в результате образуется
+    - в результате образуются
+    - в результате получается
+    - при этом образуется
+    - при этом образуются
+    - с образованием
+    - с выделением
+    - образуя
+  # LEFT <phrase> RIGHT, and «и» splits the products
+  decompose:
+    - разлагается на
+    - разлагаются на
+    - распадается на
+    - распадаются на
+  # «из A получается B»
+  from_marker:
+    - из
+  to_marker:
+    - получается
+    - получаются
+    - получают
+    - образуется
+    - образуются
+  # «между A и B протекает реакция с образованием C»
+  between_marker:
+    - между
+  # A noun, not an arrow. On its own it never licenses a reaction; it only
+  # links a «между …» opening to a product marker.
+  reaction_noun:
+    - протекает реакция
+    - протекают реакции
+    - идёт реакция
+    - происходит реакция
+    - идёт процесс
+  plus:
+    - плюс
+  # Only ever a «+», and only inside a side that already parsed as chemistry.
+  conjunction:
+    - и
+conditions:
+  heat:
+    - при нагревании
+    - при нагреве
+    - нагревание
+  light:
+    - на свету
+    - при освещении
+  electrolysis:
+    - электролиз
+    - при электролизе
+  catalyst:
+    - катализатор
+    - в присутствии катализатора
+markers:
+  gas:
+    - газ
+    - в виде газа
+  precipitate:
+    - осадок
+    - выпадает в осадок
+ion:
+  markers:
+    - ион
+    - иона
+    - ионы
+grouping:
+  twice:
+    - дважды
+  thrice:
+    - трижды

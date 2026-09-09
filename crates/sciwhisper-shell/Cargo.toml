@@ -9,6 +9,7 @@ description = "Tray, global PTT, clipboard paste and Word insertion for SciWhisp
 [dependencies]
 sciwhisper-core = { workspace = true }
 sciwhisper-asr = { workspace = true }
+sciwhisper-update = { workspace = true }
 serde = { workspace = true }
 serde_yaml = { workspace = true }
 serde_json = { workspace = true }
@@ -19,6 +20,11 @@ tray-icon = "0.19"
 winit = "0.30"
 image = { version = "0.25", default-features = false, features = ["png"] }
 softbuffer = "0.4"
+ureq = { version = "2", features = ["json"] }
+semver = "1"
+sha2 = "0.10"
+tempfile = { workspace = true }
+url = "2"
 
 [target.'cfg(not(target_os = "macos"))'.dependencies]
 rdev = "0.5"
@@ -28,7 +34,7 @@ notify-rust = "4"
 core-foundation = "0.9"
 
 [dev-dependencies]
-tempfile = { workspace = true }
+tiny_http = "0.12"
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.58", features = [

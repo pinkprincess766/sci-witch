@@ -1,4 +1,92 @@
-SciWhisper
+sci-witch (SciWhisper)
 Copyright 2026 SciWhisper contributors
 
 This product includes software developed by SciWhisper contributors.
+
+--------------------------------------------------------------------------
+Third-party components shipped in the Windows portable bundle
+--------------------------------------------------------------------------
+
+whisper.cpp
+  Role      : local speech recognition engine (whisper-cli.exe)
+  Upstream  : https://github.com/ggml-org/whisper.cpp
+  Version   : v1.7.4, commit 8a9ad7844d6e2a10cddf4b92de4089d7ac2b14a9,
+              pinned in packaging/windows/model-pack.json
+  Licence   : MIT
+  Licence   : https://github.com/ggml-org/whisper.cpp/blob/master/LICENSE
+  Provenance: compiled from source in this project's release workflow. The
+              clone is verified against the pinned commit before anything is
+              compiled, so a moved tag cannot change what ships. No prebuilt
+              third-party binary is downloaded and none is stored in this
+              repository. The commit, its digest and the build flags are
+              recorded in whisper/BUILD_MANIFEST.json inside every bundle.
+
+Whisper model weights (ggml conversions)
+  Role      : the recognition model, shipped as a separate model pack asset
+  Upstream  : https://huggingface.co/ggerganov/whisper.cpp
+  Origin    : converted from OpenAI Whisper
+  Licence   : MIT (https://github.com/openai/whisper/blob/main/LICENSE)
+  Version   : ggml-small-q5_1.bin, 190085487 bytes,
+              sha256 ae85e4a935d7a567bd102fe55afc16bb595bdb618e11b2fc7591bc08120411bb,
+              fetched from an immutable Hugging Face revision
+              (c521a4b02f422512d734391fdf08bb08c0862f68)
+  Provenance: downloaded once by the release workflow and checked against the
+              digest and byte size pinned in packaging/windows/model-pack.json.
+              A mismatch fails the release; there is no override.
+
+              whisper/MODEL_MANIFEST.json inside the pack is an INTEGRITY
+              check, not a proof of origin: it travels in the same archive as
+              the file it describes, so it can detect truncation and
+              corruption but cannot attest to where the bytes came from.
+              Provenance rests on the pin in this repository and on the
+              release workflow that enforced it. The manifest records whether
+              that enforcement actually happened, and an official bundle
+              refuses a pack that says it did not.
+
+              The application itself never downloads a model.
+
+Rust crates
+  This product statically links around five hundred third-party crates.
+  Every one of them, with the licence it declares, is listed in
+  packaging/THIRD-PARTY-LICENSES.json, which is generated from the lockfile
+  and checked on every test run: a dependency that appears without a
+  recorded licence, or under a licence this project has not reviewed, fails
+  the build.
+
+  All of them are permissive. Four carry licences whose notice must travel
+  with the distribution, so they are named here rather than left to the
+  inventory:
+
+    option-ext              MPL-2.0
+      Role     : reached through `dirs`, which resolves the per-user
+                 configuration directory.
+      Note     : MPL-2.0 is file-level copyleft. The crate is shipped
+                 unmodified; were its files ever modified, those changes
+                 would have to be published under the MPL.
+      Licence  : https://www.mozilla.org/MPL/2.0/
+
+    webpki-roots            CDLA-Permissive-2.0
+      Role     : the Mozilla CA root store, used to verify TLS when — and
+                 only when — the user presses "Проверить обновления".
+      Note     : this is data, not code, and the licence asks for
+                 attribution. The root store is Mozilla's; this project
+                 neither curates nor modifies it.
+      Licence  : https://cdla.dev/permissive-2-0/
+
+    clipboard-win           BSL-1.0
+    error-code              BSL-1.0
+      Role     : reached through `arboard` on Windows; they are how the
+                 clipboard is read and written there.
+      Licence  : https://www.boost.org/LICENSE_1_0.txt
+
+  Nothing in the graph is under GPL, AGPL or an LGPL-only licence. One crate
+  (`r-efi`) offers LGPL-2.1-or-later as one of three alternatives; this
+  project takes the MIT option.
+
+--------------------------------------------------------------------------
+Data
+--------------------------------------------------------------------------
+
+Chemical, mathematical and physical lexicons shipped with this product are
+covered by DATA_LICENSE.md, with per-entry provenance recorded in the YAML
+files themselves.

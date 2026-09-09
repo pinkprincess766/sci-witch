@@ -14,10 +14,15 @@ use crate::clipboard::{self, Snapshot};
 use crate::config::OutputMode;
 use crate::error::{Error, Result};
 use crate::front::{self, FrontApp};
+use crate::profile::{self, Profile};
 
 pub struct InsertRequest<'a> {
     pub result: &'a PipelineResult,
     pub mode: OutputMode,
+    /// Consulted only when `mode` is `Auto`. Empty is legal and means "no
+    /// profile matched": the caller then gets Unicode, which is the format
+    /// every text field understands.
+    pub profiles: &'a [Profile],
 }
 
 pub struct InsertOutcome {
@@ -29,18 +34,7 @@ pub struct InsertOutcome {
 
 pub fn insert(req: InsertRequest<'_>) -> Result<InsertOutcome> {
     let front = front::frontmost();
-    let mode = match req.mode {
-        OutputMode::Auto => {
-            if front.as_ref().map(|f| f.is_word()).unwrap_or(false) {
-                OutputMode::Word
-            } else if front.as_ref().map(|f| f.wants_latex()).unwrap_or(false) {
-                OutputMode::Latex
-            } else {
-                OutputMode::Unicode
-            }
-        }
-        other => other,
-    };
+    let mode = resolve_mode(req.mode, req.profiles, front.as_ref());
 
     let payload = payload_for_mode(req.result, mode);
 
@@ -73,11 +67,24 @@ pub fn insert(req: InsertRequest<'_>) -> Result<InsertOutcome> {
     thread::sleep(Duration::from_millis(40));
     let pasted = send_paste();
     thread::sleep(Duration::from_millis(180));
-    let restored = if pasted {
+    // Only worth putting the clipboard back if the paste actually happened;
+    // if it did not, the payload is what the user still needs there.
+    let restoration = if pasted {
         clipboard::restore_if_ours(&snap)
     } else {
-        false
+        clipboard::Restore::NotOurs
     };
+    if restoration.warrants_warning() {
+        // A file selection or an application's private format cannot be
+        // held, and the paste destroyed it. Saying so is the least this can
+        // do; staying quiet would let the loss look like the user's own
+        // mistake.
+        notify(
+            "SciWhisper",
+            "Формула вставлена, но прежнее содержимое буфера обмена сохранить не удалось: там было не текстовое и не графическое содержимое.",
+        );
+    }
+    let restored = restoration == clipboard::Restore::Restored;
     Ok(InsertOutcome {
         method: if req.result.interpretation.confidence <= 0.0 {
             if pasted {
@@ -94,6 +101,23 @@ pub fn insert(req: InsertRequest<'_>) -> Result<InsertOutcome> {
         front,
         payload,
     })
+}
+
+/// Which format to insert. An explicit choice is obeyed as given; `Auto`
+/// asks the profile list, and falls back to Unicode when nothing matches —
+/// the format every text field accepts, and the one that loses the least if
+/// the guess is wrong.
+pub fn resolve_mode(
+    requested: OutputMode,
+    profiles: &[Profile],
+    front: Option<&FrontApp>,
+) -> OutputMode {
+    if requested != OutputMode::Auto {
+        return requested;
+    }
+    profile::select(profiles, front)
+        .and_then(|profile| profile.output_mode())
+        .unwrap_or(OutputMode::Unicode)
 }
 
 fn payload_for_mode(result: &PipelineResult, mode: OutputMode) -> String {
@@ -239,6 +263,74 @@ mod tests {
         assert_eq!(
             payload_for_mode(&result, OutputMode::Unicode),
             "пример Fe(OH)₃ в тексте"
+        );
+    }
+
+    fn app(name: &str, exe: &str) -> FrontApp {
+        FrontApp {
+            name: name.into(),
+            exe: exe.into(),
+        }
+    }
+
+    /// A user who picked LaTeX in the tray did not mean "unless a profile
+    /// disagrees".
+    #[test]
+    fn an_explicit_format_is_never_overridden_by_a_profile() {
+        let profiles = profile::defaults();
+        let word = app("Документ — Word", "WINWORD.EXE");
+        for chosen in [OutputMode::Unicode, OutputMode::Latex, OutputMode::Word] {
+            assert_eq!(resolve_mode(chosen, &profiles, Some(&word)), chosen);
+        }
+    }
+
+    #[test]
+    fn automatic_choice_follows_the_profile_list() {
+        let profiles = profile::defaults();
+        assert_eq!(
+            resolve_mode(
+                OutputMode::Auto,
+                &profiles,
+                Some(&app("Документ — Word", "WINWORD.EXE"))
+            ),
+            OutputMode::Word
+        );
+        assert_eq!(
+            resolve_mode(
+                OutputMode::Auto,
+                &profiles,
+                Some(&app("Overleaf", "chrome.exe"))
+            ),
+            OutputMode::Latex
+        );
+        assert_eq!(
+            resolve_mode(
+                OutputMode::Auto,
+                &profiles,
+                Some(&app("Блокнот", "notepad.exe"))
+            ),
+            OutputMode::Unicode
+        );
+    }
+
+    /// An empty or unusable profile list must not stop insertion. Unicode is
+    /// the format every text field accepts, so it is what a failed guess
+    /// costs the least.
+    #[test]
+    fn with_no_usable_profile_the_safest_format_is_used() {
+        assert_eq!(
+            resolve_mode(OutputMode::Auto, &[], Some(&app("Word", "WINWORD.EXE"))),
+            OutputMode::Unicode
+        );
+        let broken = vec![Profile {
+            name: "Опечатка".into(),
+            r#match: vec!["winword".into()],
+            output: "wodr".into(),
+            dictation: None,
+        }];
+        assert_eq!(
+            resolve_mode(OutputMode::Auto, &broken, Some(&app("Word", "WINWORD.EXE"))),
+            OutputMode::Unicode
         );
     }
 

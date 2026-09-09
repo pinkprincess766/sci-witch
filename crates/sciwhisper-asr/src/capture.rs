@@ -1,5 +1,6 @@
-//! Microphone capture → 16 kHz mono WAV. VAD-style silence trim is applied
-//! after resampling: leading/trailing near-zero samples are dropped.
+//! Microphone capture → 16 kHz mono WAV. The lead-in and the tail are cut
+//! by [`crate::vad`], which measures against the recording's own noise
+//! floor instead of a fixed amplitude.
 
 use std::io::{self, BufRead};
 use std::path::PathBuf;
@@ -12,8 +13,11 @@ use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::SampleFormat;
 
 use crate::error::{Error, Result};
+use crate::vad;
 
 pub const TARGET_HZ: u32 = 16_000;
+const RECORDING_TEMP_PREFIX: &str = "sciwhisper-recording-";
+const PREPARED_AUDIO_TEMP_PREFIX: &str = "sciwhisper-audio-";
 
 /// Names of every input device the default host reports, best-effort (a
 /// device whose name briefly fails to query is skipped, not fatal).
@@ -52,10 +56,15 @@ pub struct Recording {
     pub wav_path: PathBuf,
     pub duration_secs: f32,
     pub peak: f32,
+    /// How far the speech stood above the room, in dB. Reported so a
+    /// marginal recording can be named as such instead of silently
+    /// producing a bad transcript.
+    pub snr_db: f32,
     _temp_dir: tempfile::TempDir,
 }
 
 /// Audio prepared for Whisper. Converted files are removed when this value is dropped.
+#[derive(Debug)]
 pub struct PreparedAudio {
     path: PathBuf,
     _temp_dir: Option<tempfile::TempDir>,
@@ -64,6 +73,11 @@ pub struct PreparedAudio {
 impl PreparedAudio {
     pub fn path(&self) -> &std::path::Path {
         &self.path
+    }
+
+    /// True when this value is responsible for deleting the file it points at.
+    pub fn owns_temp_dir(&self) -> bool {
+        self._temp_dir.is_some()
     }
 }
 
@@ -139,19 +153,20 @@ fn finalize_samples(
             .map(|c| c.iter().sum::<f32>() / c.len() as f32)
             .collect()
     };
-    let resampled = resample(&mono, sample_rate, TARGET_HZ);
-    let trimmed = trim_silence(&resampled, 0.01);
-    let peak = trimmed.iter().fold(0.0f32, |a, s| a.max(s.abs()));
-    if peak < 0.005 {
+    let resampled = vad::remove_dc(&resample(&mono, sample_rate, TARGET_HZ));
+    let cfg = vad::VadConfig::default();
+    let Some((trimmed, speech)) = vad::trim_to_speech(&resampled, TARGET_HZ, &cfg) else {
         return Err(Error::Audio(
             "тишина — ничего не произнесено (или микрофон выключен)".into(),
         ));
-    }
-    let wav = write_wav(&trimmed, TARGET_HZ)?;
+    };
+    let peak = trimmed.iter().fold(0.0f32, |a, s| a.max(s.abs()));
+    let wav = write_wav_with_prefix(&trimmed, TARGET_HZ, RECORDING_TEMP_PREFIX)?;
     Ok(Recording {
         wav_path: wav.path.clone(),
         duration_secs: trimmed.len() as f32 / TARGET_HZ as f32,
         peak,
+        snr_db: speech.snr_db(),
         _temp_dir: wav
             ._temp_dir
             .expect("recorded audio always owns its temporary directory"),
@@ -269,20 +284,20 @@ fn resample(input: &[f32], from: u32, to: u32) -> Vec<f32> {
     out
 }
 
-fn trim_silence(samples: &[f32], thresh: f32) -> Vec<f32> {
-    let Some(start) = samples.iter().position(|s| s.abs() > thresh) else {
-        return vec![];
-    };
-    let end = samples
-        .iter()
-        .rposition(|s| s.abs() > thresh)
-        .unwrap_or(start);
-    samples[start..=end].to_vec()
+/// Writes samples to a WAV inside a temporary directory the returned value
+/// owns. Dropping the value removes the directory and the audio with it —
+/// there is no separate cleanup step that an error path could skip.
+pub fn write_temp_wav(samples: &[f32], hz: u32) -> Result<PreparedAudio> {
+    write_wav(samples, hz)
 }
 
 fn write_wav(samples: &[f32], hz: u32) -> Result<PreparedAudio> {
+    write_wav_with_prefix(samples, hz, PREPARED_AUDIO_TEMP_PREFIX)
+}
+
+fn write_wav_with_prefix(samples: &[f32], hz: u32, prefix: &str) -> Result<PreparedAudio> {
     let temp_dir = tempfile::Builder::new()
-        .prefix("sciwhisper-")
+        .prefix(prefix)
         .tempdir()
         .map_err(|e| Error::Message(e.to_string()))?;
     let path = temp_dir.path().join("audio.wav");
@@ -304,28 +319,76 @@ fn write_wav(samples: &[f32], hz: u32) -> Result<PreparedAudio> {
     })
 }
 
-/// Resample an existing audio file to 16 kHz mono WAV via ffmpeg if needed.
+/// Prepares an audio file for the recogniser: 16 kHz, mono, 16-bit WAV.
+///
+/// A WAV file is handled entirely in this crate — read, downmixed and
+/// resampled here — so the common case needs no `ffmpeg` at all. That matters
+/// for the portable Windows bundle, where asking a user to install a video
+/// tool would defeat the point of shipping a self-contained pack.
+///
+/// Anything that is not a WAV still needs `ffmpeg` to decode it, and its
+/// absence is reported plainly instead of handing the recogniser a file it
+/// cannot read.
 pub fn ensure_wav_16k(input: &std::path::Path) -> Result<PreparedAudio> {
-    let ext = input
+    prepare_audio(input, which_ffmpeg())
+}
+
+/// The preparation step with `ffmpeg` injected, so its absence can be tested
+/// without depending on what is installed on the machine running the tests.
+pub fn prepare_audio_for_test(
+    input: &std::path::Path,
+    ffmpeg: Option<PathBuf>,
+) -> Result<PreparedAudio> {
+    prepare_audio(input, ffmpeg)
+}
+
+fn prepare_audio(input: &std::path::Path, ffmpeg: Option<PathBuf>) -> Result<PreparedAudio> {
+    if !input.is_file() {
+        return Err(Error::Audio(format!(
+            "аудиофайл не найден: {}",
+            input
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_default()
+        )));
+    }
+    let is_wav = input
         .extension()
         .and_then(|s| s.to_str())
-        .unwrap_or("")
-        .to_ascii_lowercase();
-    if ext == "wav" {
-        // still resample — whisper is happiest at 16 kHz
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("wav"));
+
+    // A file named .wav that this crate cannot read may still be something
+    // ffmpeg understands, so a failure here falls through rather than refuses.
+    if let (true, Ok((samples, hz))) = (is_wav, read_wav_samples(input)) {
+        if hz == TARGET_HZ && already_mono_16bit(input) {
+            // Nothing to change: hand the original file over and take no
+            // ownership of it, so the caller's file is never deleted.
+            return Ok(PreparedAudio {
+                path: input.to_path_buf(),
+                _temp_dir: None,
+            });
+        }
+        return write_wav(&resample(&samples, hz, TARGET_HZ), TARGET_HZ);
     }
-    if which_ffmpeg().is_none() {
-        return Ok(PreparedAudio {
-            path: input.to_path_buf(),
-            _temp_dir: None,
-        });
-    }
+
+    let Some(ffmpeg) = ffmpeg else {
+        return Err(Error::Audio(format!(
+            "файл {} не является 16 kHz WAV, а для его преобразования нужен ffmpeg, \
+             которого нет в системе. Запишите звук через саму программу — \
+             для записи с микрофона ffmpeg не нужен — или преобразуйте файл заранее.",
+            input
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_default()
+        )));
+    };
+
     let temp_dir = tempfile::Builder::new()
         .prefix("sciwhisper-")
         .tempdir()
         .map_err(|e| Error::Message(e.to_string()))?;
     let out = temp_dir.path().join("audio.wav");
-    let status = std::process::Command::new("ffmpeg")
+    let status = std::process::Command::new(ffmpeg)
         .args(["-y", "-i"])
         .arg(input)
         .args(["-ar", "16000", "-ac", "1", "-c:a", "pcm_s16le"])
@@ -334,12 +397,67 @@ pub fn ensure_wav_16k(input: &std::path::Path) -> Result<PreparedAudio> {
         .stderr(std::process::Stdio::null())
         .status()?;
     if !status.success() {
-        return Err(Error::Audio("ffmpeg failed to convert audio".into()));
+        return Err(Error::Audio(
+            "ffmpeg не смог преобразовать аудиофайл".into(),
+        ));
     }
     Ok(PreparedAudio {
         path: out,
         _temp_dir: Some(temp_dir),
     })
+}
+
+/// Reads a WAV into mono samples, whatever its channel count and bit depth.
+/// Mono samples and their rate, as stored — no resampling. Used by
+/// [`crate::corpus`], which must measure the file it was given rather than a
+/// converted copy of it.
+pub fn read_wav_samples_for_corpus(path: &std::path::Path) -> Result<(Vec<f32>, u32)> {
+    read_wav_samples(path)
+}
+
+fn read_wav_samples(path: &std::path::Path) -> Result<(Vec<f32>, u32)> {
+    let mut reader = hound::WavReader::open(path).map_err(|e| Error::Audio(e.to_string()))?;
+    let spec = reader.spec();
+    let channels = spec.channels.max(1) as usize;
+    let scale = match spec.bits_per_sample {
+        8 => i8::MAX as f32,
+        16 => i16::MAX as f32,
+        24 => 8_388_607.0,
+        _ => i32::MAX as f32,
+    };
+    let interleaved: Vec<f32> = match spec.sample_format {
+        hound::SampleFormat::Float => reader
+            .samples::<f32>()
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(|e| Error::Audio(e.to_string()))?,
+        hound::SampleFormat::Int => reader
+            .samples::<i32>()
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(|e| Error::Audio(e.to_string()))?
+            .into_iter()
+            .map(|value| value as f32 / scale)
+            .collect(),
+    };
+    let mono = if channels <= 1 {
+        interleaved
+    } else {
+        interleaved
+            .chunks(channels)
+            .map(|frame| frame.iter().sum::<f32>() / frame.len() as f32)
+            .collect()
+    };
+    Ok((mono, spec.sample_rate))
+}
+
+fn already_mono_16bit(path: &std::path::Path) -> bool {
+    hound::WavReader::open(path)
+        .map(|reader| {
+            let spec = reader.spec();
+            spec.channels == 1
+                && spec.bits_per_sample == 16
+                && spec.sample_format == hound::SampleFormat::Int
+        })
+        .unwrap_or(false)
 }
 
 fn which_ffmpeg() -> Option<PathBuf> {

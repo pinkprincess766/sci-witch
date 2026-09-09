@@ -62,7 +62,7 @@ jobs:
       - name: Build and check
         shell: pwsh
         run: |
-          cargo build --release -p sciwhisper-cli
+          cargo build --release -p sciwhisper-cli -p sciwhisper-update
           target/release/sciwhisper.exe self-test
           $bytes = [System.IO.File]::ReadAllBytes("target/release/sciwhisper.exe")
           $peOffset = [BitConverter]::ToInt32($bytes, 0x3C)
@@ -71,40 +71,373 @@ jobs:
             throw "Expected x64 PE machine 0x8664, got 0x$($machine.ToString('X4'))"
           }
 
+      # The recogniser is compiled here from a pinned source, not downloaded as
+      # somebody's prebuilt binary and not tracked in this repository.
+      - name: Build whisper.cpp from the pinned source
+        shell: pwsh
+        run: |
+          $pin = Get-Content packaging/windows/model-pack.json | ConvertFrom-Json
+          $repo = $pin.whisper_cpp.repository
+          $tag = $pin.whisper_cpp.tag
+          if ($tag -in @('latest', 'main', 'master')) {
+            throw "whisper.cpp must be pinned to a release tag, got '$tag'"
+          }
+          git clone --depth 1 --branch $tag $repo whisper-src
+          Push-Location whisper-src
+          $resolved = (git rev-parse HEAD).Trim()
+          Pop-Location
+          if (-not $pin.whisper_cpp.commit) {
+            throw "packaging/windows/model-pack.json must pin whisper_cpp.commit. A tag alone can be moved."
+          }
+          if ($resolved -ne $pin.whisper_cpp.commit) {
+            throw "whisper.cpp tag $tag resolved to $resolved, but the pin says $($pin.whisper_cpp.commit). Refusing to build a different source than the one that was reviewed."
+          }
+          Write-Host "whisper.cpp commit verified against the pin: $resolved"
+          # GGML_NATIVE=OFF keeps the build off this runner's instruction set, so
+          # the shipped binary also starts on an older user CPU.
+          cmake -S whisper-src -B whisper-build -DCMAKE_BUILD_TYPE=Release `
+            -DBUILD_SHARED_LIBS=OFF -DGGML_NATIVE=OFF `
+            -DWHISPER_BUILD_TESTS=OFF -DWHISPER_BUILD_SERVER=OFF
+          cmake --build whisper-build --config Release --target whisper-cli
+          $cli = Get-ChildItem -Path whisper-build -Recurse -Filter whisper-cli.exe |
+            Select-Object -First 1
+          if (-not $cli) { throw "whisper-cli.exe was not produced" }
+          New-Item -ItemType Directory -Force whisper-out | Out-Null
+          Copy-Item $cli.FullName whisper-out/whisper-cli.exe
+          # A static build should need no runtime libraries; any that appear are
+          # shipped alongside rather than left for the user to discover.
+          Get-ChildItem -Path $cli.Directory -Filter *.dll -ErrorAction SilentlyContinue |
+            ForEach-Object { Copy-Item $_.FullName whisper-out/ }
+          $sha = (Get-FileHash whisper-out/whisper-cli.exe -Algorithm SHA256).Hash.ToLower()
+          @{
+            schema_version = 1
+            component = "whisper.cpp"
+            repository = $repo
+            tag = $tag
+            commit = $resolved
+            commit_was_pinned = $true
+            license = $pin.whisper_cpp.license
+            license_url = $pin.whisper_cpp.license_url
+            build = "cmake Release, BUILD_SHARED_LIBS=OFF, GGML_NATIVE=OFF"
+            whisper_cli_sha256 = $sha
+          } | ConvertTo-Json | Set-Content whisper-out/BUILD_MANIFEST.json -Encoding utf8
+          Write-Host "whisper-cli.exe sha256: $sha"
+
+      # Proof that the shipped executable actually starts on a clean runner.
+      - name: Smoke-test the bundled whisper-cli
+        shell: pwsh
+        run: |
+          $out = & whisper-out/whisper-cli.exe --help 2>&1 | Out-String
+          if ($LASTEXITCODE -ne 0 -and $out -notmatch 'usage') {
+            throw "bundled whisper-cli.exe did not run: exit $LASTEXITCODE`n$out"
+          }
+          if ($out -notmatch 'model') {
+            throw "bundled whisper-cli.exe produced unexpected help output:`n$out"
+          }
+          Write-Host "bundled whisper-cli.exe starts and reports its options"
+          # And from a directory whose name has spaces and Cyrillic in it.
+          $odd = "spaces and кириллица"
+          New-Item -ItemType Directory -Force $odd | Out-Null
+          Copy-Item whisper-out/* $odd -Recurse
+          $out2 = & "$odd/whisper-cli.exe" --help 2>&1 | Out-String
+          if ($out2 -notmatch 'model') {
+            throw "whisper-cli.exe failed from a path with spaces and Cyrillic:`n$out2"
+          }
+          Write-Host "bundled whisper-cli.exe also starts from '$odd'"
+
       - name: Assemble application archive
         shell: pwsh
         run: |
           $version = $env:GITHUB_REF_NAME -replace '^v', ''
           $root = "bundle/sci-witch-Windows-x64-$version"
-          New-Item -ItemType Directory -Force "$root/docs/user", "$root/docs/development", "$root/docs/images" | Out-Null
+          New-Item -ItemType Directory -Force "$root/whisper", "$root/docs/user", "$root/docs/development", "$root/docs/images" | Out-Null
           Copy-Item target/release/sciwhisper.exe $root
+          # The helper that replaces the installation after the application
+          # exits. Windows cannot rename the directory holding a running
+          # executable, so without it an update can be downloaded and
+          # verified and then never installed.
+          Copy-Item target/release/sciwhisper-updater.exe $root
+          Copy-Item whisper-out/* "$root/whisper/"
           Copy-Item packaging/windows/SciWhisper.cmd, packaging/windows/SciWhisper-App.ps1 $root
           Copy-Item packaging/windows/SciWhisper-Settings.cmd, packaging/windows/SciWhisper-Settings.ps1 $root
           Copy-Item packaging/windows/SciWhisper-Test.cmd, packaging/windows/README-WINDOWS.txt $root
           Copy-Item assets/branding/SciWhisper-wink-broom-sand-v1.ico "$root/SciWhisper.ico"
           Copy-Item README.md, LICENSE, NOTICE, DATA_LICENSE.md, CHANGELOG.md, SECURITY.md, CONTRIBUTING.md $root
-          Copy-Item docs/user/TESTING_RU.md, docs/user/PRIVACY_RU.md, docs/user/KNOWN_LIMITATIONS_RU.md "$root/docs/user"
-          Copy-Item docs/development/GRAMMAR_RU.md, docs/development/ARCHITECTURE_RU.md, docs/development/MATHEMATICS_RU.md, docs/development/ML_RESEARCH_RU.md "$root/docs/development"
+          Copy-Item docs/user/TESTING_RU.md, docs/user/PRIVACY_RU.md, docs/user/KNOWN_LIMITATIONS_RU.md, docs/user/WINDOWS_ACCEPTANCE_RU.md "$root/docs/user"
+          Copy-Item docs/development/GRAMMAR_RU.md, docs/development/ARCHITECTURE_RU.md, docs/development/MATHEMATICS_RU.md, docs/development/ML_RESEARCH_RU.md, docs/development/NATURAL_DICTATION_RU.md "$root/docs/development"
           Copy-Item docs/images/si-witch-windows-settings-mockup.png, docs/images/si-witch-recording.gif "$root/docs/images"
+
+      # The archive is checked against the same list the application's own tests
+      # use, so packaging and runtime cannot drift apart.
+      - name: Verify bundle contents
+        shell: pwsh
+        run: |
+          $version = $env:GITHUB_REF_NAME -replace '^v', ''
+          $root = "bundle/sci-witch-Windows-x64-$version"
+          $contents = Get-Content packaging/windows/BUNDLE_CONTENTS.json | ConvertFrom-Json
+          $missing = @()
+          foreach ($dir in $contents.required_dirs) {
+            if (-not (Test-Path -PathType Container "$root/$dir")) { $missing += "dir $dir" }
+          }
+          foreach ($file in $contents.required_files) {
+            if (-not (Test-Path -PathType Leaf "$root/$file")) { $missing += $file }
+          }
+          if ($missing.Count -gt 0) {
+            throw "the Windows bundle is incomplete, missing: $($missing -join ', ')"
+          }
+          $exe = Get-Item "$root/whisper/whisper-cli.exe"
+          if ($exe.Length -lt 100000) {
+            throw "whisper-cli.exe looks truncated: $($exe.Length) bytes"
+          }
+          Write-Host "bundle contains all $($contents.required_files.Count) required files"
           Compress-Archive -Path $root -DestinationPath "bundle/SciWhisper-$version-Windows-x64.zip"
+          $zip = Get-Item "bundle/SciWhisper-$version-Windows-x64.zip"
+          Write-Host "bundle archive: $([math]::Round($zip.Length / 1MB, 1)) MiB"
+
+      # The installer packages the very tree that was just verified, so the
+      # portable archive and the installed copy cannot contain different
+      # files. Decisions inside the script — per-user install, nothing
+      # auto-started, settings kept on uninstall — are pinned by
+      # crates/sciwhisper-update/tests/installer.rs.
+      - name: Build the installer
+        shell: pwsh
+        run: |
+          $version = $env:GITHUB_REF_NAME -replace '^v', ''
+          $root = "bundle/sci-witch-Windows-x64-$version"
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            throw "Inno Setup 6 not found at $iscc; the runner image changed and the installer cannot be built"
+          }
+          & $iscc /DAppVersion=$version /DSourceDir=$root /Obundle packaging/windows/SciWhisper.iss
+          if ($LASTEXITCODE -ne 0) { throw "ISCC failed with $LASTEXITCODE" }
+          $setup = Get-Item "bundle/SciWhisper-$version-Windows-x64-Setup.exe"
+          if ($setup.Length -lt 1MB) {
+            throw "installer looks truncated: $($setup.Length) bytes"
+          }
+          Write-Host "installer: $([math]::Round($setup.Length / 1MB, 1)) MiB"
 
       - uses: actions/upload-artifact@v4
         with:
           name: Windows-x64
-          path: bundle/SciWhisper-*-Windows-x64.zip
+          path: |
+            bundle/SciWhisper-*-Windows-x64.zip
+            bundle/SciWhisper-*-Windows-x64-Setup.exe
+
+  windows-model-pack:
+    name: Windows model pack
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The model is never committed to this repository. It is fetched once
+      # here, checked against the digest pinned in model-pack.json, and shipped
+      # as its own asset. The application itself never downloads anything.
+      - name: Fetch and verify the recommended model
+        shell: pwsh
+        run: |
+          $pin = Get-Content packaging/windows/model-pack.json | ConvertFrom-Json
+          $model = $pin.models | Where-Object { $_.recommended } | Select-Object -First 1
+          if (-not $model) { throw "no recommended model in model-pack.json" }
+          New-Item -ItemType Directory -Force pack/whisper | Out-Null
+          $target = "pack/whisper/$($model.file)"
+          Invoke-WebRequest -Uri $model.source_url -OutFile $target
+          $sha = (Get-FileHash $target -Algorithm SHA256).Hash.ToLower()
+          $size = (Get-Item $target).Length
+          if (-not $model.sha256) {
+            throw "model $($model.id) has no pinned sha256 in packaging/windows/model-pack.json. An unpinned model is not shippable."
+          }
+          if ($sha -ne $model.sha256) {
+            throw "model digest mismatch: pinned $($model.sha256), downloaded $sha. Refusing to publish."
+          }
+          if ($model.size_bytes -and $size -ne $model.size_bytes) {
+            throw "model size mismatch: pinned $($model.size_bytes), downloaded $size. Refusing to publish."
+          }
+          if ($model.source_url -match '/resolve/(main|master)/') {
+            throw "model source_url points at a branch; pin an immutable revision instead."
+          }
+          Write-Host "model digest and size verified against the repository pin"
+          @{
+            schema_version = 1
+            model_id = $model.id
+            file = $model.file
+            size_bytes = $size
+            sha256 = $sha
+            source_url = $model.source_url
+            license = $model.license
+            license_url = $model.license_url
+            whisper_cpp_version = $pin.whisper_cpp.tag
+            verified_against_repository_pin = $true
+            notes = $model.rationale
+          } | ConvertTo-Json | Set-Content "pack/whisper/MODEL_MANIFEST.json" -Encoding utf8
+          # The application refuses a pack that says it was never checked, so the
+          # flag has to be true here and is asserted rather than assumed.
+          $written = Get-Content "pack/whisper/MODEL_MANIFEST.json" | ConvertFrom-Json
+          if (-not $written.verified_against_repository_pin) {
+            throw "MODEL_MANIFEST.json was written with verified_against_repository_pin = false"
+          }
+          Write-Host "model pack: $([math]::Round($size / 1MB, 1)) MiB"
+
+      - name: Package the model
+        shell: pwsh
+        run: |
+          $version = $env:GITHUB_REF_NAME -replace '^v', ''
+          New-Item -ItemType Directory -Force bundle | Out-Null
+          Compress-Archive -Path pack/whisper -DestinationPath "bundle/SciWhisper-$version-Windows-model-pack.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Windows-model-pack
+          path: bundle/SciWhisper-*-Windows-model-pack.zip
 
   release:
     name: Publish GitHub release
-    needs: [macos, windows]
+    needs: [macos, windows, windows-model-pack]
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verify tag matches workspace version
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+          import tomllib
+
+          with open("Cargo.toml", "rb") as source:
+              cargo_version = tomllib.load(source)["workspace"]["package"]["version"]
+          tag = os.environ["GITHUB_REF_NAME"]
+          expected = f"v{cargo_version}"
+          if tag != expected:
+              raise SystemExit(f"release tag {tag!r} does not match Cargo.toml version {expected!r}")
+          PY
+
       - uses: actions/download-artifact@v4
         with:
           path: dist
           merge-multiple: true
 
+      - name: Build update manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          repo="${GITHUB_REPOSITORY}"
+          published_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          manifest="dist/update-manifest.json"
+
+          platforms="{}"
+          add_platform() {
+            local key="$1"
+            local zip="$2"
+            if [[ ! -f "$zip" ]]; then
+              echo "required release artifact is missing: $zip" >&2
+              exit 1
+            fi
+            local name
+            local sha
+            local url
+            name="$(basename "$zip")"
+            sha="$(sha256sum "$zip" | cut -d' ' -f1)"
+            if [[ ! "$sha" =~ ^[0-9a-f]{64}$ ]]; then
+              echo "invalid SHA-256 for $zip: $sha" >&2
+              exit 1
+            fi
+            url="https://github.com/${repo}/releases/download/${GITHUB_REF_NAME}/${name}"
+            platforms="$(echo "$platforms" | jq --arg k "$key" --arg name "$name" --arg sha "$sha" --arg url "$url" \
+              '. + {($k): {asset_name: $name, sha256: $sha, url: $url}}')"
+          }
+
+          # The update manifest names the portable ZIP, not the installer.
+          # An update replaces the directory in place; running an installer
+          # unattended would be a second, unnecessary way to change the same
+          # files, and the one that needs the user to click through a wizard.
+          add_platform "windows-x64" "dist/SciWhisper-${version}-Windows-x64.zip"
+          add_platform "macos-arm64" "dist/SciWhisper-${version}-macOS-arm64.zip"
+
+          jq -n \
+            --arg schema_version "1" \
+            --arg version "$version" \
+            --arg channel "preview" \
+            --arg published_at "$published_at" \
+            --arg notes_url "https://github.com/${repo}/releases/tag/${GITHUB_REF_NAME}" \
+            --argjson platforms "$platforms" \
+            '{schema_version: ($schema_version | tonumber), version: $version, channel: $channel, published_at: $published_at, notes_url: $notes_url, platforms: $platforms}' \
+            > "$manifest"
+
+          echo "--- update-manifest.json ---"
+          cat "$manifest"
+          jq -e '
+            .schema_version == 1 and
+            (.version | type == "string" and length > 0) and
+            .channel == "preview" and
+            (.platforms | length == 2) and
+            ([.platforms."windows-x64", .platforms."macos-arm64"] | all(
+              (.asset_name | type == "string" and length > 0) and
+              (.sha256 | test("^[0-9a-f]{64}$")) and
+              (.url | startswith("https://github.com/"))
+            ))
+          ' "$manifest" >/dev/null || {
+            echo "generated update manifest failed schema validation" >&2
+            exit 1
+          }
+
+      # The admission gates, run against a fresh evaluation.
+      #
+      # They block exactly when the release stops calling itself a preview.
+      # A tag like v0.1.1-rc1 is a preview: the gates are reported and the
+      # release proceeds, because a preview's whole purpose is to go out
+      # before the evidence is in. A tag like v0.5.0 makes a claim, and the
+      # claim has to be backed by measurements — so the gates decide.
+      - name: Admission gates
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          case "$version" in
+            *-*) preview=yes ;;
+            *)   preview=no  ;;
+          esac
+          cargo run --release -p sciwhisper-eval -- evaluate \
+            --dataset research/data/dev-seed-v1.jsonl \
+            --output gate-report.json --quiet
+          seal=""
+          if [ -f research/schema/frozen-test-seal.json ]; then
+            seal="--seal research/schema/frozen-test-seal.json"
+          fi
+          if cargo run --release -p sciwhisper-eval -- gate --report gate-report.json $seal; then
+            echo "все ворота пройдены"
+          elif [ "$preview" = yes ]; then
+            echo "::warning::ворота не пройдены; выпуск $version помечен как предварительный, поэтому публикация продолжается"
+          else
+            echo "::error::выпуск $version не является предварительным, но ворота допуска не пройдены" >&2
+            exit 1
+          fi
+
+      # Published so a user can check that what they downloaded arrived
+      # whole. It is not a signature: this file travels in the same release
+      # as the archives it describes, so whoever could replace one could
+      # replace both. README-WINDOWS.txt says so in those words.
+      - name: Publish digests of every asset
+        shell: bash
+        run: |
+          cd dist
+          sha256sum SciWhisper-*.zip SciWhisper-*-Setup.exe update-manifest.json \
+            2>/dev/null | tee SHA256SUMS.txt
+          test -s SHA256SUMS.txt || {
+            echo "no assets were hashed; refusing to publish an empty digest list" >&2
+            exit 1
+          }
+
       - uses: softprops/action-gh-release@v2
         with:
           prerelease: true
           generate_release_notes: true
-          files: dist/*.zip
+          files: |
+            dist/*.zip
+            dist/*-Setup.exe
+            dist/update-manifest.json
+            dist/SHA256SUMS.txt

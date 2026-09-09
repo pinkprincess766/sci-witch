@@ -138,23 +138,12 @@ substances:
     formula: SiO2
   - names: [пирит, серный колчедан]
     formula: FeS2
-  - names: [феррит цинка, феррита цинка, ферритом цинка, ферриту цинка, цинковый феррит]
-    asr_aliases: [феррит Zn, феррита Zn]
-    formula: ZnFe2O4
-    canonical_name: zinc ferrite
-    nomenclature_status: materials_common_name
-    source: pubchem_zinc_ferrite
-  - names: [метан]
-    formula: CH4
-  - names: [этан]
-    formula: C2H6
-  - names: [пропан]
-    formula: C3H8
-  - names: [бутан]
-    formula: C4H10
-  - names: [этилен, этен]
+  # «этилен» и «ацетилен» — тривиальные названия: из правила они не
+  # выводятся, поэтому остаются здесь. Систематические «этен» и «этин»
+  # строит organic.yaml.
+  - names: [этилен]
     formula: C2H4
-  - names: [ацетилен, этин]
+  - names: [ацетилен]
     formula: C2H2
   - names: [бензол]
     formula: C6H6

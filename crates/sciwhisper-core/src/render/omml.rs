@@ -2,7 +2,8 @@
 //! this crate only produces the XML tree from the AST.
 
 use crate::ast::{
-    Arrow, BinOp, Chemical, Formula, GroupKind, Math, Node, Part, Species, StateMarker, UnitExpr,
+    derivative_total_order, Arrow, BinOp, Chemical, DerivativeKind, DerivativeVariable, Formula,
+    GroupKind, LimitDirection, Math, Node, Part, Species, StateMarker, UnitExpr,
 };
 
 const NS: &str = "http://schemas.openxmlformats.org/officeDocument/2006/math";
@@ -99,6 +100,45 @@ fn formula(f: &Formula) -> String {
                     out.push_str(&s_sub(")", &count.to_string()));
                 }
             }
+            Part::Electron => out.push_str(&run("e")),
+            Part::Complex(complex) => {
+                out.push_str(&run("["));
+                out.push_str(&run(&complex.center.symbol));
+                for ligand in &complex.ligands {
+                    let body = formula(&ligand.formula);
+                    if ligand.needs_brackets() {
+                        out.push_str(&run("("));
+                        out.push_str(&body);
+                        if ligand.count == 1 {
+                            out.push_str(&run(")"));
+                        } else {
+                            out.push_str(&s_sub(")", &ligand.count.to_string()));
+                        }
+                    } else if ligand.count == 1 {
+                        out.push_str(&body);
+                    } else {
+                        // A bare repeated ligand is a single atom by the
+                        // definition of `needs_brackets`, so the count is a
+                        // real subscript on that symbol. Emitting it as a
+                        // separate run put a literal "4" next to "Cl" and
+                        // Word showed «Cl4».
+                        match ligand.formula.parts.as_slice() {
+                            [Part::Atom { symbol, .. }] => {
+                                out.push_str(&s_sub(symbol, &ligand.count.to_string()));
+                            }
+                            _ => {
+                                out.push_str(&body);
+                                out.push_str(&run(&ligand.count.to_string()));
+                            }
+                        }
+                    }
+                }
+                if complex.count == 1 {
+                    out.push_str(&run("]"));
+                } else {
+                    out.push_str(&s_sub("]", &complex.count.to_string()));
+                }
+            }
             Part::Hydrate { count } => {
                 out.push_str(&run("·"));
                 if *count != 1 {
@@ -180,6 +220,17 @@ fn math(m: &Math) -> String {
         Math::Function { kind, arg } => {
             format!("{}{}{}{}", run(kind.name()), run("("), math(arg), run(")"))
         }
+        Math::Apply { name, args } => {
+            let mut out = format!("{}{}", math(name), run("("));
+            for (index, arg) in args.iter().enumerate() {
+                if index > 0 {
+                    out.push_str(&run(", "));
+                }
+                out.push_str(&math(arg));
+            }
+            out.push_str(&run(")"));
+            out
+        }
         Math::Sum {
             var,
             from,
@@ -218,6 +269,17 @@ fn math(m: &Math) -> String {
                 "<m:nary><m:naryPr><m:chr m:val=\"∫\"/></m:naryPr><m:sub>{sub}</m:sub><m:sup>{sup}</m:sup><m:e>{e}</m:e></m:nary>"
             )
         }
+        Math::Derivative {
+            kind,
+            expr,
+            variables,
+        } => derivative(*kind, expr, variables),
+        Math::Limit {
+            variable,
+            target,
+            direction,
+            body,
+        } => limit(variable, target, *direction, body),
         Math::Unit(u) => run(&unit_plain(u)),
         Math::Infinity => run("∞"),
         Math::Ellipsis => run("…"),
@@ -244,6 +306,60 @@ fn nary(
     )
 }
 
+/// Native Word structures only: an `m:f` fraction whose parts are real
+/// `m:r` runs and `m:sSup` superscripts. No LaTeX is ever embedded as text.
+fn derivative(kind: DerivativeKind, expr: &Math, variables: &[DerivativeVariable]) -> String {
+    let operator = run(kind.operator());
+    let mut numerator = match derivative_total_order(variables) {
+        // `None` means the total order overflowed: the plain operator is
+        // written rather than a wrapped, wrong exponent.
+        Some(total) if total != 1 => sup_of(&operator, &run(&total.to_string())),
+        _ => operator.clone(),
+    };
+    numerator.push_str(&derivative_operand(expr));
+    if variables.is_empty() {
+        // Structurally invalid (the validator reports it); no denominator is
+        // invented for it.
+        return numerator;
+    }
+    let mut denominator = String::new();
+    for variable in variables {
+        denominator.push_str(&operator);
+        let rendered = derivative_operand(&variable.variable);
+        if variable.order == 1 {
+            denominator.push_str(&rendered);
+        } else {
+            denominator.push_str(&sup_of(&rendered, &run(&variable.order.to_string())));
+        }
+    }
+    frac(&numerator, &denominator)
+}
+
+/// Only a simple atom sits next to the `d`; anything composite gets real
+/// parenthesis runs, so all three renderers group the same operands.
+fn derivative_operand(operand: &Math) -> String {
+    if super::derivative_operand_needs_group(operand) {
+        format!("{}{}{}", run("("), math(operand), run(")"))
+    } else {
+        math(operand)
+    }
+}
+
+/// `lim` as a Word function with a lower limit (`m:limLow`), so Word shows
+/// `x → 0` under the operator and keeps the whole thing editable.
+fn limit(variable: &Math, target: &Math, direction: LimitDirection, body: &Math) -> String {
+    let mut approach = format!("{}{}", math(variable), run("→"));
+    match direction.marker() {
+        Some(marker) => approach.push_str(&sup_of(&math(target), &run(marker))),
+        None => approach.push_str(&math(target)),
+    }
+    format!(
+        "<m:func><m:fName><m:limLow><m:e>{}</m:e><m:lim>{approach}</m:lim></m:limLow></m:fName><m:e>{}</m:e></m:func>",
+        run("lim"),
+        math(body)
+    )
+}
+
 fn frac(num: &str, den: &str) -> String {
     format!("<m:f><m:num>{num}</m:num><m:den>{den}</m:den></m:f>")
 }
@@ -257,11 +373,12 @@ fn s_sub(base: &str, sub: &str) -> String {
 }
 
 fn s_sup(base: &str, sup: &str) -> String {
-    format!(
-        "<m:sSup><m:e>{}</m:e><m:sup>{}</m:sup></m:sSup>",
-        run(base),
-        run(sup)
-    )
+    sup_of(&run(base), &run(sup))
+}
+
+/// `m:sSup` over already-rendered OMML, for a base that is itself a tree.
+fn sup_of(base: &str, sup: &str) -> String {
+    format!("<m:sSup><m:e>{base}</m:e><m:sup>{sup}</m:sup></m:sSup>")
 }
 
 fn run(text: &str) -> String {

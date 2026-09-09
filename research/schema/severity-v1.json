@@ -1,0 +1,79 @@
+{
+  "severity_schema_version": 1,
+  "frozen": "2026-09-04",
+  "purpose": "Machine-readable severity taxonomy for SciWhisper evaluation. Error rate is always published together with error severity; the classes are never collapsed into a single weighted score.",
+  "classes": [
+    {
+      "id": "S0",
+      "title_ru": "типографическое отличие",
+      "definition": "The canonical AST is identical; only the rendered presentation differs.",
+      "safety_relevant": false
+    },
+    {
+      "id": "S1",
+      "title_ru": "безопасная структурная ошибка",
+      "definition": "A wrong boundary, a refused parse or an abstention. The dictated words survive; nothing scientific was invented.",
+      "safety_relevant": false
+    },
+    {
+      "id": "S2",
+      "title_ru": "изменён индекс, степень, единица или символ",
+      "definition": "A scientific symbol, subscript, exponent, unit, function or grouping changed.",
+      "safety_relevant": true
+    },
+    {
+      "id": "S3",
+      "title_ru": "изменён коэффициент, заряд, оператор или сторона реакции",
+      "definition": "A quantity, a charge, a reaction side, a relational or arithmetic operator, a derivative order, a limit direction or a unit power changed.",
+      "safety_relevant": true
+    },
+    {
+      "id": "S4",
+      "title_ru": "обычный текст превращён в научную конструкцию",
+      "definition": "Ordinary speech was rewritten into a scientific statement on the system's own initiative. This is the class FalseScientificRewriteRate counts.",
+      "safety_relevant": true
+    }
+  ],
+  "decision_rules": [
+    "gold RAW and produced RAW -> no error",
+    "gold RAW and produced AST -> S4",
+    "gold AST and produced RAW -> S1 (safe abstention)",
+    "gold AST and produced AST with an equal canonical form -> no error, or S0 when the rendered strings differ",
+    "gold AST and produced AST with a different canonical form -> S3 if any diverging field is in ast_field_classes.S3, else S2 if any is in ast_field_classes.S2, else S1"
+  ],
+  "ast_field_classes": {
+    "S3": [
+      "coefficient",
+      "charge",
+      "arrow",
+      "op",
+      "order",
+      "direction",
+      "condition",
+      "power",
+      "divide"
+    ],
+    "S2": [
+      "symbol",
+      "count",
+      "letter",
+      "case",
+      "alphabet",
+      "kind",
+      "exp",
+      "sub",
+      "index",
+      "Number",
+      "factors",
+      "marker",
+      "variables",
+      "left",
+      "right"
+    ]
+  },
+  "notes": [
+    "Classification is structural and deterministic: it reads the two ASTs, not an annotator's judgement, so the histogram is reproducible.",
+    "An observed count of zero S4 errors is never reported as a proven zero probability; the report carries the exact one-sided 95% upper bound instead.",
+    "Structural validity is not scientific truth: a deliberately unbalanced reaction is structurally valid and is only warned about."
+  ]
+}

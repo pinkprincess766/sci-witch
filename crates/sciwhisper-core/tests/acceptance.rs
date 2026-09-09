@@ -514,3 +514,247 @@ fn same_ast_three_renderers() {
     assert!(render_result(&r, Renderer::Latex).contains("\\ce{"));
     assert!(render_result(&r, Renderer::Omml).contains("oMath"));
 }
+
+// --- Dimensional analysis v1 (docs/development/MATHEMATICS_RU.md §8) ---
+
+fn dictated(text: &str) -> sciwhisper_core::InterpretationResult {
+    let r = interpret(
+        text,
+        InterpretOptions {
+            domain: Domain::Physics,
+            allow_shortcuts: true,
+        },
+    );
+    assert!(r.confidence > 0.0, "failed to parse '{text}'");
+    r
+}
+
+fn dimension_codes(text: &str) -> Vec<String> {
+    dictated(text)
+        .warnings
+        .into_iter()
+        .filter(|w| w.code.starts_with("physics."))
+        .map(|w| w.code)
+        .collect()
+}
+
+#[test]
+fn dictated_compatible_lengths_have_no_dimension_warning() {
+    let r = dictated("три метра плюс четыре сантиметра");
+    assert_eq!(render_result(&r, Renderer::Unicode), "3 м + 4 см");
+    assert!(dimension_codes("три метра плюс четыре сантиметра").is_empty());
+}
+
+#[test]
+fn dictated_metre_plus_second_is_reported() {
+    let r = dictated("три метра плюс четыре секунды");
+    // The dictated text is preserved exactly; only a warning is added.
+    assert_eq!(render_result(&r, Renderer::Unicode), "3 м + 4 с");
+    assert_eq!(
+        dimension_codes("три метра плюс четыре секунды"),
+        ["physics.dimension_mismatch"]
+    );
+}
+
+#[test]
+fn dictated_volt_plus_ampere_is_reported() {
+    assert_eq!(
+        dimension_codes("пять вольт плюс три ампера"),
+        ["physics.dimension_mismatch"]
+    );
+}
+
+#[test]
+fn dictated_f_equals_ma_stays_silent() {
+    let r = dictated("вектор эф равен эм умножить на вектор а");
+    assert_eq!(render_result(&r, Renderer::Unicode), "F⃗ = m·a⃗");
+    assert!(
+        dimension_codes("вектор эф равен эм умножить на вектор а").is_empty(),
+        "symbols must not be mistaken for known quantities"
+    );
+}
+
+#[test]
+fn dictated_sine_of_a_length_is_reported() {
+    assert_eq!(
+        dimension_codes("синус трёх метров"),
+        ["physics.dimensioned_function_argument"]
+    );
+}
+
+#[test]
+fn dictated_acceleration_units_are_consistent() {
+    assert!(
+        dimension_codes("девять целых восемьдесят одна метра на секунду в квадрате").is_empty()
+    );
+}
+
+#[test]
+fn dimension_warning_does_not_change_confidence_or_payload() {
+    let clean = dictated("три метра плюс четыре сантиметра");
+    let flagged = dictated("три метра плюс четыре секунды");
+    // A semantic warning is additive: the structural confidence of both
+    // parses is the same, and the payload is whatever was dictated.
+    assert_eq!(clean.confidence, flagged.confidence);
+    assert_eq!(render_result(&flagged, Renderer::Unicode), "3 м + 4 с");
+}
+
+#[test]
+fn renderers_are_identical_before_and_after_validation() {
+    let r = dictated("три метра плюс четыре секунды");
+    let before = [
+        render_result(&r, Renderer::Unicode),
+        render_result(&r, Renderer::Latex),
+        render_result(&r, Renderer::Omml),
+    ];
+    let mut warnings = Vec::new();
+    sciwhisper_core::dimension::check(
+        match &r.ast {
+            Node::Math(math) => math,
+            other => panic!("expected a math node, got {other:?}"),
+        },
+        &mut warnings,
+    );
+    assert!(!warnings.is_empty(), "the mismatch must still be reported");
+    let after = [
+        render_result(&r, Renderer::Unicode),
+        render_result(&r, Renderer::Latex),
+        render_result(&r, Renderer::Omml),
+    ];
+    assert_eq!(before, after, "validation must not touch the payload");
+}
+
+#[test]
+fn document_checks_only_its_math_node_and_keeps_text_intact() {
+    let text = Node::Text("длина стержня равна".into());
+    let math = match dictated("три метра плюс четыре секунды").ast {
+        Node::Math(math) => Node::Math(math),
+        other => panic!("expected a math node, got {other:?}"),
+    };
+    let document = Node::Document(vec![text.clone(), math]);
+    let warnings = sciwhisper_core::validate::semantic_warnings(&document);
+    assert_eq!(
+        warnings
+            .iter()
+            .filter(|w| w.code == "physics.dimension_mismatch")
+            .count(),
+        1
+    );
+    match &document {
+        Node::Document(nodes) => assert_eq!(nodes[0], text),
+        other => panic!("{other:?}"),
+    }
+    assert!(render_result_of(&document).contains("длина стержня равна"));
+}
+
+fn render_result_of(node: &Node) -> String {
+    sciwhisper_core::render(node, Renderer::Unicode)
+}
+
+#[test]
+fn dictated_lambda_in_nanometres_has_length_dimension() {
+    let r = dictated("лямбда равно шестьсот тридцать два нанометра");
+    assert_eq!(render_result(&r, Renderer::Unicode), "λ = 632 нм");
+    // λ is a bare symbol, so equality with a length cannot be judged.
+    assert!(dimension_codes("лямбда равно шестьсот тридцать два нанометра").is_empty());
+    match &r.ast {
+        Node::Math(Math::Binary { right, .. }) => {
+            assert!(matches!(
+                sciwhisper_core::dimension::infer(right),
+                sciwhisper_core::dimension::Inferred::Known(_)
+            ));
+        }
+        other => panic!("{other:?}"),
+    }
+}
+
+#[test]
+fn dictated_inverse_power_uses_the_signed_number_token() {
+    // «в минус первой» is tokenised as Number("-1"), not UnaryMinus(1).
+    let r = dictated("один метр в минус первой");
+    assert_eq!(render_result(&r, Renderer::Unicode), "(1 м)^{-1}");
+    match &r.ast {
+        Node::Math(math) => match sciwhisper_core::dimension::infer(math) {
+            sciwhisper_core::dimension::Inferred::Known(d) => assert_eq!(d.to_string(), "L^-1"),
+            other => panic!("expected a known dimension, got {other:?}"),
+        },
+        other => panic!("{other:?}"),
+    }
+    assert!(dimension_codes("один метр в минус первой").is_empty());
+}
+
+#[test]
+fn dictated_dimensioned_exponent_is_reported() {
+    assert_eq!(
+        dimension_codes("два в степени три метра"),
+        ["physics.dimensioned_exponent"]
+    );
+    assert_eq!(
+        dimension_codes("икс в степени три метра"),
+        ["physics.dimensioned_exponent"]
+    );
+}
+
+// ------------------------------------------------------------------- routing
+
+/// The domain `Domain::Auto` settles on, for a phrase that is expected to
+/// compile.
+fn resolved(text: &str) -> Domain {
+    let result = interpret(
+        text,
+        InterpretOptions {
+            domain: Domain::Auto,
+            ..Default::default()
+        },
+    );
+    assert!(
+        result.confidence > 0.0,
+        "{text:?} did not compile, so there is no routing decision to check"
+    );
+    result.domain
+}
+
+/// The physics grammar accepts everything the mathematics grammar does, so a
+/// formula with no physics in it parses in both and scores zero evidence in
+/// both. On that tie the narrower reading has to win: labelling «икс в
+/// квадрате» as physics would put a domain on the answer that the speaker
+/// never invoked, and it is the domain that decides how the result is
+/// rendered and which warnings apply.
+#[test]
+fn a_formula_with_no_physics_in_it_is_not_called_physics() {
+    for text in [
+        "икс в квадрате",
+        "модуль икс",
+        "икс плюс игрек в квадрате",
+        "альфа плюс бета",
+        "икс меньше игрек",
+        "начало корня икс плюс один конец корня",
+        "икс индекс один",
+        "икс делённое на игрек",
+    ] {
+        assert_eq!(resolved(text), Domain::Mathematics, "{text:?}");
+    }
+}
+
+/// A dictated unit, quantity or constant is what makes it physics — evidence
+/// present in the words, not the order the domains happen to be tried in.
+#[test]
+fn a_dictated_unit_makes_the_same_shape_physics() {
+    for text in [
+        "синус трёх метров",
+        "дельта же равно минус эн эф е",
+        "сто паскалей",
+        "триста кельвинов",
+    ] {
+        assert_eq!(resolved(text), Domain::Physics, "{text:?}");
+    }
+}
+
+/// A substance name carries chemistry on its own; it needs no keyword.
+#[test]
+fn a_bare_substance_name_routes_to_chemistry() {
+    for text in ["вода", "метан", "медный купорос", "серная кислота"]
+    {
+        assert_eq!(resolved(text), Domain::Chemistry, "{text:?}");
+    }
+}

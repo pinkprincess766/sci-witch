@@ -11,6 +11,24 @@ boundary_commands:
   root: [начало корня, конец корня, корень из]
   sum: [сумма от, до, конец суммы]
   integral: [интеграл от, до, по, конец интеграла]
+# Calculus is composed from the tokens in operators.yaml, not from a list of
+# whole sentences. Square brackets mark optional parts; the parser refuses an
+# incomplete construct instead of completing it.
+calculus:
+  derivative: "[<ordinal>] [частная] производная [<ordinal> порядка] <expr> по <var> (и по <var>)*"
+  derivative_order: >
+    An ordinal before the noun and «<ordinal> порядка» after it mean the same
+    total order and must agree. One variable takes the whole order
+    (d²y/dx²); k > 1 variables are accepted only for a total order of k,
+    each of order 1 (∂²T/∂x∂y). Any other distribution is ambiguous and is
+    refused rather than guessed.
+  limit: "[слева|справа] предел [слева|справа] [функции] [<body>] при <var> стремящемся к <target> [слева|справа] [<body>]"
+  limit_target: "ноль | <number> | <symbol> | бесконечность | минус бесконечность"
+  refused: >
+    «производная по», «предел при икс», «предел терпения» and
+    «производная была опубликована» carry no complete structure and stay raw
+    text. Nothing here differentiates or evaluates: the AST records what was
+    said, never a computed result.
 implicit_multiplication: true
 root_without_end: "binds to the next atom; plus does not enter the radicand"
 ambiguity: "unclosed constructs yield alternatives or linear fallback"

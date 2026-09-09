@@ -4,7 +4,8 @@ use std::sync::OnceLock;
 use serde::Deserialize;
 
 use crate::ast::{
-    Alphabet, BinOp, Case, FunctionKind, GroupKind, Math, Node, Symbol, UnitExpr, UnitFactor,
+    Alphabet, BinOp, Case, DerivativeKind, DerivativeVariable, FunctionKind, GroupKind,
+    LimitDirection, Math, Node, Symbol, UnitExpr, UnitFactor, MAX_DERIVATIVE_ORDER,
 };
 use crate::error::{Error, Result};
 use crate::lexicon::Lexicon;
@@ -65,6 +66,17 @@ enum Tok {
     Ellipsis,
     Comma,
     Delta,
+    Derivative,
+    Partial,
+    OrderKw,
+    Ordinal(u32),
+    Limit,
+    LimitLeft,
+    LimitRight,
+    LimitVar,
+    Tends,
+    AndBy,
+    FuncFiller,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -79,6 +91,13 @@ pub struct MathParse {
     pub warnings: Vec<String>,
 }
 
+/// Arguments one dictated function may take.
+///
+/// Explicit and small: past this, a run of commas is a misrecognition
+/// rather than a formula, and the parser should say so instead of building
+/// an ever-longer argument list.
+pub const MAX_FUNCTION_ARGS: usize = 8;
+
 pub fn parse_math(
     words: &[String],
     lex: &Lexicon,
@@ -92,13 +111,7 @@ pub fn parse_math(
             reason: "empty input".into(),
         });
     }
-    let mut p = Parser {
-        toks: &toks,
-        i: 0,
-        warnings: Vec::new(),
-        alternatives: Vec::new(),
-        stop_at_differential: false,
-    };
+    let mut p = Parser::new(&toks, RootBinding::NextAtom);
     let ast = p.parse_eq()?;
     p.skip_commas();
     if p.i < p.toks.len() {
@@ -107,11 +120,35 @@ pub fn parse_math(
             reason: format!("trailing tokens from {:?}", p.peek()),
         });
     }
+
+    let mut alternatives = p.alternatives;
+    // The second reading is produced by parsing the same tokens again with
+    // the radical binding wider — not by editing the first tree. A rewrite
+    // would have to reproduce precedence rules that the parser already
+    // knows, and would drift from them at the first change.
+    if p.saw_open_root {
+        if let Some(wide) = reparse_with(&toks, RootBinding::RestOfTerm) {
+            if wide != ast && !alternatives.contains(&wide) {
+                alternatives.push(wide);
+            }
+        }
+    }
+
     Ok(MathParse {
         ast,
-        alternatives: p.alternatives,
+        alternatives,
         warnings: p.warnings,
     })
+}
+
+/// Re-runs the parser over the same tokens under a different binding rule.
+/// A failure is not an error: it only means this reading does not exist, so
+/// there is nothing to offer.
+fn reparse_with(toks: &[Tok], binding: RootBinding) -> Option<Math> {
+    let mut p = Parser::new(toks, binding);
+    let ast = p.parse_eq().ok()?;
+    p.skip_commas();
+    (p.i >= p.toks.len()).then_some(ast)
 }
 
 pub fn parse_math_node(
@@ -129,9 +166,50 @@ struct Parser<'a> {
     warnings: Vec<String>,
     alternatives: Vec<Math>,
     stop_at_differential: bool,
+    /// While reading a function's arguments, a comma separates them and
+    /// must not be skipped as punctuation.
+    stop_at_comma: bool,
+    /// How far a spoken «корень из …» reaches when the speaker never said
+    /// «конец корня». See [`RootBinding`].
+    root_binding: RootBinding,
+    /// Whether this parse ever met that ambiguity. Set on the narrow pass so
+    /// the caller knows a second pass is worth running at all.
+    saw_open_root: bool,
+}
+
+/// «корень из икс плюс один» has two readings — `√x + 1` and `√(x+1)` — and
+/// speech carries no bracket to tell them apart.
+///
+/// The narrow reading is the default and always will be: it is the one that
+/// changes the least of what the speaker said, and a wrong narrow reading is
+/// visible («почему плюс один снаружи?») where a wrong wide one silently
+/// swallows the rest of the expression.
+///
+/// The wide reading is not discarded, though. It is parsed a second time and
+/// offered as an alternative, so the user picks instead of the parser
+/// guessing.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum RootBinding {
+    /// The radical covers the next atom only.
+    NextAtom,
+    /// The radical covers the whole additive expression that follows.
+    RestOfTerm,
 }
 
 impl<'a> Parser<'a> {
+    fn new(toks: &'a [Tok], root_binding: RootBinding) -> Self {
+        Parser {
+            toks,
+            i: 0,
+            warnings: Vec::new(),
+            alternatives: Vec::new(),
+            stop_at_differential: false,
+            stop_at_comma: false,
+            root_binding,
+            saw_open_root: false,
+        }
+    }
+
     fn peek(&self) -> Option<&'a Tok> {
         self.toks.get(self.i)
     }
@@ -151,6 +229,9 @@ impl<'a> Parser<'a> {
         }
     }
     fn skip_commas(&mut self) {
+        if self.stop_at_comma {
+            return;
+        }
         while self.eat(|t| matches!(t, Tok::Comma)) {}
     }
 
@@ -292,6 +373,12 @@ impl<'a> Parser<'a> {
                     | Tok::Inf
                     | Tok::Ellipsis
                     | Tok::PowStart
+                    // Only the construct heads. «вторая», «частная»,
+                    // «слева» and «справа» are prefixes: they are handled
+                    // where a construct starts, and must not pull the
+                    // juxtaposition loop into a half-formed derivative.
+                    | Tok::Derivative
+                    | Tok::Limit
             )
         )
     }
@@ -367,7 +454,23 @@ impl<'a> Parser<'a> {
                 }
                 Ok(node)
             }
-            Some(Tok::Sym(s)) => Ok(Math::Symbol(s.clone())),
+            Some(Tok::FuncFiller) => {
+                // «функция эф от икс» — the filler introduces a named
+                // function and is not part of the expression.
+                let inner = self.parse_atom()?;
+                Ok(inner)
+            }
+            Some(Tok::Sym(s)) => {
+                let name = Math::Symbol(s.clone());
+                // «эф от икс» — a function the speaker named, applied. The
+                // `от` here cannot be anything else: the constructions that
+                // use it for bounds (integral, sum, product) are introduced
+                // by their own token, never by a bare symbol.
+                if matches!(self.peek(), Some(Tok::From)) {
+                    return self.parse_application(name);
+                }
+                Ok(name)
+            }
             Some(Tok::Inf) => Ok(Math::Infinity),
             Some(Tok::Ellipsis) => Ok(Math::Ellipsis),
             Some(Tok::Delta) => {
@@ -441,14 +544,15 @@ impl<'a> Parser<'a> {
                 })
             }
             Some(Tok::Root) => {
-                let rad = self.parse_postfix()?;
+                // A spoken root with no «конец корня» is where the two
+                // readings part company, and which one this parse takes is
+                // decided by `root_binding`, not here.
+                let rad = match self.root_binding {
+                    RootBinding::NextAtom => self.parse_postfix()?,
+                    RootBinding::RestOfTerm => self.parse_add()?,
+                };
                 if matches!(self.peek(), Some(Tok::Plus | Tok::Minus)) {
-                    // Ambiguous natural-speech root: default binds only the atom.
-                    // Offer the grouping alternative for preview.
-                    let saved = self.i;
-                    // reconstruct alternative sqrt(atom ± rest) at higher grouping
-                    // We only record a note; interpret.rs may also inspect.
-                    let _ = saved;
+                    self.saw_open_root = true;
                     self.warnings.push(
                         "root without end command binds the next atom only; use «начало корня» … «конец корня» for x+1 under the radical"
                             .into(),
@@ -458,6 +562,50 @@ impl<'a> Parser<'a> {
                     index: None,
                     radicand: Box::new(rad),
                 })
+            }
+            Some(Tok::Derivative) => self.parse_derivative(DerivativeKind::Ordinary, None),
+            Some(Tok::Partial) => {
+                if !self.eat(|t| matches!(t, Tok::Derivative)) {
+                    return Err(Error::Parse {
+                        domain: "mathematics",
+                        reason: "«частная» without «производная»".into(),
+                    });
+                }
+                self.parse_derivative(DerivativeKind::Partial, None)
+            }
+            Some(Tok::Ordinal(order)) => {
+                let order = *order;
+                let kind = if self.eat(|t| matches!(t, Tok::Partial)) {
+                    DerivativeKind::Partial
+                } else {
+                    DerivativeKind::Ordinary
+                };
+                if !self.eat(|t| matches!(t, Tok::Derivative)) {
+                    return Err(Error::Parse {
+                        domain: "mathematics",
+                        reason: "an ordinal here only names a derivative order".into(),
+                    });
+                }
+                self.parse_derivative(kind, Some(order))
+            }
+            Some(Tok::Limit) => self.parse_limit(None),
+            Some(Tok::LimitLeft) => {
+                if !self.eat(|t| matches!(t, Tok::Limit)) {
+                    return Err(Error::Parse {
+                        domain: "mathematics",
+                        reason: "«слева» without «предел»".into(),
+                    });
+                }
+                self.parse_limit(Some(LimitDirection::FromLeft))
+            }
+            Some(Tok::LimitRight) => {
+                if !self.eat(|t| matches!(t, Tok::Limit)) {
+                    return Err(Error::Parse {
+                        domain: "mathematics",
+                        reason: "«справа» without «предел»".into(),
+                    });
+                }
+                self.parse_limit(Some(LimitDirection::FromRight))
             }
             Some(Tok::Sum) => self.parse_nary(Nary::Sum),
             Some(Tok::Product) => self.parse_nary(Nary::Product),
@@ -598,6 +746,206 @@ impl<'a> Parser<'a> {
         })
     }
 
+    /// `<symbol> от <arg> [запятая <arg>]*` — a named function applied.
+    ///
+    /// Each argument is parsed as a term, so «плюс» ends the list:
+    /// «эф от икс плюс один» is `f(x) + 1`, not `f(x + 1)`. That is the same
+    /// narrow-binding convention the spoken root uses, and for the same
+    /// reason — speech carries no closing bracket.
+    fn parse_application(&mut self, name: Math) -> Result<Math> {
+        self.bump(); // «от»
+                     // Ordinary punctuation is skipped everywhere else; here a comma is
+                     // the separator, so the skipping is switched off for the arguments
+                     // and restored afterwards.
+        let outer = std::mem::replace(&mut self.stop_at_comma, true);
+        let parsed = self.parse_arguments();
+        self.stop_at_comma = outer;
+        Ok(Math::Apply {
+            name: Box::new(name),
+            args: parsed?,
+        })
+    }
+
+    fn parse_arguments(&mut self) -> Result<Vec<Math>> {
+        let mut args = vec![self.parse_mul()?];
+        while matches!(self.peek(), Some(Tok::Comma)) {
+            if args.len() >= MAX_FUNCTION_ARGS {
+                return Err(Error::Parse {
+                    domain: "mathematics",
+                    reason: format!(
+                        "у функции больше {MAX_FUNCTION_ARGS} аргументов; это не похоже на продиктованную формулу"
+                    ),
+                });
+            }
+            self.bump();
+            args.push(self.parse_mul()?);
+        }
+        Ok(args)
+    }
+
+    /// `[<ordinal>] [частная] производная [<ordinal> порядка] <expr> по <var> (и по <var>)*`
+    ///
+    /// Records the structure only. No symbolic differentiation happens here
+    /// or anywhere else: `d/dx` of `x²` stays `d(x²)/dx`.
+    fn parse_derivative(
+        &mut self,
+        kind: DerivativeKind,
+        prefix_order: Option<u32>,
+    ) -> Result<Math> {
+        let mut order = prefix_order;
+        // «производная третьего порядка …» — the order may also follow the
+        // noun. Both spellings mean the same thing, so they must agree.
+        if let (Some(Tok::Ordinal(spoken)), Some(Tok::OrderKw)) =
+            (self.peek(), self.toks.get(self.i + 1))
+        {
+            let spoken = *spoken;
+            self.i += 2;
+            if order.is_some_and(|prefix| prefix != spoken) {
+                return Err(Error::Parse {
+                    domain: "mathematics",
+                    reason: "the derivative order is stated twice and the two disagree".into(),
+                });
+            }
+            order = Some(spoken);
+        }
+        // «производная от эф по икс», «производная функции эф по икс».
+        let _ = self.eat(|t| matches!(t, Tok::From));
+        let _ = self.eat(|t| matches!(t, Tok::FuncFiller));
+        if !self.starts_atom() {
+            return Err(Error::Parse {
+                domain: "mathematics",
+                reason: "derivative without an expression".into(),
+            });
+        }
+        let expr = self.parse_mul()?;
+        let mut spoken_variables = Vec::new();
+        loop {
+            self.skip_commas();
+            if !self.eat(|t| matches!(t, Tok::By | Tok::AndBy)) {
+                break;
+            }
+            if !self.starts_atom() {
+                return Err(Error::Parse {
+                    domain: "mathematics",
+                    reason: "derivative without a variable after «по»".into(),
+                });
+            }
+            spoken_variables.push(self.parse_postfix()?);
+            if spoken_variables.len() > MAX_DERIVATIVE_ORDER as usize {
+                return Err(Error::Parse {
+                    domain: "mathematics",
+                    reason: "too many variables of differentiation".into(),
+                });
+            }
+        }
+        let variables = distribute_order(spoken_variables, order)?;
+        Math::derivative(kind, expr, variables).map_err(|defect| Error::Parse {
+            domain: "mathematics",
+            reason: defect.message(),
+        })
+    }
+
+    /// `[слева|справа] предел [слева|справа] [функции] [<body>] при <var>
+    /// стремящемся к <target> [слева|справа] [<body>]`
+    ///
+    /// The body may be dictated before or after the approach clause; a
+    /// construct missing the variable, the target or the body is an error,
+    /// so the transcript survives verbatim instead of becoming a formula
+    /// nobody said.
+    fn parse_limit(&mut self, prefix_direction: Option<LimitDirection>) -> Result<Math> {
+        let mut direction = prefix_direction.unwrap_or(LimitDirection::TwoSided);
+        if let Some(spoken) = self.eat_direction() {
+            if prefix_direction.is_some_and(|prefix| prefix != spoken) {
+                return Err(Error::Parse {
+                    domain: "mathematics",
+                    reason: "the limit is said to be one-sided in both directions".into(),
+                });
+            }
+            direction = spoken;
+        }
+        let _ = self.eat(|t| matches!(t, Tok::FuncFiller));
+        let _ = self.eat(|t| matches!(t, Tok::From));
+        self.skip_commas();
+        let mut body = if self.starts_atom() {
+            Some(self.parse_mul()?)
+        } else {
+            None
+        };
+        if !self.eat(|t| matches!(t, Tok::LimitVar)) {
+            return Err(Error::Parse {
+                domain: "mathematics",
+                reason: "limit without «при <переменная>»".into(),
+            });
+        }
+        if !self.starts_atom() {
+            return Err(Error::Parse {
+                domain: "mathematics",
+                reason: "limit without a variable".into(),
+            });
+        }
+        let variable = self.parse_postfix()?;
+        // «предел при икс, стремящемся к нулю» — Whisper puts a comma there
+        // and a comma is a pause, not the end of the construct.
+        self.skip_commas();
+        if !self.eat(|t| matches!(t, Tok::Tends)) {
+            return Err(Error::Parse {
+                domain: "mathematics",
+                reason: "limit without «стремящемся к»".into(),
+            });
+        }
+        let target = self.parse_limit_target()?;
+        if let Some(spoken) = self.eat_direction() {
+            if direction != LimitDirection::TwoSided && direction != spoken {
+                return Err(Error::Parse {
+                    domain: "mathematics",
+                    reason: "the limit is said to be one-sided in both directions".into(),
+                });
+            }
+            direction = spoken;
+        }
+        self.skip_commas();
+        if body.is_none() && self.starts_atom() {
+            body = Some(self.parse_mul()?);
+        }
+        let Some(body) = body else {
+            return Err(Error::Parse {
+                domain: "mathematics",
+                reason: "limit without an expression".into(),
+            });
+        };
+        Ok(Math::limit(variable, target, direction, body))
+    }
+
+    fn eat_direction(&mut self) -> Option<LimitDirection> {
+        match self.peek() {
+            Some(Tok::LimitLeft) => {
+                self.bump();
+                Some(LimitDirection::FromLeft)
+            }
+            Some(Tok::LimitRight) => {
+                self.bump();
+                Some(LimitDirection::FromRight)
+            }
+            _ => None,
+        }
+    }
+
+    /// The approached point: a signed atom, so «минус бесконечность» is a
+    /// target and not the start of the body.
+    fn parse_limit_target(&mut self) -> Result<Math> {
+        if self.eat(|t| matches!(t, Tok::Minus)) {
+            return Ok(Math::UnaryMinus(Box::new(self.parse_limit_target()?)));
+        }
+        let _ = self.eat(|t| matches!(t, Tok::Plus));
+        if !self.starts_atom() {
+            return Err(Error::Parse {
+                domain: "mathematics",
+                reason: "limit without a target point".into(),
+            });
+        }
+        self.parse_postfix()
+    }
+
     fn parse_unit_expr(&mut self) -> Result<UnitExpr> {
         let mut factors = Vec::new();
         let mut divide = false;
@@ -636,6 +984,44 @@ enum Nary {
     Product,
 }
 
+/// Turns a spoken total order into per-variable orders.
+///
+/// One variable carries the whole order (`d²y/dx²`). Several variables are
+/// accepted only when the stated total equals their count, which is the one
+/// unambiguous reading — «второго порядка по икс и по игрек» is `∂²T/∂x∂y`.
+/// Any other split (an order of 3 over two variables) has more than one
+/// meaning, so it is refused instead of guessed.
+fn distribute_order(variables: Vec<Math>, order: Option<u32>) -> Result<Vec<DerivativeVariable>> {
+    let refuse = |reason: &'static str| Error::Parse {
+        domain: "mathematics",
+        reason: reason.into(),
+    };
+    if variables.is_empty() {
+        return Err(refuse("derivative without a variable after «по»"));
+    }
+    let count = u32::try_from(variables.len())
+        .map_err(|_| refuse("too many variables of differentiation"))?;
+    let orders: Vec<u32> = match order {
+        None => vec![1; variables.len()],
+        Some(0) => return Err(refuse("a derivative order of zero has no meaning")),
+        Some(total) if total > MAX_DERIVATIVE_ORDER => {
+            return Err(refuse("the derivative order is above the supported limit"))
+        }
+        Some(total) if variables.len() == 1 => vec![total],
+        Some(total) if total == count => vec![1; variables.len()],
+        Some(_) => {
+            return Err(refuse(
+                "the stated order does not split unambiguously over the variables",
+            ))
+        }
+    };
+    Ok(variables
+        .into_iter()
+        .zip(orders)
+        .map(|(variable, order)| DerivativeVariable::new(variable, order))
+        .collect())
+}
+
 fn tokenize(words: &[String], lex: &Lexicon, nums: &NumberLex, mode: MathMode) -> Result<Vec<Tok>> {
     let mut i = 0;
     let mut out = Vec::new();
@@ -659,6 +1045,28 @@ fn tokenize(words: &[String], lex: &Lexicon, nums: &NumberLex, mode: MathMode) -
         if let Some((tokens, n)) = match_keyword(&words[i..]) {
             i += n;
             out.extend(tokens);
+            continue;
+        }
+        // «метра в секунду»: between two units a bare «в» is a division. The
+        // rule is deliberately narrow — a unit must already be on the stack
+        // and another must follow — so «в квадрате» and «в» as the letter v
+        // are untouched.
+        if mode == MathMode::Physics
+            && matches!(words[i].as_str(), "в" | "во")
+            && matches!(out.last(), Some(Tok::Unit(_)))
+            && lex.longest_unit(words, i + 1).is_some()
+        {
+            out.push(Tok::Div);
+            i += 1;
+            continue;
+        }
+        // A bare ordinal («вторая», «третьего») is only meaningful as the
+        // order of a derivative. Emitting it as its own token keeps the
+        // grammar compositional; anywhere else the parser rejects it, so an
+        // ordinary sentence still falls back to raw text.
+        if let Some(order) = nums.ordinal(&words[i]) {
+            out.push(Tok::Ordinal(order));
+            i += 1;
             continue;
         }
         if let Some((num, n)) = nums.consume_number(words, i) {
@@ -825,6 +1233,16 @@ fn operator_tokens(section: &str, name: &str) -> Option<Vec<Tok>> {
         ("delimiters", "delta") => vec![Tok::Delta],
         ("delimiters", "comma") => vec![Tok::Comma],
         ("delimiters", "over") => vec![Tok::Div],
+        ("delimiters", "derivative") => vec![Tok::Derivative],
+        ("delimiters", "partial") => vec![Tok::Partial],
+        ("delimiters", "order") => vec![Tok::OrderKw],
+        ("delimiters", "and_by") => vec![Tok::AndBy],
+        ("delimiters", "limit") => vec![Tok::Limit],
+        ("delimiters", "limit_left") => vec![Tok::LimitLeft],
+        ("delimiters", "limit_right") => vec![Tok::LimitRight],
+        ("delimiters", "limit_var") => vec![Tok::LimitVar],
+        ("delimiters", "tends_to") => vec![Tok::Tends],
+        ("delimiters", "function_filler") => vec![Tok::FuncFiller],
         ("special", "zero_eq") => vec![Tok::Eq, Tok::Num("0".into())],
         _ => return None,
     };

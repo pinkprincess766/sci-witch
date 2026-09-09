@@ -45,12 +45,19 @@ pub fn interpret(text: &str, opts: InterpretOptions) -> InterpretationResult {
         }
     }
 
-    let resolved = match opts.domain {
-        Domain::Auto => detect_domain(&words, lex),
-        other => other,
+    // In `Auto` the domain and the parse are decided together: whichever
+    // domain can actually read the phrase wins, and the keyword evidence only
+    // breaks a tie. An explicit domain is honoured exactly as before.
+    let (resolved, routed) = match opts.domain {
+        Domain::Auto => route(&words, lex, &nums),
+        other => (other, None),
+    };
+    let attempt = match routed {
+        Some(node) => Ok(node),
+        None => parse_domain(&words, resolved, lex, &nums),
     };
 
-    match parse_domain(&words, resolved, lex, &nums) {
+    match attempt {
         Ok(ast) => {
             let mut warnings = Vec::new();
             let mut alternatives = Vec::new();
@@ -123,39 +130,95 @@ pub fn render_result(r: &InterpretationResult, renderer: Renderer) -> String {
     render::render(&r.ast, renderer)
 }
 
-fn detect_domain(words: &[String], lex: &Lexicon) -> Domain {
-    let mut chem = 0;
-    let mut math = 0;
-    let mut phys = 0;
-    for (i, w) in words.iter().enumerate() {
+/// How much each domain is suggested by the words alone.
+///
+/// This is *evidence*, not a decision. Keyword counting cannot tell that
+/// «вода» is a substance while «предел терпения» is not, so it is only ever
+/// used to break a tie between readings that all actually parsed.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct Evidence {
+    chemistry: i32,
+    mathematics: i32,
+    physics: i32,
+}
+
+impl Evidence {
+    fn score(self, domain: Domain) -> i32 {
+        match domain {
+            Domain::Chemistry => self.chemistry,
+            Domain::Mathematics => self.mathematics,
+            Domain::Physics => self.physics,
+            Domain::Auto | Domain::Plain => 0,
+        }
+    }
+
+    /// The domain the words point at when nothing could be parsed. Only used
+    /// to make a failure message name a sensible domain.
+    fn best_guess(self) -> Domain {
+        let mut best = Domain::Mathematics;
+        let mut top = 0;
+        // Fixed order, so the outcome never depends on iteration luck.
+        for domain in [Domain::Chemistry, Domain::Physics, Domain::Mathematics] {
+            let score = self.score(domain);
+            if score > top {
+                top = score;
+                best = domain;
+            }
+        }
+        best
+    }
+}
+
+fn collect_evidence(words: &[String], lex: &Lexicon) -> Evidence {
+    let mut evidence = Evidence::default();
+    let mut index = 0;
+    while index < words.len() {
+        let word = words[index].as_str();
+        // A known substance name is the strongest chemistry signal there is,
+        // and it is the one the old scorer never asked about: «вода», «метан»
+        // and «медный купорос» carry no keyword at all.
+        if let Some((_, used)) = lex.longest_substance(words, index) {
+            evidence.chemistry += 3 * used as i32;
+            index += used;
+            continue;
+        }
         if matches!(
-            w.as_str(),
+            word,
             "превращается"
                 | "превращаются"
                 | "окисляется"
                 | "окисляются"
                 | "восстанавливается"
                 | "восстанавливаются"
+                | "разлагается"
+                | "разлагаются"
+                | "реагирует"
+                | "реагируют"
+                | "взаимодействует"
+                | "взаимодействуют"
                 | "ион"
                 | "кислота"
+                | "кислоты"
                 | "оксид"
                 | "гидроксид"
                 | "хлорид"
                 | "сульфат"
-                | "газ"
+                | "нитрат"
+                | "карбонат"
+                | "перманганат"
                 | "осадок"
                 | "стрелка"
         ) {
-            chem += 3;
+            evidence.chemistry += 3;
         }
-        if lex.element(w).is_some() {
-            chem += 1;
+        if lex.element(word).is_some() {
+            evidence.chemistry += 1;
         }
-        if lex.anion(w).is_some() {
-            chem += 2;
+        if lex.anion(word).is_some() {
+            evidence.chemistry += 2;
         }
         if matches!(
-            w.as_str(),
+            word,
             "дробь"
                 | "числитель"
                 | "знаменатель"
@@ -164,39 +227,100 @@ fn detect_domain(words: &[String], lex: &Lexicon) -> Domain {
                 | "факториал"
                 | "корень"
                 | "синус"
+                | "синуса"
                 | "косинус"
+                | "косинуса"
                 | "тангенс"
                 | "котангенс"
                 | "логарифм"
+                | "логарифма"
                 | "экспонента"
                 | "степени"
                 | "квадрате"
                 | "скобку"
+                | "производная"
+                | "производную"
+                | "производной"
+                | "частная"
+                | "частную"
+                | "частной"
+                | "предел"
+                | "предела"
+                | "стремящемся"
+                | "стремящейся"
+                | "стремится"
+                | "порядка"
         ) {
-            math += 3;
+            evidence.mathematics += 3;
         }
-        if matches!(w.as_str(), "вектор" | "метра" | "нанометра" | "ньютон")
-        {
-            phys += 3;
+        if matches!(word, "вектор" | "дельта") {
+            // Δ and an arrow over a letter are physics notation. The old
+            // scorer also gave chemistry a point here, which was enough to
+            // send «дельта же равно минус эн эф е» to the wrong parser.
+            evidence.physics += 3;
         }
-        if w == "дельта" {
-            phys += 1;
-            chem += 1;
+        // A dictated unit is decisive: no other domain can even represent one.
+        if let Some((_, used)) = lex.longest_unit(words, index) {
+            evidence.physics += 4 * used as i32;
+            index += used;
+            continue;
         }
-        if lex.longest_unit(words, i).is_some() {
-            phys += 2;
+        index += 1;
+    }
+    evidence
+}
+
+/// Chooses a domain by trying them, not by guessing.
+///
+/// The old router scored keywords and committed to the winner, so a wrong
+/// guess was fatal even when the right domain would have parsed the phrase
+/// perfectly. Parsing is cheap here — one short utterance, three attempts —
+/// and a reading that actually succeeds is worth more than any number of
+/// keyword points.
+///
+/// Keyword evidence still decides between readings that all succeeded and
+/// disagree, and it still picks the domain named in a failure message.
+fn route(words: &[String], lex: &Lexicon, nums: &NumberLex) -> (Domain, Option<Node>) {
+    let evidence = collect_evidence(words, lex);
+    let mut parsed: Vec<(Domain, Node)> = Vec::new();
+    for domain in [Domain::Chemistry, Domain::Mathematics, Domain::Physics] {
+        if let Ok(node) = parse_domain(words, domain, lex, nums) {
+            parsed.push((domain, node));
         }
     }
-    if chem >= math && chem >= phys && chem > 0 {
-        Domain::Chemistry
-    } else if phys > math {
-        Domain::Physics
-    } else if math > 0 {
-        Domain::Mathematics
-    } else if chem > 0 {
-        Domain::Chemistry
-    } else {
-        Domain::Mathematics
+    match parsed.len() {
+        0 => (evidence.best_guess(), None),
+        1 => {
+            let (domain, node) = parsed.remove(0);
+            (domain, Some(node))
+        }
+        _ => {
+            // Several domains produced something. If they agree, the choice is
+            // cosmetic; if they disagree, the words decide.
+            //
+            // A tie is not a coin toss. The physics grammar is a superset of
+            // the mathematics one, so «икс в квадрате» parses in both and
+            // scores zero in both; calling that physics would label every
+            // formula with a domain the speaker never invoked. On equal
+            // evidence the narrower reading wins, which is the order the loop
+            // above already uses — so the *first* maximum is taken, not the
+            // last one `max_by_key` would return.
+            let best = parsed
+                .iter()
+                .map(|(domain, _)| *domain)
+                .fold(None::<Domain>, |best, domain| match best {
+                    Some(current) if evidence.score(current) >= evidence.score(domain) => {
+                        Some(current)
+                    }
+                    _ => Some(domain),
+                })
+                .unwrap_or(Domain::Mathematics);
+            let node = parsed
+                .into_iter()
+                .find(|(domain, _)| *domain == best)
+                .map(|(_, node)| node);
+            (best, node)
+        }
     }
 }
 
