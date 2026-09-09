@@ -17,6 +17,7 @@ use sciwhisper_core::coordination::{
     build_sphere, salt_ratio, Coordination, Ligand, MaterialClasses, Refusal, MAX_COUNTER_IONS,
     MAX_LIGAND_MULTIPLICITY,
 };
+use sciwhisper_core::utterance::MAX_UTTERANCE_WORDS;
 use sciwhisper_core::{
     interpret, interpret_utterance, render, Domain, InterpretOptions, Renderer, UtteranceMode,
     UtteranceOptions,
@@ -486,21 +487,16 @@ fn the_salt_ratio_is_the_smallest_whole_one() {
     assert_eq!(salt_ratio(-2, 3), Ok((2, 3)));
 }
 
-/// A phrase longer than the span limit must not be parsed by growing the
-/// search without bound.
+/// A phrase past the utterance limit must take the deterministic early-exit
+/// path instead of entering the bounded span search. Wall-clock assertions
+/// are deliberately avoided: runner speed is not part of this contract.
 #[test]
 fn a_very_long_phrase_does_not_run_away() {
-    let long = std::iter::repeat_n("феррит цинка", 200)
+    let long = std::iter::repeat_n("феррит цинка", MAX_UTTERANCE_WORDS / 2 + 1)
         .collect::<Vec<_>>()
         .join(" ");
-    let start = std::time::Instant::now();
-    let out = spoken(&long);
-    assert!(
-        start.elapsed() < std::time::Duration::from_secs(10),
-        "took {:?}",
-        start.elapsed()
-    );
-    assert!(!out.is_empty());
+    assert!(long.split_whitespace().count() > MAX_UTTERANCE_WORDS);
+    assert_eq!(spoken(&long), long);
 }
 
 // ------------------------------------------------------------- data files
