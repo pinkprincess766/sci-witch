@@ -447,6 +447,11 @@ mod tests {
             },
             "split_audit": { "speakers": 12, "clean": true },
             "severity": { "count_by_severity": { "S4": 0 } },
+            "user_path": {
+                "mixed_exact_match": { "value": 0.95, "ci95_low": 0.93, "ci95_high": 0.97 },
+                "false_scientific_rewrite_rate": { "value": 0.0, "ci95_low": 0.0, "ci95_high": 0.01 }
+            },
+            "selective_prediction": { "calibration": { "errors": 25 } },
             "metrics": {
                 "pre_insertion_end_to_end_exact_match": {
                     "unicode": { "value": 0.95, "ci95_low": 0.93, "ci95_high": 0.97 }
@@ -487,8 +492,10 @@ mod tests {
         let ids: Vec<&str> = file.gates.iter().map(|gate| gate.id.as_str()).collect();
         for required in [
             "end-to-end-accuracy",
+            "shipped-end-to-end-accuracy",
             "auto-insert-precision",
-            "no-dangerous-rewrites",
+            "no-dangerous-rewrites-shipped",
+            "no-dangerous-rewrites-parser",
             "no-s4-errors",
         ] {
             assert!(ids.contains(&required), "missing gate {required}: {ids:?}");
@@ -507,6 +514,9 @@ mod tests {
             },
             "split_audit": { "speakers": 0, "clean": true },
             "severity": { "count_by_severity": { "S4": 0 } },
+            "user_path": {
+                "false_scientific_rewrite_rate": { "value": 0.0, "ci95_low": 0.0, "ci95_high": 0.121 }
+            },
             "metrics": {
                 "pre_insertion_end_to_end_exact_match": {
                     "unicode": { "value": 0.982, "ci95_low": 0.938, "ci95_high": 0.995 }
@@ -521,7 +531,8 @@ mod tests {
         for id in [
             "end-to-end-accuracy",
             "auto-insert-precision",
-            "no-dangerous-rewrites",
+            "no-dangerous-rewrites-shipped",
+            "no-dangerous-rewrites-parser",
         ] {
             assert!(
                 matches!(outcome(&report, id), Outcome::NotMeasurable { .. }),
@@ -560,13 +571,13 @@ mod tests {
     #[test]
     fn an_observed_zero_is_judged_on_what_it_could_still_hide() {
         let few = voice_report(json!({
-            "metrics": {
+            "user_path": {
                 // 0/28: the true rate could be 10%.
                 "false_scientific_rewrite_rate": { "value": 0.0, "ci95_low": 0.0, "ci95_high": 0.121 }
             }
         }));
         let report = evaluate(&gates(), &few, Some(&seal())).unwrap();
-        let outcome = outcome(&report, "no-dangerous-rewrites");
+        let outcome = outcome(&report, "no-dangerous-rewrites-shipped");
         assert!(matches!(outcome, Outcome::Fail { .. }), "{outcome:?}");
         let Outcome::Fail { observed, .. } = outcome else {
             unreachable!()

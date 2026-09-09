@@ -33,9 +33,9 @@ use crate::schema::Dataset;
 fn corpus() -> Dataset {
     let path = concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../research/data/dev-seed-v1.jsonl"
+        "/../../research/data/dev-seed-v2.jsonl"
     );
-    let text = std::fs::read_to_string(path).expect("dev-seed-v1.jsonl must exist");
+    let text = std::fs::read_to_string(path).expect("dev-seed-v2.jsonl must exist");
     Dataset::parse_jsonl(&text).expect("the corpus must load")
 }
 
@@ -318,7 +318,9 @@ fn the_lab_and_the_application_agree_about_all_but_one_record() {
             rewritten.push(format!("{}: {:?} → {:?}", record.id, kept, produced));
         }
     }
-    assert_eq!(ordinary, 28, "the corpus changed size; re-check this pin");
+    // 29 since «феррит бария» was corrected from a demanded formula to an
+    // ambiguous name whose right answer is to keep the words.
+    assert_eq!(ordinary, 29, "the corpus changed size; re-check this pin");
     assert_eq!(
         rewritten,
         vec![

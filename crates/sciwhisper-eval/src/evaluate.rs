@@ -238,6 +238,15 @@ pub struct ExampleOutcome {
     pub latency_us: u64,
     pub severity: Option<Severity>,
     pub first_blocking: Option<ErrorStage>,
+    /// Confidence of the answer the selector chose, and whether that answer
+    /// was a scientific structure at all.
+    ///
+    /// Kept so the insert/abstain threshold can be re-examined after the
+    /// fact: the whole risk–coverage curve is a replay of [`decide`] over
+    /// these two fields, and re-running the pipeline once per candidate
+    /// threshold would measure the clock rather than the rule.
+    pub selected_confidence: Option<f32>,
+    pub selected_is_ast: bool,
     /// How far the answer is from the one the corpus asked for, in the units
     /// of `research/schema/ast-distance-v1.json`. `None` where a distance
     /// has no meaning: between `RAW` and an AST there is no tree to edit,
@@ -320,6 +329,14 @@ pub fn evaluate_record(record: &Record, config: &EvalConfig) -> Result<ExampleOu
         expected_payload,
         emitted_payload: run.emitted_payload,
         routing_correct,
+        selected_confidence: run
+            .selected
+            .as_ref()
+            .map(|candidate| candidate.structural_confidence),
+        selected_is_ast: run
+            .selected
+            .as_ref()
+            .is_some_and(|candidate| candidate.action.is_ast()),
         ast_distance: match (&gold_target, &run.emitted) {
             (Target::Ast(gold), Target::Ast(produced)) => {
                 Some(crate::distance::distance_nodes(gold, produced))

@@ -173,6 +173,20 @@ pub struct Record {
     pub target_ast: Option<Node>,
     #[serde(default, skip_serializing_if = "ExpectedRender::is_empty")]
     pub expected_render: ExpectedRender,
+    /// What the **application** should put on screen for this utterance, in
+    /// the default `MixedText` mode.
+    ///
+    /// The lab evaluates `interpret`, which answers with a whole formula or
+    /// with nothing. The shipped path is `interpret_utterance`, which keeps
+    /// the sentence and substitutes the spans it can prove — so its right
+    /// answer is a **document**, and collapsing it to `RAW` would score a
+    /// correct substitution as a failure.
+    ///
+    /// Absent means the corpus makes no claim about the user path for this
+    /// record, and a `raw` record with no claim is expected to come back
+    /// unchanged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expected_mixed_output: Option<String>,
     pub split: Split,
     #[serde(default)]
     pub tags: Vec<String>,

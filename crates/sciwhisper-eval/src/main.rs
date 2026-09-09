@@ -13,8 +13,10 @@ mod metrics;
 mod oracle;
 mod report;
 mod schema;
+mod selective;
 mod split;
 mod stability;
+mod user_path;
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;

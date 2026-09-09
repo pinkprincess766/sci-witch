@@ -14,13 +14,31 @@
       "metric": "metrics.pre_insertion_end_to_end_exact_match.unicode",
       "judge": "ci95_low",
       "comparison": "at_least",
-      "threshold": 0.90,
+      "threshold": 0.9,
       "requires": {
-        "provenance_at_least": { "real_audio": 200 },
+        "provenance_at_least": {
+          "real_audio": 200
+        },
         "min_speakers": 10,
         "frozen": true
       },
       "rationale": "The roadmap criterion for 0.5. Measured before OS insertion, which is what the harness can see; the Word path is covered by the manual protocol instead."
+    },
+    {
+      "id": "shipped-end-to-end-accuracy",
+      "title": "Точность смешанной вставки пользовательского пути не ниже 90%",
+      "metric": "user_path.mixed_exact_match",
+      "judge": "ci95_low",
+      "comparison": "at_least",
+      "threshold": 0.9,
+      "requires": {
+        "provenance_at_least": {
+          "real_audio": 200
+        },
+        "min_speakers": 10,
+        "frozen": true
+      },
+      "rationale": "Exercises `interpret_utterance` in MixedText, the path the desktop application actually inserts. AST records derive the expected Unicode document from their hand-written gold tree; raw records either stay unchanged or carry an explicit mixed-document expectation. A lab-only exact match cannot substitute for this gate."
     },
     {
       "id": "auto-insert-precision",
@@ -30,25 +48,45 @@
       "comparison": "at_least",
       "threshold": 0.97,
       "requires": {
-        "provenance_at_least": { "real_audio": 200 },
+        "provenance_at_least": {
+          "real_audio": 200
+        },
         "min_speakers": 10,
         "frozen": true
       },
       "rationale": "Of everything the system inserted without asking, how much was right. This is the number a user experiences as trust, and it is deliberately stricter than overall accuracy: abstaining is cheap, being confidently wrong is not."
     },
     {
-      "id": "no-dangerous-rewrites",
-      "title": "Обычный текст не превращается в формулу",
+      "id": "no-dangerous-rewrites-shipped",
+      "title": "Обычный текст не превращается в формулу — в том коде, который выполняется у пользователя",
+      "metric": "user_path.false_scientific_rewrite_rate",
+      "judge": "ci95_high",
+      "comparison": "at_most",
+      "threshold": 0.02,
+      "requires": {
+        "provenance_at_least": {
+          "real_audio": 150
+        },
+        "min_speakers": 10,
+        "frozen": true
+      },
+      "rationale": "Measured on `interpret_utterance` in MixedText — the path `pipeline.rs` runs — because that is what a user experiences. The lab path is gated separately below; a release may not pass on the parser's number while the shipped code behaves differently. The upper bound, not the count: an observed zero is not evidence of safety until the sample is large enough for the bound to mean something."
+    },
+    {
+      "id": "no-dangerous-rewrites-parser",
+      "title": "Обычный текст не превращается в формулу — в разборе",
       "metric": "metrics.false_scientific_rewrite_rate",
       "judge": "ci95_high",
       "comparison": "at_most",
       "threshold": 0.02,
       "requires": {
-        "provenance_at_least": { "real_audio": 150 },
+        "provenance_at_least": {
+          "real_audio": 150
+        },
         "min_speakers": 10,
         "frozen": true
       },
-      "rationale": "The upper bound, not the count. An observed zero is not evidence of safety until the sample is large enough for the bound to mean something: 0/28 allows a true rate of 10%, 0/150 allows 2%."
+      "rationale": "The same question asked of `interpret`, which is what the candidate generator calls. Kept as its own gate rather than merged: the two measure different code, and a single number would hide which one moved."
     },
     {
       "id": "no-s4-errors",
@@ -58,7 +96,9 @@
       "comparison": "at_most",
       "threshold": 0,
       "requires": {
-        "provenance_at_least": { "real_audio": 150 },
+        "provenance_at_least": {
+          "real_audio": 150
+        },
         "frozen": true
       },
       "rationale": "S4 is ordinary speech turned into a formula nobody dictated. One is too many, and unlike a rate this is a count: it is checked exactly."
@@ -70,7 +110,9 @@
       "judge": "ci95_low",
       "comparison": "at_least",
       "threshold": 0.99,
-      "requires": { "frozen": true },
+      "requires": {
+        "frozen": true
+      },
       "rationale": "An insertion that is not a well-formed AST is a defect regardless of whether it matches the corpus, and it is the one class of failure that cannot be blamed on recognition."
     },
     {

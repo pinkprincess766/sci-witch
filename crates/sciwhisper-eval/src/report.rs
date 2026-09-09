@@ -24,7 +24,10 @@ use crate::oracle::{
 use crate::schema::{Dataset, Record, TargetAction};
 use crate::split::{audit_splits, SplitAudit};
 
-pub const REPORT_SCHEMA_VERSION: u32 = 2;
+// v3 added the mandatory `user_path` block. A reader that expects v2 must
+// not be handed a v3 report and left to discover the new field by accident.
+// v4 added `selective_prediction`.
+pub const REPORT_SCHEMA_VERSION: u32 = 4;
 pub const SEVERITY_SCHEMA_VERSION: u32 = 1;
 pub const BASELINE_ID: &str = "deterministic-v1";
 
@@ -226,6 +229,17 @@ pub struct Report {
     pub component_isolation: ComponentIsolation,
     pub severity: SeverityReport,
     pub ast_distance: DistanceSummary,
+    /// What the insert/abstain threshold costs, at every threshold.
+    ///
+    /// The shipped `0.9` was chosen by hand. This is what makes it
+    /// answerable: the curve says what each threshold would have done, and
+    /// the calibration block says whether the corpus can support choosing
+    /// between them at all.
+    pub selective_prediction: crate::selective::SelectivePrediction,
+    /// What the application does, measured on `interpret_utterance` in
+    /// `MixedText`. Reported beside the lab numbers, never added to them:
+    /// they measure different code.
+    pub user_path: crate::user_path::UserPathReport,
     pub errors: Vec<ErrorEntry>,
     pub notes: Vec<String>,
     /// Everything that legitimately differs between two runs of the same
@@ -332,6 +346,8 @@ pub fn build_report(inputs: &Inputs<'_>) -> Result<Report, String> {
         component_isolation: component_isolation(&inputs.selected, config),
         severity: severity_report(&severities),
         ast_distance: distance_summary(&outcomes),
+        selective_prediction: crate::selective::evaluate(&outcomes, config.auto_insert_threshold),
+        user_path: crate::user_path::evaluate(&inputs.selected),
         errors,
         notes: notes(),
         timing: Timing {
@@ -561,6 +577,7 @@ fn notes() -> Vec<String> {
         "The confidence produced by sciwhisper-core is a deterministic parse level, not a calibrated probability. No metric here treats it as one.".into(),
         "Oracle replacement deltas answer the product question and are not additive; component isolation answers the laboratory question and is a different quantity.".into(),
         "An observed count of zero for a rare safety error is reported with its exact one-sided 95% upper bound, never as a proven zero.".into(),
+        "The insert/abstain threshold is reported as a risk–coverage curve rather than defended. `no_worse_than_configured` lists only thresholds that give up nothing on coverage, accuracy and risk at once; a trade between them is the owner's decision.".into(),
     ]
 }
 
@@ -801,6 +818,51 @@ pub fn human_table(report: &Report) -> String {
         ));
     }
     out.push('\n');
+    out.push_str("risk–coverage (порог вставки)\n");
+    for point in &report.selective_prediction.curve {
+        let risk = match &point.risk {
+            Some(risk) => format!("{}/{}", risk.numerator, risk.denominator),
+            None => "—".to_string(),
+        };
+        let mark = if (point.threshold - report.selective_prediction.configured_threshold).abs()
+            < f32::EPSILON
+        {
+            " ← настроенный"
+        } else {
+            ""
+        };
+        out.push_str(&format!(
+            "  {:<6.2} покрытие {:>7}  риск {:>7}  точность {:>7}{}\n",
+            point.threshold,
+            format!(
+                "{}/{}",
+                point.coverage.numerator, point.coverage.denominator
+            ),
+            risk,
+            format!(
+                "{}/{}",
+                point.accuracy.numerator, point.accuracy.denominator
+            ),
+            mark
+        ));
+    }
+    let calibration = &report.selective_prediction.calibration;
+    for level in &calibration.levels {
+        out.push_str(&format!(
+            "  уверенность {:.2}: {} примеров, верно {}/{}{}\n",
+            level.confidence,
+            level.examples,
+            level.accuracy.numerator,
+            level.accuracy.denominator,
+            if level.trustworthy {
+                ""
+            } else {
+                "  (слишком мало, чтобы читать как свидетельство)"
+            }
+        ));
+    }
+    out.push_str(&format!("  {}\n", calibration.verdict));
+    out.push('\n');
     out.push_str("component isolation\n");
     out.push_str(&format!(
         "  {:<35}{}\n",
@@ -855,14 +917,14 @@ mod tests {
     /// | water | AST H₂O | «вода» carries no routing keyword, but routing now tries the domains instead of guessing, so chemistry reads it | yes |
     /// | patience | RAW | no parse, words kept | yes |
     /// | boiled | RAW | no parse, words kept | yes |
-    /// | ferrite | AST BaFe₁₂O₁₉ | no grammar can build it, so the words are kept | no |
+    /// | complex | AST [Co(NH₃)₅Cl]Cl₂ | a mixed sphere is a documented limitation, so the words are kept | no |
     fn hand_table_corpus() -> String {
         [
             r#"{"dataset_schema_version":1,"id":"chem-sulfuric-001-a","family_id":"chem-sulfuric-001","provenance":"handcrafted_text","human_transcript":"серная кислота","asr_hypotheses":[],"target_domain":"chemistry","target_action":"ast","target_ast":{"Chemical":{"Species":{"coefficient":1,"formula":{"parts":[{"Atom":{"symbol":"H","count":2}},{"Atom":{"symbol":"S","count":1}},{"Atom":{"symbol":"O","count":4}}]},"charge":null,"marker":null}}},"split":"train","tags":["formula"],"speaker_id":null}"#,
             r#"{"dataset_schema_version":1,"id":"chem-water-001-a","family_id":"chem-water-001","provenance":"handcrafted_text","human_transcript":"вода","asr_hypotheses":[],"target_domain":"chemistry","target_action":"ast","target_ast":{"Chemical":{"Species":{"coefficient":1,"formula":{"parts":[{"Atom":{"symbol":"H","count":2}},{"Atom":{"symbol":"O","count":1}}]},"charge":null,"marker":null}}},"split":"train","tags":["formula"],"speaker_id":null}"#,
             r#"{"dataset_schema_version":1,"id":"raw-patience-001-a","family_id":"raw-patience-001","provenance":"handcrafted_text","human_transcript":"предел терпения","asr_hypotheses":[],"target_domain":"plain","target_action":"raw","target_ast":null,"split":"train","tags":["raw"],"speaker_id":null}"#,
             r#"{"dataset_schema_version":1,"id":"raw-boiled-001-a","family_id":"raw-boiled-001","provenance":"handcrafted_text","human_transcript":"вода закипела в чайнике","asr_hypotheses":[],"target_domain":"plain","target_action":"raw","target_ast":null,"split":"train","tags":["raw"],"speaker_id":null}"#,
-            r#"{"dataset_schema_version":1,"id":"chem-ferrite-001-a","family_id":"chem-ferrite-001","provenance":"handcrafted_text","human_transcript":"феррит бария","asr_hypotheses":[],"target_domain":"chemistry","target_action":"ast","target_ast":{"Chemical":{"Species":{"coefficient":1,"formula":{"parts":[{"Atom":{"symbol":"Ba","count":1}},{"Atom":{"symbol":"Fe","count":12}},{"Atom":{"symbol":"O","count":19}}]},"charge":null,"marker":null}}},"split":"train","tags":["known-gap"],"speaker_id":null}"#,
+            r#"{"dataset_schema_version":1,"id":"chem-mixed-001-a","family_id":"chem-mixed-001","provenance":"handcrafted_text","human_transcript":"пентаамминхлорокобальт три хлорид","asr_hypotheses":[],"target_domain":"chemistry","target_action":"ast","target_ast":{"Chemical":{"Species":{"coefficient":1,"formula":{"parts":[{"Complex":{"center":{"symbol":"Co","oxidation":3},"ligands":[{"formula":{"parts":[{"Atom":{"symbol":"N","count":1}},{"Atom":{"symbol":"H","count":3}}]},"charge":0,"count":5},{"formula":{"parts":[{"Atom":{"symbol":"Cl","count":1}}]},"charge":-1,"count":1}],"charge":2,"count":1}},{"Atom":{"symbol":"Cl","count":2}}]},"charge":null,"marker":null}}},"split":"train","tags":["known-gap"],"speaker_id":null}"#,
         ]
         .join("\n")
     }

@@ -469,13 +469,15 @@ mod tests {
 
     #[test]
     fn a_missing_candidate_is_attributed_to_generation() {
-        // Nothing in the grammar builds barium ferrite, so with a perfect
-        // transcript and a perfect domain the gold is still absent.
+        // A mixed coordination sphere — five ammines and one chloride round
+        // one centre — is a documented limitation: the parser builds one
+        // kind of ligand per sphere. So with a perfect transcript and a
+        // perfect domain the gold is still absent.
         let corpus = dataset(&[&record_line(
             "chem-ferrite-001",
-            "феррит бария",
+            "пентаамминхлорокобальт три хлорид",
             "ast",
-            r#"{"Chemical":{"Species":{"coefficient":1,"formula":{"parts":[{"Atom":{"symbol":"Ba","count":1}},{"Atom":{"symbol":"Fe","count":12}},{"Atom":{"symbol":"O","count":19}}]},"charge":null,"marker":null}}}"#,
+            r#"{"Chemical":{"Species":{"coefficient":1,"formula":{"parts":[{"Complex":{"center":{"symbol":"Co","oxidation":3},"ligands":[{"formula":{"parts":[{"Atom":{"symbol":"N","count":1}},{"Atom":{"symbol":"H","count":3}}]},"charge":0,"count":5},{"formula":{"parts":[{"Atom":{"symbol":"Cl","count":1}}]},"charge":-1,"count":1}],"charge":2,"count":1}},{"Atom":{"symbol":"Cl","count":2}}]},"charge":null,"marker":null}}}"#,
             "chemistry",
         )]);
         let config = EvalConfig::default();
@@ -489,7 +491,7 @@ mod tests {
     fn the_oracle_candidate_set_is_the_only_place_gold_appears() {
         let corpus = dataset(&[&record_line(
             "chem-ferrite-001",
-            "феррит бария",
+            "пентаамминхлорокобальт три хлорид",
             "ast",
             r#"{"Chemical":{"Species":{"coefficient":1,"formula":{"parts":[{"Atom":{"symbol":"Ba","count":1}}]},"charge":null,"marker":null}}}"#,
             "chemistry",
@@ -515,7 +517,7 @@ mod tests {
     fn oracle_replacement_reports_the_real_system_first_and_never_sums_gains() {
         let corpus = dataset(&[&record_line(
             "chem-ferrite-001",
-            "феррит бария",
+            "пентаамминхлорокобальт три хлорид",
             "ast",
             r#"{"Chemical":{"Species":{"coefficient":1,"formula":{"parts":[{"Atom":{"symbol":"Ba","count":1}}]},"charge":null,"marker":null}}}"#,
             "chemistry",

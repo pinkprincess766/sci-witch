@@ -4,7 +4,7 @@
 команду — не для галочки: их ставит прогон, а не человек, который посмотрел и решил.
 
 ```bash
-cargo run -p sciwhisper-eval -- evaluate --dataset research/data/dev-seed-v1.jsonl --output report.json
+cargo run -p sciwhisper-eval -- evaluate --dataset research/data/dev-seed-v2.jsonl --output report.json
 cargo run -p sciwhisper-eval -- gate --report report.json [--seal research/schema/frozen-test-seal.json]
 ```
 
@@ -75,16 +75,19 @@ cargo run -p sciwhisper-eval -- gate --report report.json [--seal research/schem
 Каждые судятся по границе доверительного интервала, а не по точечной оценке.
 
 - [ ] `end-to-end-accuracy` — нижняя граница 95% CI ≥ 0.90
+- [ ] `shipped-end-to-end-accuracy` — нижняя граница 95% CI пользовательского `MixedText` ≥ 0.90
 - [ ] `auto-insert-precision` — нижняя граница 95% CI ≥ 0.97
-- [ ] `no-dangerous-rewrites` — **верхняя** граница 95% CI ≤ 0.02
+- [ ] `no-dangerous-rewrites-shipped` — **верхняя** граница 95% CI в пользовательском пути ≤ 0.02
+- [ ] `no-dangerous-rewrites-parser` — **верхняя** граница 95% CI в узком парсере ≤ 0.02
 - [ ] `no-s4-errors` — ровно 0
 - [ ] `structural-validity` — нижняя граница 95% CI ≥ 0.99
 - [x] `split-hygiene` — ни семейство, ни диктор не пересекают split
 
-Текущее состояние: **пять из шести не измеримы**. Корпус `dev-seed-v1` содержит 0 записей
+Текущее состояние: **семь из восьми не измеримы**. Корпус `dev-seed-v2` содержит 0 записей
 `provenance=real_audio` и 0 дикторов, а frozen test не запечатан. Никакой прогон на этом
-корпусе не может подтвердить требования 0.5 — их закрывают записи, а не код. Протокол
-сбора: [VOICE_CORPUS_RU.md](../../research/data/VOICE_CORPUS_RU.md).
+корпусе не может подтвердить требования 0.5 — их закрывают записи, а не код. Единственные
+измеримые ворота, `split-hygiene`, проходят. Протокол сбора:
+[VOICE_CORPUS_RU.md](../../research/data/VOICE_CORPUS_RU.md).
 
 ## Frozen test
 

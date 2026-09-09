@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Builds research/data/dev-seed-v1.jsonl and its manifest.
+"""Builds research/data/dev-seed-v2.jsonl and its manifest.
 
 The gold answers in this file are written **by hand from intent**. This script
 never imports, calls or shells out to sciwhisper-core: a benchmark whose gold
@@ -19,8 +19,8 @@ import pathlib
 from collections import Counter
 
 OUT = pathlib.Path(__file__).resolve().parent
-JSONL = OUT / "dev-seed-v1.jsonl"
-MANIFEST = OUT / "dev-seed-v1.manifest.json"
+JSONL = OUT / "dev-seed-v2.jsonl"
+MANIFEST = OUT / "dev-seed-v2.manifest.json"
 SCHEMA_VERSION = 1
 
 # --------------------------------------------------------------- AST helpers
@@ -143,8 +143,17 @@ def ast_record(family, suffix, transcript, domain, target, tags, render=None):
         entry["expected_render"] = {"unicode": render}
     RECORDS.append(entry)
 
-def raw_record(family, suffix, transcript, tags):
-    RECORDS.append({
+def raw_record(family, suffix, transcript, tags, mixed=None):
+    """A record whose right answer in the *lab* path is to keep the words.
+
+    `mixed` states, separately, what the **application** should put on
+    screen. The two are different questions: the lab calls `interpret`,
+    which parses the whole utterance or nothing, while the application calls
+    `interpret_utterance` in MixedText, which keeps the sentence and
+    substitutes the spans it can prove. Leaving `mixed` unset means the
+    record expects the application to leave the sentence alone too.
+    """
+    record = {
         "dataset_schema_version": SCHEMA_VERSION,
         "id": f"{family}-{suffix}",
         "family_id": family,
@@ -157,7 +166,10 @@ def raw_record(family, suffix, transcript, tags):
         "split": None,
         "tags": tags,
         "speaker_id": None,
-    })
+    }
+    if mixed is not None:
+        record["expected_mixed_output"] = mixed
+    RECORDS.append(record)
 
 # ------------------------------------------------------------------ chemistry
 
@@ -236,11 +248,16 @@ ast_record("chem-reaction-unbalanced-001", "a",
            ["reaction", "unbalanced"])
 ast_record("chem-zinc-ferrite-001", "a", "феррит цинка", C,
            chem(species(formula(atom("Zn"), atom("Fe", 2), atom("O", 4)))), ["formula", "ferrite"])
-# A documented ontology gap: barium ferrite has no entry, so the right answer
-# cannot be built by the current grammar at all.
-ast_record("chem-ferrite-ba-001", "a", "феррит бария", C,
-           chem(species(formula(atom("Ba"), atom("Fe", 12), atom("O", 19)))),
-           ["formula", "ferrite", "known-gap"])
+# «Феррит бария» does not name one compound. Barium forms both the spinel
+# BaFe2O4 and the hexaferrite BaFe12O19, and the name alone gives no grounds
+# for preferring either — so keeping the words is the *correct* answer, not a
+# gap.
+#
+# This record used to demand BaFe12O19. That marking punished a correct
+# abstention and, worse, would teach any future ranker that guessing one of
+# two real phases beats saying "I do not know".
+raw_record("chem-ferrite-ba-001", "a", "феррит бария",
+           ["raw", "ferrite", "ambiguous-name"])
 
 # --------------------------------------------------------------- mathematics
 
@@ -398,7 +415,26 @@ raw_record("raw-derivative-published-001", "a", "производная была
 raw_record("raw-order-of-magnitude-001", "a", "порядок величины", ["raw", "homonym"])
 raw_record("raw-water-boiled-001", "a", "вода закипела в чайнике", ["raw", "substance-mentioned"])
 raw_record("raw-ammonia-smell-001", "a", "аммиак имеет резкий запах", ["raw", "substance-mentioned"])
-raw_record("raw-acid-storage-001", "a", "серная кислота хранится в лаборатории", ["raw", "substance-mentioned"])
+# ---------------------------------------------------------------------------
+# A DECISION, not an observation. Flip the string below to change the policy;
+# the `no-dangerous-rewrites-shipped` gate will then fail until the
+# application matches.
+#
+# The application substitutes a *multi-word nomenclature name* inside prose
+# and leaves a *single common noun* alone. That is not arbitrary: «вода»,
+# «аммиак», «оксид» are ordinary Russian words that happen to name
+# substances, while «серная кислота» and «гидроксид железа три» are
+# deliberate chemical terms that almost never appear meaning anything else.
+# Six of the seven `*-mentioned` records stay prose; this one does not, and
+# it is consistent with `inline_formula_is_inserted_with_surrounding_prose`,
+# where «пример гидроксида железа три в тексте» is expected to compile.
+#
+# The substitution is also one click from being undone — «Варианты
+# прочтения» offers the spoken words back — whereas a missed formula has to
+# be retyped. That asymmetry is why the default leans this way.
+raw_record("raw-acid-storage-001", "a", "серная кислота хранится в лаборатории",
+           ["raw", "substance-mentioned"],
+           mixed="H₂SO₄ хранится в лаборатории")
 raw_record("raw-integral-course-001", "a", "он изучает интеграл в университете", ["raw", "term-mentioned"])
 raw_record("raw-sum-in-words-001", "a", "сумма прописью", ["raw", "term-mentioned"])
 raw_record("raw-root-of-problem-001", "a", "корень проблемы лежит глубже", ["raw", "homonym"])
@@ -452,9 +488,9 @@ JSONL.write_text(text, encoding="utf-8")
 domain_counts = Counter(record["target_domain"] for record in RECORDS)
 manifest = {
     "manifest_schema_version": 1,
-    "corpus_id": "dev-seed-v1",
-    "created": "2026-09-04",
-    "file": "dev-seed-v1.jsonl",
+    "corpus_id": "dev-seed-v2",
+    "created": "2026-09-09",
+    "file": "dev-seed-v2.jsonl",
     "sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
     "dataset_schema_version": SCHEMA_VERSION,
     "records": len(RECORDS),
