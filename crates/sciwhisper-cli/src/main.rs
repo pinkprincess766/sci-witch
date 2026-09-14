@@ -1,3 +1,4 @@
+mod collect_voice;
 mod ingest;
 
 use std::io::{self, IsTerminal, Read, Write};
@@ -24,6 +25,8 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Collect, resume and export a local voice session with explicit consent.
+    CollectVoice(collect_voice::Args),
     /// Compile already-transcribed speech (bypass Whisper).
     Format {
         #[arg(long, default_value = "auto")]
@@ -157,6 +160,7 @@ fn main() {
 
 fn run(cli: Cli) -> Result<(), String> {
     match cli.command {
+        Some(Command::CollectVoice(args)) => collect_voice::run(args),
         None => sciwhisper_shell::run().map_err(|e| e.to_string()),
         Some(Command::Format {
             domain,

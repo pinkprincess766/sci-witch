@@ -17,6 +17,8 @@ __pycache__/
 # Build and release output
 dist/
 /release-assets/
+/voice-sessions/
+/voice-exports/
 *.pdb
 *.dSYM/
 

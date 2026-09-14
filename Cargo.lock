@@ -3114,12 +3114,15 @@ name = "sciwhisper-cli"
 version = "0.1.1-rc1"
 dependencies = [
  "clap",
+ "cpal",
  "hound",
  "sciwhisper-asr",
  "sciwhisper-core",
+ "sciwhisper-eval",
  "sciwhisper-shell",
  "serde",
  "serde_json",
+ "sha2",
  "tempfile",
 ]
 
