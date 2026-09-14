@@ -29,6 +29,19 @@ fillers:
   - так
   - вот
   - э
+# Words that carry a clause across but no meaning of their own: «…кальция,
+# **он** разлагается на…». They are never dropped by the shipped path — only
+# the candidate lattice removes them, and only to *offer* a second reading
+# whose origin says exactly which words went.
+bridges:
+  - он
+  - она
+  - оно
+  - они
+  - при этом
+  - в итоге
+  - тогда
+  - затем
 corrections:
   # «…, нет, железа три» — the words after the marker restate part of the span.
   restate:

@@ -1,6 +1,6 @@
 //! Versioned YAML lexicons. Built-in data is embedded; unknown future schemas fail closed.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::OnceLock;
 
 use serde::Deserialize;
@@ -36,6 +36,13 @@ const ALIASES_YAML: &str = include_str!("../data/domains/chemistry/aliases.yaml"
 pub struct Lexicon {
     pub elements_by_name: HashMap<String, Element>,
     pub elements_by_symbol: HashMap<String, Element>,
+    /// Element names that only occur while a formula is being spelled out
+    /// loud: the letter names (аш, цэ, о) and the Latin register (купрум,
+    /// ferrum). They are in `elements_by_name` as well — this set only
+    /// records *which* of them belong to the spelled register, so that a
+    /// letter which is also a Russian word can ask whether anything else
+    /// nearby was spelled.
+    pub spelled_element_names: HashSet<String>,
     pub anion_classes: HashMap<String, AnionClass>,
     pub substances: Vec<NamedFormula>,
     pub greek: HashMap<String, GreekLetter>,
@@ -403,6 +410,7 @@ fn load_builtin() -> Result<Lexicon> {
     let mut lex = Lexicon {
         elements_by_name: HashMap::new(),
         elements_by_symbol: HashMap::new(),
+        spelled_element_names: HashSet::new(),
         anion_classes: HashMap::new(),
         substances: Vec::new(),
         greek: HashMap::new(),
@@ -451,6 +459,8 @@ struct ElementEntry {
     symbol: String,
     names: Vec<String>,
     #[serde(default)]
+    spelled_names: Vec<String>,
+    #[serde(default)]
     diatomic: bool,
     #[serde(default)]
     default_oxidation: Option<i32>,
@@ -465,16 +475,21 @@ fn load_elements(lex: &mut Lexicon, yaml: &str) -> Result<()> {
     })?;
     check_schema("elements.yaml", f.schema_version)?;
     for e in f.elements {
+        let mut names = e.names.clone();
+        names.extend(e.spelled_names.iter().cloned());
         let el = Element {
             symbol: e.symbol.clone(),
-            names: e.names.clone(),
+            names: names.clone(),
             diatomic: e.diatomic,
             default_oxidation: e.default_oxidation,
             oxidations: e.oxidations.clone(),
         };
         lex.elements_by_symbol.insert(e.symbol.clone(), el.clone());
-        for n in e.names {
+        for n in names {
             lex.elements_by_name.insert(normalize_word(&n), el.clone());
+        }
+        for n in e.spelled_names {
+            lex.spelled_element_names.insert(normalize_word(&n));
         }
     }
     Ok(())
@@ -1024,6 +1039,7 @@ mod tests {
         Lexicon {
             elements_by_name: HashMap::new(),
             elements_by_symbol: HashMap::new(),
+            spelled_element_names: HashSet::new(),
             anion_classes: HashMap::new(),
             substances: Vec::new(),
             greek: HashMap::new(),

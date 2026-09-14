@@ -332,6 +332,7 @@ struct DictationFile {
     schema_version: u32,
     framing: Vec<String>,
     fillers: Vec<String>,
+    bridges: Vec<String>,
     corrections: CorrectionsFile,
 }
 
@@ -347,6 +348,7 @@ struct CorrectionsFile {
 struct DictationSpeech {
     framing: Vec<Vec<String>>,
     fillers: Vec<String>,
+    bridges: Vec<Vec<String>>,
     restate: Vec<Vec<String>>,
     substitute_open: Vec<String>,
     substitute_pivot: Vec<String>,
@@ -386,6 +388,20 @@ fn matches_at(words: &[&str], i: usize, phrase: &[String]) -> bool {
             .all(|(k, expected)| words[i + k] == expected)
 }
 
+/// Whether `word` is one of the fillers `dictation.yaml` lists.
+pub(crate) fn is_filler(word: &str) -> bool {
+    dictation().is_filler(word)
+}
+
+/// The bridge phrases `dictation.yaml` lists, longest first.
+///
+/// Only [`crate::lattice`] reads these. The shipped path never drops a
+/// bridge word: removing words a person said is a thing to *offer*, with the
+/// removal named in the candidate's origin, not a thing to do silently.
+pub(crate) fn bridge_phrases() -> &'static [Vec<String>] {
+    &dictation().bridges
+}
+
 fn dictation() -> &'static DictationSpeech {
     static SPEECH: OnceLock<DictationSpeech> = OnceLock::new();
     SPEECH.get_or_init(|| {
@@ -399,6 +415,7 @@ fn dictation() -> &'static DictationSpeech {
         let phrase = |text: &str| crate::normalize::words(text);
         let mut speech = DictationSpeech {
             framing: file.framing.iter().map(|f| phrase(f)).collect(),
+            bridges: file.bridges.iter().map(|f| phrase(f)).collect(),
             fillers: file
                 .fillers
                 .iter()
@@ -425,6 +442,9 @@ fn dictation() -> &'static DictationSpeech {
             .sort_by(|a, b| b.len().cmp(&a.len()).then_with(|| a.cmp(b)));
         speech
             .restate
+            .sort_by(|a, b| b.len().cmp(&a.len()).then_with(|| a.cmp(b)));
+        speech
+            .bridges
             .sort_by(|a, b| b.len().cmp(&a.len()).then_with(|| a.cmp(b)));
         speech.fillers.sort();
         speech
@@ -1287,6 +1307,35 @@ pub fn interpret_utterance(text: &str, options: UtteranceOptions) -> UtteranceRe
                 end,
                 source_text: text[start..end].to_string(),
                 reason: "two domains produced different structures with equal support".into(),
+            });
+            let (start, end) = utterance.byte_range(word, word + 1);
+            segments.push(Segment {
+                kind: SegmentKind::PlainText,
+                start,
+                end,
+                text: text[start..end].to_string(),
+            });
+            word += 1;
+            continue;
+        }
+
+        // A span must not stop in the middle of a number. «гидроксид железа
+        // девятьсот девяносто девять тысяч» grew a span over the part the
+        // additive number lexicon could read and left «тысяч» outside it,
+        // showing `Fe(OH)₉₉₉ тысяч` for a number a thousand times larger.
+        // The span is refused rather than trimmed: there is no shorter honest
+        // reading of a number that was cut in half.
+        if crate::numbers::NumberLex::new()
+            .starts_unsupported_scale(&utterance.words, found.end_word)
+        {
+            let (start, end) = utterance.byte_range(word, found.end_word + 1);
+            result.rejected.push(RejectedSpan {
+                start,
+                end,
+                source_text: text[start..end].to_string(),
+                reason:
+                    "the number continues past the span with a multiplier this build cannot read"
+                        .into(),
             });
             let (start, end) = utterance.byte_range(word, word + 1);
             segments.push(Segment {

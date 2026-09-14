@@ -448,6 +448,12 @@ fn phys_letter_commands() {
     assert_eq!(fmt(Domain::Mathematics, "эн малое"), "n");
     assert_eq!(fmt(Domain::Mathematics, "ню греческая"), "ν");
     assert_eq!(fmt(Domain::Mathematics, "эн русская большое"), "Н");
+    // `symbols.yaml` carried a Latin `t` in the Cyrillic column for «тэ», so
+    // «тэ русская» produced a Latin letter wearing a Cyrillic label. The pair
+    // is checked together because the two columns are supposed to differ.
+    assert_eq!(fmt(Domain::Mathematics, "тэ русская"), "т");
+    assert_eq!(fmt(Domain::Mathematics, "тэ русская большое"), "Т");
+    assert_eq!(fmt(Domain::Mathematics, "тэ"), "t");
 }
 
 #[test]

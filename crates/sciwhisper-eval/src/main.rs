@@ -9,6 +9,7 @@ mod canonical;
 mod distance;
 mod evaluate;
 mod gate;
+mod lattice_report;
 mod metrics;
 mod oracle;
 mod report;
@@ -65,6 +66,8 @@ impl SplitArg {
 enum PolicyArg {
     Auto,
     AutoThenExplicit,
+    /// Candidate Lattice v1.
+    Lattice,
 }
 
 impl From<PolicyArg> for DomainPolicy {
@@ -72,6 +75,7 @@ impl From<PolicyArg> for DomainPolicy {
         match value {
             PolicyArg::Auto => DomainPolicy::Auto,
             PolicyArg::AutoThenExplicit => DomainPolicy::AutoThenExplicit,
+            PolicyArg::Lattice => DomainPolicy::Lattice,
         }
     }
 }
@@ -172,6 +176,25 @@ enum Command {
         /// Print the machine-readable result instead of the table.
         #[arg(long)]
         json: bool,
+    },
+    /// Write the full candidate lattice for every record, one JSON object
+    /// per line.
+    ///
+    /// This is the file a reranker would be trained on, and the reason the
+    /// lattice carries origins and features at all. It contains no decision
+    /// and no model: every line is what the generator offered, what the
+    /// corpus asked for, and where each reading came from.
+    ///
+    /// Ranks here are the lattice's own, with `RAW` first. The harness
+    /// re-orders before deciding, so a rank in this file is not the rank in
+    /// the evaluation report.
+    DumpLattice {
+        #[arg(long)]
+        dataset: PathBuf,
+        #[arg(long, value_enum, default_value = "all")]
+        split: SplitArg,
+        #[arg(long)]
+        output: PathBuf,
     },
     /// Diff two reports, ignoring timing.
     Compare {
@@ -457,6 +480,91 @@ fn run() -> Result<ExitCode, String> {
             if shown == 0 {
                 println!("no matching failures");
             }
+            Ok(ExitCode::SUCCESS)
+        }
+        Command::DumpLattice {
+            dataset,
+            split,
+            output,
+        } => {
+            let (corpus, _) = load(&dataset)?;
+            let selected = filter(&corpus, split)?;
+            let mut lines = Vec::new();
+            for record in &selected {
+                let gold = evaluate::gold_target(record)?;
+                let gold_key =
+                    canonical::canonical_target_v1(&gold).map_err(|error| error.to_string())?;
+                let lattice = sciwhisper_core::lattice::build(
+                    record.system_transcript(),
+                    sciwhisper_core::lattice::LatticeOptions::default(),
+                );
+                let candidates: Vec<serde_json::Value> = lattice
+                    .candidates
+                    .iter()
+                    .map(|candidate| {
+                        let target = match candidate.reading.ast() {
+                            Some(node) => canonical::Target::Ast(node.clone()),
+                            None => canonical::Target::Raw,
+                        };
+                        let key = canonical::canonical_target_v1(&target).ok();
+                        serde_json::json!({
+                            "rank": candidate.rank,
+                            "canonical": key,
+                            "is_gold": key.as_deref() == Some(gold_key.as_str()),
+                            "domain": candidate.domain.map(|domain| domain.as_str()),
+                            "span": [candidate.span.start, candidate.span.end],
+                            "normalized": candidate.normalized,
+                            "ast": candidate.reading.ast(),
+                            "origin_details": candidate.origins,
+                            "origins": candidate
+                                .origins
+                                .iter()
+                                .map(|origin| origin.as_str())
+                                .collect::<Vec<_>>(),
+                            "edits_the_words": candidate.edits_the_words(),
+                            "whole_utterance": candidate.whole_utterance,
+                            "warnings": candidate.warning_codes,
+                            "features": candidate.features,
+                        })
+                    })
+                    .collect();
+                lines.push(serde_json::json!({
+                    "lattice_schema_version": 1,
+                    "id": record.id,
+                    "family_id": record.family_id,
+                    "split": record.split,
+                    "provenance": record.provenance,
+                    "speaker_id": record.speaker_id,
+                    "transcript": record.system_transcript(),
+                    "gold": gold_key,
+                    // The rank in the *lattice's* own order, where RAW is
+                    // first. The harness re-orders before deciding, so this
+                    // is deliberately not called `gold_rank`: the two
+                    // numbers answer different questions and a reader who
+                    // conflated them would misread both.
+                    "gold_rank_in_lattice": lattice.candidates.iter().position(|candidate| {
+                        let target = match candidate.reading.ast() {
+                            Some(node) => canonical::Target::Ast(node.clone()),
+                            None => canonical::Target::Raw,
+                        };
+                        canonical::canonical_target_v1(&target).ok().as_deref()
+                            == Some(gold_key.as_str())
+                    }).map(|index| index + 1),
+                    "distinct_asts": lattice.distinct_asts,
+                    "truncated": lattice.truncated,
+                    "attempts": lattice.attempts,
+                    "candidates": candidates,
+                }));
+            }
+            let text = lines
+                .iter()
+                .map(|line| serde_json::to_string(line).expect("a lattice line serializes"))
+                .collect::<Vec<_>>()
+                .join("\n")
+                + "\n";
+            std::fs::write(&output, text)
+                .map_err(|error| format!("{}: {error}", display(&output)))?;
+            println!("{} lattices written to {}", lines.len(), display(&output));
             Ok(ExitCode::SUCCESS)
         }
         Command::Compare {

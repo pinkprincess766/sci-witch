@@ -17,7 +17,7 @@ use std::collections::BTreeMap;
 
 use serde::Serialize;
 
-use crate::candidates::{Candidate, CandidateSource, DomainPolicy};
+use crate::candidates::{Candidate, CandidateSource};
 use crate::canonical::canonical_target_v1;
 use crate::evaluate::{
     expected_payload, gold_target, oracle_hypotheses, run_pipeline, system_hypotheses, ErrorStage,
@@ -49,6 +49,8 @@ pub fn oracle_candidates(record: &Record) -> Vec<Candidate> {
         // to pick, so it arrives with the confidence of a normal parse.
         structural_confidence: 1.0,
         structurally_valid: true,
+        origins: vec!["oracle_gold".to_string()],
+        generation_truncated: false,
     }]
 }
 
@@ -91,7 +93,7 @@ pub fn run_variant(record: &Record, config: &EvalConfig, variant: Variant) -> Op
         Variant::OracleTranscript => transcripts = oracle_hypotheses(record),
         Variant::OracleDomain => {
             if let Some(domain) = record.gold_domain() {
-                config.domain_policy = DomainPolicy::Oracle(domain);
+                config.domain_policy = config.domain_policy.with_oracle_domain(domain);
             }
         }
         Variant::OracleCandidates => extras = oracle_candidates(record),
@@ -231,7 +233,7 @@ pub fn component_isolation(dataset: &[&Record], config: &EvalConfig) -> Componen
         // candidate-isolated: perfect transcript and perfect routing.
         let mut oracle_domain_config = config.clone();
         if let Some(domain) = record.gold_domain() {
-            oracle_domain_config.domain_policy = DomainPolicy::Oracle(domain);
+            oracle_domain_config.domain_policy = config.domain_policy.with_oracle_domain(domain);
         }
         let run = run_pipeline(
             &hypotheses,
@@ -314,7 +316,7 @@ pub fn first_blocking(record: &Record, config: &EvalConfig) -> Option<ErrorStage
     let mut upstream_config = config.clone();
     let run = match record.gold_domain() {
         Some(domain) => {
-            upstream_config.domain_policy = DomainPolicy::Oracle(domain);
+            upstream_config.domain_policy = config.domain_policy.with_oracle_domain(domain);
             let run = run_pipeline(
                 &oracle_hypotheses(record),
                 &gold_key,
@@ -420,6 +422,7 @@ pub fn bottleneck_table(dataset: &Dataset, stages: &[Option<ErrorStage>]) -> Bot
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::candidates::DomainPolicy;
     use crate::schema::Dataset;
 
     fn dataset(lines: &[&str]) -> Dataset {
@@ -430,6 +433,30 @@ mod tests {
         format!(
             r#"{{"dataset_schema_version":1,"id":"{id}-a","family_id":"{id}","provenance":"handcrafted_text","human_transcript":"{transcript}","asr_hypotheses":[],"target_domain":"{domain}","target_action":"{action}","target_ast":{ast},"split":"train","tags":[],"speaker_id":null}}"#
         )
+    }
+
+    #[test]
+    fn oracle_domain_preserves_the_lattice_and_attributes_repair_to_ranking() {
+        let corpus =
+            Dataset::parse_jsonl(include_str!("../../../research/data/ambiguous-v1.jsonl"))
+                .unwrap();
+        let record = corpus
+            .records
+            .iter()
+            .find(|r| r.human_transcript == "карбанат кальция")
+            .unwrap();
+        let config = EvalConfig {
+            domain_policy: DomainPolicy::Lattice,
+            ..EvalConfig::default()
+        };
+        let real = run_variant(record, &config, Variant::Real).unwrap();
+        let oracle = run_variant(record, &config, Variant::OracleDomain).unwrap();
+        assert!(real.gold_rank.is_some());
+        assert!(
+            oracle.gold_rank.is_some(),
+            "ideal routing must not disable vowel repair"
+        );
+        assert_eq!(first_blocking(record, &config), Some(ErrorStage::RankFirst));
     }
 
     #[test]

@@ -53,6 +53,12 @@ ordinals:
   10: [десятый, десятая, десятое, десятую, десятой, десятого]
 markers:
   decimal: [целых, целая, целое]
+  # Multipliers this lexicon cannot apply. `consume_int` is additive, so
+  # «девятьсот девяносто девять тысяч» would come back as 999 and the word
+  # «тысяч» would be left behind as prose — the speaker's number silently
+  # divided by a thousand. Anywhere a number becomes a subscript or an
+  # oxidation state, one of these following it means "refuse", not "999".
+  scale: [тысяча, тысячи, тысяч, тысячу, миллион, миллиона, миллионов, миллиард, миллиарда, миллиардов]
   twice: [дважды]
   thrice: [трижды]
   n_times: [четырежды, пятью]

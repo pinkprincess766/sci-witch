@@ -247,6 +247,17 @@ pub struct ExampleOutcome {
     /// threshold would measure the clock rather than the rule.
     pub selected_confidence: Option<f32>,
     pub selected_is_ast: bool,
+    /// Distinct structures the candidate set offered, `RAW` excluded. `1`
+    /// means there was nothing to choose between.
+    pub distinct_asts: usize,
+    /// Every route the generator took to every candidate, flattened. Empty
+    /// under the single-pass policies, which have one route by construction.
+    pub candidate_origins: Vec<String>,
+    /// Candidates the generator refused to prefer over `RAW`: partial
+    /// readings and readings that needed the words edited.
+    pub edited_candidates: usize,
+    /// A generation limit was reached on this example.
+    pub lattice_truncated: bool,
     /// How far the answer is from the one the corpus asked for, in the units
     /// of `research/schema/ast-distance-v1.json`. `None` where a distance
     /// has no meaning: between `RAW` and an AST there is no tree to edit,
@@ -337,6 +348,21 @@ pub fn evaluate_record(record: &Record, config: &EvalConfig) -> Result<ExampleOu
             .selected
             .as_ref()
             .is_some_and(|candidate| candidate.action.is_ast()),
+        distinct_asts: distinct_asts(&run.candidates),
+        candidate_origins: run
+            .candidates
+            .iter()
+            .flat_map(|candidate| candidate.origins.iter().cloned())
+            .collect(),
+        edited_candidates: run
+            .candidates
+            .iter()
+            .filter(|candidate| {
+                candidate.source == crate::candidates::CandidateSource::LatticeBehindRaw
+            })
+            .count(),
+        // Capacity alone is not evidence that anything was excluded.
+        lattice_truncated: run.candidates.iter().any(|c| c.generation_truncated),
         ast_distance: match (&gold_target, &run.emitted) {
             (Target::Ast(gold), Target::Ast(produced)) => {
                 Some(crate::distance::distance_nodes(gold, produced))
@@ -349,6 +375,22 @@ pub fn evaluate_record(record: &Record, config: &EvalConfig) -> Result<ExampleOu
         severity,
         first_blocking: None,
     })
+}
+
+/// Distinct structures in a candidate list, `RAW` excluded.
+///
+/// Counted on the canonical key rather than on the list length: two
+/// candidates that render the same structure are one choice, not two, and a
+/// metric that said otherwise would reward a generator for repeating itself.
+fn distinct_asts(candidates: &[Candidate]) -> usize {
+    let mut keys: Vec<&str> = candidates
+        .iter()
+        .filter(|candidate| !candidate.is_raw())
+        .map(|candidate| candidate.canonical.as_str())
+        .collect();
+    keys.sort_unstable();
+    keys.dedup();
+    keys.len()
 }
 
 /// The string the corpus author fixed for this renderer, if any.
@@ -430,6 +472,8 @@ mod tests {
             warnings: vec![],
             structural_confidence: confidence,
             structurally_valid: true,
+            origins: vec![],
+            generation_truncated: false,
         }
     }
 

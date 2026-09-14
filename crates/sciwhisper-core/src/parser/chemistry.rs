@@ -646,7 +646,7 @@ fn try_spelled(words: &[String], lex: &Lexicon, nums: &NumberLex) -> Option<Spec
             i += used;
             continue;
         }
-        if let Some((el, used_el)) = chemistry_element_at(lex, words, i) {
+        if let Some((el, used_el)) = chemistry_element_at(lex, words, i, nums) {
             i += used_el;
             let mut count = 1u32;
             if i < words.len() {
@@ -655,6 +655,12 @@ fn try_spelled(words: &[String], lex: &Lexicon, nums: &NumberLex) -> Option<Spec
                     // four billion is not a formula. Both used to be
                     // silently repaired: `n.max(1)` turned «ноль» into 1.
                     if n == 0 || n > MAX_ATOM_COUNT {
+                        return None;
+                    }
+                    // «…девятьсот девяносто девять тысяч» is 999 000, and
+                    // the additive number lexicon reads it as 999. Taking
+                    // the part it understood produced `Fe(OH)₉₉₉ тысяч`.
+                    if nums.starts_unsupported_scale(words, i + used) {
                         return None;
                     }
                     count = n;
@@ -676,10 +682,59 @@ fn try_spelled(words: &[String], lex: &Lexicon, nums: &NumberLex) -> Option<Spec
     Some(Species::new(Formula { parts }))
 }
 
+/// Single spoken letters that are also ordinary Russian words.
+///
+/// Every one of them is a preposition, conjunction or particle a person says
+/// constantly, and every one of them also names a Latin letter in
+/// `symbols.yaml`. Read as element symbols they produce iodine, sulfur,
+/// oxygen, uranium, potassium, boron and vanadium out of thin air:
+/// «натрий и калий стоят рядом» came out as `NaIK`, and «медь, о которой я
+/// говорил» came out as `CuO` — a different substance, at full confidence.
+const FUNCTION_WORD_LETTERS: [&str; 11] = ["а", "б", "в", "ж", "же", "и", "к", "о", "с", "у", "я"];
+
+/// Whether `word` could only have been said while spelling a formula.
+///
+/// Two registers count: a spoken Latin letter that is not also a Russian
+/// word («аш», «эс», «цэ»), and an element name from the spelled register in
+/// `elements.yaml` («купрум», «ferrum»). Nobody reaches for either of those
+/// in the middle of an ordinary sentence.
+fn spelling_evidence(lex: &Lexicon, word: &str) -> bool {
+    if FUNCTION_WORD_LETTERS.contains(&word) {
+        return false;
+    }
+    lex.latin(word).is_some() || lex.spelled_element_names.contains(word)
+}
+
+/// Whether an ambiguous single letter at `i` may be read as an element.
+///
+/// Two things make a spelled formula recognisable without a dictionary of
+/// Russian grammar:
+///
+/// * the letter carries a subscript — «марганец **о два**» is MnO₂, and no
+///   preposition is followed by a bare number;
+/// * or the same chunk holds a word from the spelled register — «**аш** два
+///   о» and «**купрум** о» can only be spellings.
+///
+/// Neither holds for «натрий **и** калий» or «медь **о** которой», which is
+/// the whole point. The cost is that a bare «о» with no subscript and no
+/// spelled neighbour is no longer oxygen; that is not notation anybody
+/// dictates, and the lattice still offers the reading as a candidate.
+fn spelled_context(lex: &Lexicon, words: &[String], i: usize, nums: &NumberLex) -> bool {
+    if nums.consume_int(words, i + 1).is_some() {
+        return true;
+    }
+    // The word itself is excluded: «о» may not vouch for «о».
+    words
+        .iter()
+        .enumerate()
+        .any(|(index, word)| index != i && spelling_evidence(lex, word.as_str()))
+}
+
 fn chemistry_element_at<'a>(
     lex: &'a Lexicon,
     words: &[String],
     i: usize,
+    nums: &NumberLex,
 ) -> Option<(&'a Element, usize)> {
     if i + 1 < words.len() {
         let pair = match (words[i].as_str(), words[i + 1].as_str()) {
@@ -700,14 +755,28 @@ fn chemistry_element_at<'a>(
             }
         }
     }
-    chemistry_element(lex, &words[i]).map(|el| (el, 1))
+    chemistry_element(lex, words, i, nums).map(|el| (el, 1))
 }
 
-fn chemistry_element<'a>(lex: &'a Lexicon, word: &str) -> Option<&'a Element> {
+fn chemistry_element<'a>(
+    lex: &'a Lexicon,
+    words: &[String],
+    i: usize,
+    nums: &NumberLex,
+) -> Option<&'a Element> {
+    let word = words[i].as_str();
+    // The guard comes first because the collision lives in two tables at
+    // once: «о» is a spoken Latin letter *and* `elements.yaml` lists it
+    // among oxygen's own names, so checking only the letter table left
+    // «медь о которой я говорил» reading as CuO.
+    if FUNCTION_WORD_LETTERS.contains(&word) && !spelled_context(lex, words, i, nums) {
+        return None;
+    }
     if let Some(el) = lex.element(word) {
         return Some(el);
     }
-    // single spoken latin letters used as element symbols in spelled formulas: о, эс, аш, цэ, эн
+    // Single spoken latin letters used as element symbols in spelled
+    // formulas: о, эс, аш, цэ, эн.
     if let Some(ch) = lex.latin(word) {
         let sym = ch.to_ascii_uppercase().to_string();
         return lex.elements_by_symbol.get(&sym);
@@ -833,6 +902,18 @@ fn oxidation_at(
             None => return OxidationRead::Absent,
         },
     };
+    // «гидроксид железа девятьсот девяносто девять тысяч» is not oxidation
+    // state 999 with a stray word after it. The number lexicon only adds, so
+    // a multiplier it cannot apply means the number was not read — and a
+    // number that was said and not read must make the caller abstain, not
+    // answer with the part that fit.
+    if nums.starts_unsupported_scale(words, cursor + used) {
+        return OxidationRead::Refused(Refusal::OutOfRange {
+            what: "степень окисления",
+            value: raw,
+            limit: MAX_ATOM_COUNT,
+        });
+    }
     match oxidation_from(raw, sign, context) {
         OxidationRead::Found { value, .. } => OxidationRead::Found {
             value,

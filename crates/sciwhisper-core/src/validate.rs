@@ -231,7 +231,7 @@ fn validate_math(math: &Math, depth: u32, warnings: &mut Vec<Warning>) {
     }
 }
 
-fn side_atoms(species: &[Species]) -> Option<BTreeMap<String, u64>> {
+pub(crate) fn side_atoms(species: &[Species]) -> Option<BTreeMap<String, u64>> {
     let mut atoms = BTreeMap::new();
     for species in species {
         for (element, count) in species.formula.atom_counts()? {

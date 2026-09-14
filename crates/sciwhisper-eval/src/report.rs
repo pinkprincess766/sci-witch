@@ -27,7 +27,7 @@ use crate::split::{audit_splits, SplitAudit};
 // v3 added the mandatory `user_path` block. A reader that expects v2 must
 // not be handed a v3 report and left to discover the new field by accident.
 // v4 added `selective_prediction`.
-pub const REPORT_SCHEMA_VERSION: u32 = 4;
+pub const REPORT_SCHEMA_VERSION: u32 = 5;
 pub const SEVERITY_SCHEMA_VERSION: u32 = 1;
 pub const BASELINE_ID: &str = "deterministic-v1";
 
@@ -236,6 +236,11 @@ pub struct Report {
     /// the calibration block says whether the corpus can support choosing
     /// between them at all.
     pub selective_prediction: crate::selective::SelectivePrediction,
+    /// What the candidate generator offered, and whether any of it was
+    /// worth reranking. Reported for every policy: under the single-pass
+    /// ones it is expected to be a flat "one reading, always first", and
+    /// that expectation is worth seeing fail.
+    pub candidate_lattice: crate::lattice_report::LatticeReport,
     /// What the application does, measured on `interpret_utterance` in
     /// `MixedText`. Reported beside the lab numbers, never added to them:
     /// they measure different code.
@@ -347,6 +352,7 @@ pub fn build_report(inputs: &Inputs<'_>) -> Result<Report, String> {
         severity: severity_report(&severities),
         ast_distance: distance_summary(&outcomes),
         selective_prediction: crate::selective::evaluate(&outcomes, config.auto_insert_threshold),
+        candidate_lattice: crate::lattice_report::evaluate(&outcomes),
         user_path: crate::user_path::evaluate(&inputs.selected),
         errors,
         notes: notes(),
@@ -578,6 +584,7 @@ fn notes() -> Vec<String> {
         "Oracle replacement deltas answer the product question and are not additive; component isolation answers the laboratory question and is a different quantity.".into(),
         "An observed count of zero for a rare safety error is reported with its exact one-sided 95% upper bound, never as a proven zero.".into(),
         "The insert/abstain threshold is reported as a risk–coverage curve rather than defended. `no_worse_than_configured` lists only thresholds that give up nothing on coverage, accuracy and risk at once; a trade between them is the owner's decision.".into(),
+        "The candidate lattice offers readings; it never inserts one. Readings that exist only because the words were edited first are generated behind RAW, so a wider lattice cannot raise the false-rewrite rate on its own.".into(),
     ]
 }
 
@@ -862,6 +869,32 @@ pub fn human_table(report: &Report) -> String {
         ));
     }
     out.push_str(&format!("  {}\n", calibration.verdict));
+    out.push('\n');
+    out.push_str("candidate lattice\n");
+    let lattice = &report.candidate_lattice;
+    out.push_str(&format!(
+        "  различных AST на пример        min {} · медиана {} · max {}\n",
+        lattice.distinct_asts.min, lattice.distinct_asts.median, lattice.distinct_asts.max
+    ));
+    out.push_str(&format!(
+        "  {:<35}{}\n",
+        "есть из чего выбирать",
+        show(&lattice.with_a_choice)
+    ));
+    out.push_str(&format!(
+        "  {:<35}{}\n",
+        "золотой ответ не первый",
+        show(&lattice.gold_not_first)
+    ));
+    out.push_str(&format!(
+        "  {:<35}{}\n",
+        "золотого ответа нет в решётке",
+        show(&lattice.gold_absent)
+    ));
+    for (origin, count) in &lattice.candidates_by_origin {
+        out.push_str(&format!("  {origin:<33}{count}\n"));
+    }
+    out.push_str(&format!("  {}\n", lattice.verdict));
     out.push('\n');
     out.push_str("component isolation\n");
     out.push_str(&format!(
