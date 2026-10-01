@@ -1,0 +1,65 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "summary",
+    "files_changed",
+    "dependents_checked",
+    "adversarial_tests_added",
+    "checks_needed",
+    "not_done"
+  ],
+  "properties": {
+    "summary": {
+      "type": "string",
+      "description": "Что сделано, в двух-трёх предложениях."
+    },
+    "files_changed": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "why"
+        ],
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "why": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "dependents_checked": {
+      "type": "array",
+      "description": "Кто опирается на изменённое: что найдено поиском по коду и что с этим сделано.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "adversarial_tests_added": {
+      "type": "array",
+      "description": "Тесты, которые пытаются пройти проверку неправильно.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "not_done": {
+      "type": "array",
+      "description": "Что не сделано и почему. Пустой список только если сделано всё.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "checks_needed": {
+      "type": "array",
+      "description": "Какие проверки шефу запустить, чтобы принять работу: команды целиком.",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}
