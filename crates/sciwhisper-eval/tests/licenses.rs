@@ -87,7 +87,7 @@ fn locked_packages() -> BTreeSet<(String, String)> {
 /// Nothing here is GPL, AGPL or LGPL-only. `r-efi` offers LGPL-2.1-or-later
 /// as one of three options and this project takes MIT, which is why the
 /// whole expression is listed rather than the word "LGPL" being banned.
-const ALLOWED: [&str; 33] = [
+const ALLOWED: [&str; 34] = [
     "(MIT OR Apache-2.0) AND Unicode-3.0",
     "0BSD OR MIT OR Apache-2.0",
     "Apache-2.0",
@@ -98,6 +98,9 @@ const ALLOWED: [&str; 33] = [
     "Apache-2.0 OR MIT",
     "Apache-2.0 WITH LLVM-exception",
     "Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT",
+    // `fnv`, pulled in by the `proptest` dev-dependency. The same dual
+    // licence as "Apache-2.0/MIT" above, in the older spelling with spaces.
+    "Apache-2.0 / MIT",
     "Apache-2.0/MIT",
     "BSD-2-Clause",
     "BSD-2-Clause OR Apache-2.0 OR MIT",

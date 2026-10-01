@@ -14,7 +14,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.98.0"
+          components: rustfmt, clippy
       - name: Install Linux desktop dependencies
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libasound2-dev libgtk-3-dev libayatana-appindicator3-dev libx11-dev libxtst-dev libxi-dev libxdo-dev
@@ -32,7 +35,10 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.98.0"
+          components: rustfmt, clippy
       - uses: actions/download-artifact@v4
         with:
           name: ci-whisper-backend
@@ -140,7 +146,10 @@ jobs:
 
       # The application's own rules, exercised against the engine that will
       # actually ship rather than against a script pretending to be it.
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.98.0"
+          components: rustfmt, clippy
       - name: Discover the real engine as a bundled backend
         shell: pwsh
         run: |

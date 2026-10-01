@@ -15,8 +15,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@master
         with:
+          toolchain: "1.98.0"
+          components: rustfmt, clippy
           targets: aarch64-apple-darwin
 
       - name: Build and check
@@ -57,7 +59,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.98.0"
+          components: rustfmt, clippy
 
       - name: Build and check
         shell: pwsh
@@ -408,7 +413,13 @@ jobs:
           if [ -f research/schema/frozen-test-seal.json ]; then
             seal="--seal research/schema/frozen-test-seal.json"
           fi
-          if cargo run --release -p sciwhisper-eval -- gate --report gate-report.json $seal; then
+          # This workflow ships the voice application, so it is judged by
+          # the voice profile — named here, not left to the default. The
+          # default became the text compiler's profile on 28.09.2026, and a
+          # bare `gate` would otherwise have admitted a v0.5.0 voice release
+          # on a written corpus with no recording in it.
+          if cargo run --release -p sciwhisper-eval -- gate --report gate-report.json \
+              --gates research/schema/release-gates-v1.json $seal; then
             echo "все ворота пройдены"
           elif [ "$preview" = yes ]; then
             echo "::warning::ворота не пройдены; выпуск $version помечен как предварительный, поэтому публикация продолжается"

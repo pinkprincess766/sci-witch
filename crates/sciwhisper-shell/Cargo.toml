@@ -2,6 +2,7 @@
 name = "sciwhisper-shell"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 authors.workspace = true
 description = "Tray, global PTT, clipboard paste and Word insertion for SciWhisper"

@@ -2,6 +2,7 @@
 name = "sciwhisper-eval"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 authors.workspace = true
 description = "Research evaluation harness for SciWhisper: versioned corpora, candidate generation, oracle experiments and safety metrics"

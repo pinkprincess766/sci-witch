@@ -20,6 +20,10 @@ default-members = [
 [workspace.package]
 version = "0.1.1-rc1"
 edition = "2021"
+# Minimum compiler declared for this workspace. Matches rust-toolchain.toml.
+# `numbers.rs` uses `is_multiple_of` (stable since 1.87); this pin is 1.98
+# because that is the compiler the suite is run on.
+rust-version = "1.98"
 license = "Apache-2.0"
 authors = ["SciWhisper contributors"]
 description = "Offline voice input for structured scientific notation"
