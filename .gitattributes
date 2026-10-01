@@ -1,0 +1,6 @@
+# Corpora, manifests and reports are pinned by the SHA-256 of their bytes,
+# and the grammar documents are checked line by line against the code. A
+# Windows checkout with core.autocrlf would rewrite them as CRLF and break
+# both, so they keep LF on every platform.
+research/** text eol=lf
+docs/grammar/** text eol=lf
