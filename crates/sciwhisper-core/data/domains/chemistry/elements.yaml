@@ -1,8 +1,15 @@
 schema_version: 1
+# `names` are the forms a person uses when *talking about* an element.
+# `spelled_names` are the forms that only occur while a formula is being
+# spelled out loud: the letter names (аш, цэ, эн, о, эф, эс, пэ) and the Latin
+# register (купрум, ferrum). The split exists because «о» is both oxygen's
+# spelled name and the Russian preposition «о», and only the surrounding
+# spelling can tell them apart — see FUNCTION_WORD_LETTERS in parser/chemistry.rs.
 elements:
   - symbol: H
     z: 1
-    names: [водород, водорода, водородом, аш, hydrogen]
+    names: [водород, водорода, водородом]
+    spelled_names: [аш, hydrogen]
     diatomic: true
     default_oxidation: 1
     oxidations: [1, -1]
@@ -23,23 +30,27 @@ elements:
     default_oxidation: 3
   - symbol: C
     z: 6
-    names: [углерод, углерода, цэ, carbon]
+    names: [углерод, углерода]
+    spelled_names: [цэ, це, carbon]
     default_oxidation: 4
     oxidations: [2, 4, -4]
   - symbol: N
     z: 7
-    names: [азот, азота, эн]
+    names: [азот, азота]
+    spelled_names: [эн]
     diatomic: true
     default_oxidation: -3
     oxidations: [-3, 2, 3, 4, 5]
   - symbol: O
     z: 8
-    names: [кислород, кислорода, о, oxygen]
+    names: [кислород, кислорода]
+    spelled_names: [о, oxygen]
     diatomic: true
     default_oxidation: -2
   - symbol: F
     z: 9
-    names: [фтор, фтора, эф]
+    names: [фтор, фтора]
+    spelled_names: [эф]
     diatomic: true
     default_oxidation: -1
   - symbol: Ne
@@ -63,12 +74,14 @@ elements:
     default_oxidation: 4
   - symbol: P
     z: 15
-    names: [фосфор, фосфора, пэ]
+    names: [фосфор, фосфора]
+    spelled_names: [пэ]
     default_oxidation: 5
     oxidations: [3, 5, -3]
   - symbol: S
     z: 16
-    names: [сера, серы, серу, эс, sulfur, sulphur]
+    names: [сера, серы, серу]
+    spelled_names: [эс, sulfur, sulphur]
     default_oxidation: -2
     oxidations: [-2, 4, 6]
   - symbol: Cl
@@ -82,6 +95,7 @@ elements:
   - symbol: K
     z: 19
     names: [калий, калия, калием]
+    spelled_names: [ка]
     default_oxidation: 1
   - symbol: Ca
     z: 20
@@ -111,7 +125,8 @@ elements:
     oxidations: [2, 4, 6, 7]
   - symbol: Fe
     z: 26
-    names: [железо, железа, железом, феррум, ferrum]
+    names: [железо, железа, железом]
+    spelled_names: [феррум, ferrum]
     default_oxidation: 3
     oxidations: [2, 3]
   - symbol: Co
@@ -124,7 +139,8 @@ elements:
     default_oxidation: 2
   - symbol: Cu
     z: 29
-    names: [медь, меди, медью, купрум, cuprum]
+    names: [медь, меди, медью]
+    spelled_names: [купрум, cuprum]
     default_oxidation: 2
     oxidations: [1, 2]
   - symbol: Zn

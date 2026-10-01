@@ -21,6 +21,12 @@ pub struct Config {
     pub ptt_word: String,
     #[serde(default = "default_domain")]
     pub domain: String,
+    /// How the ordinary words around a formula are treated:
+    /// `mixed` keeps the whole sentence and replaces only proven spans,
+    /// `scientific` drops a recognised dictation shell («ну запиши …»).
+    /// The default is the safe one: nothing the user said is deleted.
+    #[serde(default = "default_dictation")]
+    pub dictation: String,
     /// auto | unicode | latex | word
     #[serde(default = "default_output")]
     pub output: String,
@@ -30,10 +36,25 @@ pub struct Config {
     pub language: String,
     #[serde(default)]
     pub persist_history: bool,
+    /// Whether a correction the user makes is written to a local file.
+    ///
+    /// Off by default, like `persist_history`, and for the same reason: it
+    /// records what the user dictated. Turning it on is how a testing
+    /// session produces the corpus that
+    /// `research/data/VOICE_CORPUS_RU.md` otherwise has to be organised to
+    /// collect. Nothing is ever sent anywhere.
+    #[serde(default)]
+    pub remember_corrections: bool,
     /// Input device name from `sciwhisper_asr::capture::input_devices()`;
     /// `None` uses the system default microphone.
     #[serde(default)]
     pub mic: Option<String>,
+    /// Which format each target application gets, in the user's own order.
+    /// Consulted only when `output` is `auto`; an explicit choice in the
+    /// tray always wins, because a user who just picked LaTeX by hand did
+    /// not mean "unless a profile disagrees".
+    #[serde(default = "crate::profile::defaults")]
+    pub profiles: Vec<crate::profile::Profile>,
 }
 
 fn default_ptt() -> String {
@@ -51,6 +72,10 @@ fn default_ptt_word() -> String {
 fn default_output() -> String {
     "auto".into()
 }
+fn default_dictation() -> String {
+    "mixed".into()
+}
+
 fn default_domain() -> String {
     "auto".into()
 }
@@ -66,11 +91,14 @@ impl Default for Config {
             ptt_latex: default_ptt_latex(),
             ptt_word: default_ptt_word(),
             domain: default_domain(),
+            dictation: default_dictation(),
             output: default_output(),
             model: None,
             language: default_lang(),
             persist_history: false,
+            remember_corrections: false,
             mic: None,
+            profiles: crate::profile::defaults(),
         }
     }
 }
@@ -159,6 +187,12 @@ impl Config {
             "output" | "format" => {
                 self.output = OutputMode::try_parse(value)?.as_str().into();
             }
+            "dictation" | "mode" => {
+                let mode = value
+                    .parse::<sciwhisper_core::UtteranceMode>()
+                    .map_err(Error::Message)?;
+                self.dictation = mode.as_str().into();
+            }
             "model" => {
                 self.model = match value {
                     "" | "-" | "none" | "default" => None,
@@ -195,9 +229,12 @@ impl Config {
             "persist_history" | "history" => {
                 self.persist_history = parse_bool(value)?;
             }
+            "remember_corrections" | "corrections" => {
+                self.remember_corrections = parse_bool(value)?;
+            }
             _ => {
                 return Err(Error::Message(format!(
-                    "unknown setting '{key}'. Expected domain, output, model, language, mic, ptt, double_control, ptt_latex, ptt_word or persist_history"
+                    "unknown setting '{key}'. Expected domain, output, model, language, mic, ptt, double_control, ptt_latex, ptt_word, persist_history or remember_corrections"
                 )));
             }
         }
@@ -206,6 +243,13 @@ impl Config {
 
     pub fn domain(&self) -> Domain {
         self.domain.parse().unwrap_or(Domain::Auto)
+    }
+
+    /// An unreadable value falls back to the mode that cannot delete text.
+    pub fn dictation_mode(&self) -> sciwhisper_core::UtteranceMode {
+        self.dictation
+            .parse()
+            .unwrap_or(sciwhisper_core::UtteranceMode::MixedText)
     }
 
     pub fn output(&self) -> OutputMode {
@@ -296,5 +340,29 @@ mod tests {
         config.save_to(&path).unwrap();
         let loaded = Config::load_from(&path).unwrap();
         assert_eq!(loaded.model.as_deref(), Some("/models/base.pt"));
+    }
+
+    /// A configuration file written before profiles existed must keep
+    /// working, and get the rules that used to be hard-coded.
+    #[test]
+    fn an_older_config_without_profiles_gets_the_defaults() {
+        let config: Config = serde_yaml::from_str("ptt: Ctrl+Shift+Space\n").unwrap();
+        assert_eq!(config.profiles, crate::profile::defaults());
+    }
+
+    #[test]
+    fn profiles_survive_a_round_trip_through_the_file() {
+        let config = Config {
+            profiles: vec![crate::profile::Profile {
+                name: "Мой редактор".into(),
+                r#match: vec!["myeditor".into()],
+                output: "latex".into(),
+                dictation: None,
+            }],
+            ..Config::default()
+        };
+        let text = serde_yaml::to_string(&config).unwrap();
+        let back: Config = serde_yaml::from_str(&text).unwrap();
+        assert_eq!(back.profiles, config.profiles);
     }
 }

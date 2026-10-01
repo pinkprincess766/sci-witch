@@ -1,0 +1,1656 @@
+{
+  "report_schema_version": 1,
+  "canonical_schema_version": 1,
+  "severity_schema_version": 1,
+  "program": {
+    "name": "sciwhisper-eval",
+    "version": "0.1.1-rc1",
+    "git_commit": "464f916f12b6bcf6d2d36e889cef9eb7eca6b8f4",
+    "git_dirty": true
+  },
+  "dataset": {
+    "file": "dev-seed-v1.jsonl",
+    "sha256": "70ee77e24e3b17980b33d894c564bb306b37392f9dca7ca97ae276e77417f490",
+    "dataset_schema_version": 1,
+    "records": 113,
+    "families": 103,
+    "counts_by_split": {
+      "dev_holdout": 21,
+      "train": 59,
+      "validation": 33
+    },
+    "counts_by_domain": {
+      "chemistry": 30,
+      "mathematics": 33,
+      "physics": 22,
+      "plain": 28
+    },
+    "counts_by_action": {
+      "ast": 85,
+      "raw": 28
+    },
+    "counts_by_provenance": {
+      "handcrafted_text": 113
+    }
+  },
+  "config": {
+    "baseline_id": "deterministic-v1",
+    "k": 4,
+    "recall_k_grid": [
+      1,
+      2,
+      4,
+      8,
+      16
+    ],
+    "auto_insert_threshold": 0.9,
+    "domain_policy": "auto",
+    "primary_renderer": "unicode",
+    "bootstrap_seed": 20260904,
+    "bootstrap_resamples": 2000,
+    "evaluated_split": "all"
+  },
+  "split_audit": {
+    "families": 103,
+    "records": 113,
+    "counts_by_split": {
+      "dev_holdout": 21,
+      "train": 59,
+      "validation": 33
+    },
+    "families_by_split": {
+      "dev_holdout": 20,
+      "train": 53,
+      "validation": 30
+    },
+    "leaking_families": [],
+    "clean": true
+  },
+  "metrics": {
+    "examples": 113,
+    "ast_exact_match": {
+      "numerator": 101,
+      "denominator": 113,
+      "value": 0.8938053097345132,
+      "ci95_low": 0.8235144111649058,
+      "ci95_high": 0.9382015148282823,
+      "ci_method": "wilson"
+    },
+    "pre_insertion_end_to_end_exact_match": {
+      "latex": {
+        "numerator": 101,
+        "denominator": 113,
+        "value": 0.8938053097345132,
+        "ci95_low": 0.8235144111649058,
+        "ci95_high": 0.9382015148282823,
+        "ci_method": "wilson"
+      },
+      "omml": {
+        "numerator": 101,
+        "denominator": 113,
+        "value": 0.8938053097345132,
+        "ci95_low": 0.8235144111649058,
+        "ci95_high": 0.9382015148282823,
+        "ci_method": "wilson"
+      },
+      "unicode": {
+        "numerator": 101,
+        "denominator": 113,
+        "value": 0.8938053097345132,
+        "ci95_low": 0.8235144111649058,
+        "ci95_high": 0.9382015148282823,
+        "ci_method": "wilson"
+      }
+    },
+    "auto_insert_exact_match": {
+      "numerator": 73,
+      "denominator": 73,
+      "value": 1.0,
+      "ci95_low": 0.9500079920442688,
+      "ci95_high": 0.9999999999999998,
+      "ci_method": "wilson"
+    },
+    "coverage": {
+      "numerator": 73,
+      "denominator": 113,
+      "value": 0.6460176991150443,
+      "ci95_low": 0.5543755190871066,
+      "ci95_high": 0.7280584759440755,
+      "ci_method": "wilson"
+    },
+    "overall_exact_match": {
+      "numerator": 101,
+      "denominator": 113,
+      "value": 0.8938053097345132,
+      "ci95_low": 0.8235144111649058,
+      "ci95_high": 0.9382015148282823,
+      "ci_method": "wilson"
+    },
+    "overall_exact_match_bootstrap": {
+      "numerator": 101,
+      "denominator": 113,
+      "value": 0.8938053097345132,
+      "ci95_low": 0.831858407079646,
+      "ci95_high": 0.9469026548672567,
+      "ci_method": "bootstrap"
+    },
+    "candidate_recall_at_k": {
+      "1": {
+        "numerator": 101,
+        "denominator": 113,
+        "value": 0.8938053097345132,
+        "ci95_low": 0.8235144111649058,
+        "ci95_high": 0.9382015148282823,
+        "ci_method": "wilson"
+      },
+      "16": {
+        "numerator": 102,
+        "denominator": 113,
+        "value": 0.9026548672566371,
+        "ci95_low": 0.8340616204388923,
+        "ci95_high": 0.9447715173743675,
+        "ci_method": "wilson"
+      },
+      "2": {
+        "numerator": 102,
+        "denominator": 113,
+        "value": 0.9026548672566371,
+        "ci95_low": 0.8340616204388923,
+        "ci95_high": 0.9447715173743675,
+        "ci_method": "wilson"
+      },
+      "4": {
+        "numerator": 102,
+        "denominator": 113,
+        "value": 0.9026548672566371,
+        "ci95_low": 0.8340616204388923,
+        "ci95_high": 0.9447715173743675,
+        "ci_method": "wilson"
+      },
+      "8": {
+        "numerator": 102,
+        "denominator": 113,
+        "value": 0.9026548672566371,
+        "ci95_low": 0.8340616204388923,
+        "ci95_high": 0.9447715173743675,
+        "ci_method": "wilson"
+      }
+    },
+    "routing_accuracy": {
+      "numerator": 74,
+      "denominator": 85,
+      "value": 0.8705882352941177,
+      "ci95_low": 0.7829519105661322,
+      "ci95_high": 0.9261764720187473,
+      "ci_method": "wilson"
+    },
+    "raw_accuracy": {
+      "numerator": 28,
+      "denominator": 28,
+      "value": 1.0,
+      "ci95_low": 0.8793566952341543,
+      "ci95_high": 0.9999999999999998,
+      "ci_method": "wilson"
+    },
+    "false_scientific_rewrite_rate": {
+      "numerator": 0,
+      "denominator": 28,
+      "value": 0.0,
+      "ci95_low": 1.3877787807814457e-17,
+      "ci95_high": 0.12064330476584563,
+      "ci_method": "wilson",
+      "zero_count_upper95": 0.10146573557272476
+    },
+    "false_abstention_rate": {
+      "numerator": 12,
+      "denominator": 85,
+      "value": 0.1411764705882353,
+      "ci95_low": 0.08264232932726706,
+      "ci95_high": 0.23074130023340517,
+      "ci_method": "wilson"
+    },
+    "ast_validity": {
+      "numerator": 73,
+      "denominator": 73,
+      "value": 1.0,
+      "ci95_low": 0.9500079920442688,
+      "ci95_high": 0.9999999999999998,
+      "ci_method": "wilson"
+    },
+    "candidates": {
+      "p50": 2,
+      "p95": 2,
+      "max": 2,
+      "examples_with_more_than_one_candidate": 75,
+      "examples_with_more_than_one_ast_candidate": 0
+    },
+    "reranker_readiness": {
+      "scientific_examples": 85,
+      "examples_with_at_least_two_distinct_ast_candidates": 0,
+      "examples_where_gold_is_present_but_not_first": 1,
+      "ambiguous_by_split": {},
+      "required_ambiguous_examples": 50,
+      "required_gold_not_first": 20,
+      "required_per_split": 10,
+      "verdict": "insufficient",
+      "note": "A logistic reranker is statistically meaningless on this corpus: 0 examples offer more than one distinct scientific AST and 1 have the right answer outside first place, against a pre-registered requirement of 50 and 20. Training here would only learn to tell a single AST from RAW."
+    }
+  },
+  "breakdown": {
+    "by_domain": {
+      "chemistry": {
+        "numerator": 23,
+        "denominator": 30,
+        "value": 0.7666666666666667,
+        "ci95_low": 0.5907167384187784,
+        "ci95_high": 0.8820761185551049,
+        "ci_method": "wilson"
+      },
+      "mathematics": {
+        "numerator": 32,
+        "denominator": 33,
+        "value": 0.9696969696969697,
+        "ci95_low": 0.846812746178811,
+        "ci95_high": 0.9946305894631283,
+        "ci_method": "wilson"
+      },
+      "physics": {
+        "numerator": 18,
+        "denominator": 22,
+        "value": 0.8181818181818182,
+        "ci95_low": 0.6148339256287345,
+        "ci95_high": 0.9269311541657794,
+        "ci_method": "wilson"
+      },
+      "plain": {
+        "numerator": 28,
+        "denominator": 28,
+        "value": 1.0,
+        "ci95_low": 0.8793566952341543,
+        "ci95_high": 0.9999999999999998,
+        "ci_method": "wilson"
+      }
+    },
+    "by_tag": {
+      "absolute-value": {
+        "numerator": 1,
+        "denominator": 1,
+        "value": 1.0,
+        "ci95_low": 0.20654931437723745,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "acid": {
+        "numerator": 3,
+        "denominator": 3,
+        "value": 1.0,
+        "ci95_low": 0.4385029682449546,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "balanced": {
+        "numerator": 1,
+        "denominator": 1,
+        "value": 1.0,
+        "ci95_low": 0.20654931437723745,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "base": {
+        "numerator": 2,
+        "denominator": 3,
+        "value": 0.6666666666666666,
+        "ci95_low": 0.2076596008020477,
+        "ci95_high": 0.9385080552796037,
+        "ci_method": "wilson"
+      },
+      "binding": {
+        "numerator": 0,
+        "denominator": 1,
+        "value": 0.0,
+        "ci95_low": 0.0,
+        "ci95_high": 0.7934506856227626,
+        "ci_method": "wilson",
+        "zero_count_upper95": 0.95
+      },
+      "boundary-command": {
+        "numerator": 3,
+        "denominator": 3,
+        "value": 1.0,
+        "ci95_low": 0.4385029682449546,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "bounds": {
+        "numerator": 2,
+        "denominator": 2,
+        "value": 1.0,
+        "ci95_low": 0.34238022750665303,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "charge": {
+        "numerator": 2,
+        "denominator": 2,
+        "value": 1.0,
+        "ci95_low": 0.34238022750665303,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "coefficient": {
+        "numerator": 1,
+        "denominator": 1,
+        "value": 1.0,
+        "ci95_low": 0.20654931437723745,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "compound": {
+        "numerator": 1,
+        "denominator": 1,
+        "value": 1.0,
+        "ci95_low": 0.20654931437723745,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "counterfactual": {
+        "numerator": 7,
+        "denominator": 7,
+        "value": 1.0,
+        "ci95_low": 0.6456695649333126,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "decimal": {
+        "numerator": 1,
+        "denominator": 1,
+        "value": 1.0,
+        "ci95_low": 0.20654931437723745,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "delta": {
+        "numerator": 0,
+        "denominator": 1,
+        "value": 0.0,
+        "ci95_low": 0.0,
+        "ci95_high": 0.7934506856227626,
+        "ci_method": "wilson",
+        "zero_count_upper95": 0.95
+      },
+      "derivative": {
+        "numerator": 7,
+        "denominator": 7,
+        "value": 1.0,
+        "ci95_low": 0.6456695649333126,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "derived": {
+        "numerator": 4,
+        "denominator": 5,
+        "value": 0.8,
+        "ci95_low": 0.37553462976252533,
+        "ci95_high": 0.9637758913675698,
+        "ci_method": "wilson"
+      },
+      "differential": {
+        "numerator": 1,
+        "denominator": 1,
+        "value": 1.0,
+        "ci95_low": 0.20654931437723745,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "dimension-compatible": {
+        "numerator": 1,
+        "denominator": 1,
+        "value": 1.0,
+        "ci95_low": 0.20654931437723745,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "dimension-mismatch": {
+        "numerator": 2,
+        "denominator": 2,
+        "value": 1.0,
+        "ci95_low": 0.34238022750665303,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "dimensioned-argument": {
+        "numerator": 0,
+        "denominator": 1,
+        "value": 0.0,
+        "ci95_low": 0.0,
+        "ci95_high": 0.7934506856227626,
+        "ci_method": "wilson",
+        "zero_count_upper95": 0.95
+      },
+      "dimensioned-exponent": {
+        "numerator": 1,
+        "denominator": 1,
+        "value": 1.0,
+        "ci95_low": 0.20654931437723745,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "equation": {
+        "numerator": 4,
+        "denominator": 5,
+        "value": 0.8,
+        "ci95_low": 0.37553462976252533,
+        "ci95_high": 0.9637758913675698,
+        "ci_method": "wilson"
+      },
+      "factorial": {
+        "numerator": 1,
+        "denominator": 1,
+        "value": 1.0,
+        "ci95_low": 0.20654931437723745,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "ferrite": {
+        "numerator": 1,
+        "denominator": 2,
+        "value": 0.5,
+        "ci95_low": 0.09453120573423074,
+        "ci95_high": 0.9054687942657693,
+        "ci_method": "wilson"
+      },
+      "formula": {
+        "numerator": 17,
+        "denominator": 23,
+        "value": 0.7391304347826086,
+        "ci95_low": 0.5352999516257462,
+        "ci95_high": 0.8745138395501366,
+        "ci_method": "wilson"
+      },
+      "fraction": {
+        "numerator": 2,
+        "denominator": 2,
+        "value": 1.0,
+        "ci95_low": 0.34238022750665303,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "function": {
+        "numerator": 4,
+        "denominator": 5,
+        "value": 0.8,
+        "ci95_low": 0.37553462976252533,
+        "ci95_high": 0.9637758913675698,
+        "ci_method": "wilson"
+      },
+      "greek": {
+        "numerator": 2,
+        "denominator": 2,
+        "value": 1.0,
+        "ci95_low": 0.34238022750665303,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "group": {
+        "numerator": 1,
+        "denominator": 1,
+        "value": 1.0,
+        "ci95_low": 0.20654931437723745,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "higher-order": {
+        "numerator": 2,
+        "denominator": 2,
+        "value": 1.0,
+        "ci95_low": 0.34238022750665303,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "homonym": {
+        "numerator": 10,
+        "denominator": 10,
+        "value": 1.0,
+        "ci95_low": 0.7224672001371107,
+        "ci95_high": 0.9999999999999999,
+        "ci_method": "wilson"
+      },
+      "hydrate": {
+        "numerator": 0,
+        "denominator": 1,
+        "value": 0.0,
+        "ci95_low": 0.0,
+        "ci95_high": 0.7934506856227626,
+        "ci_method": "wilson",
+        "zero_count_upper95": 0.95
+      },
+      "hydroxide": {
+        "numerator": 3,
+        "denominator": 3,
+        "value": 1.0,
+        "ci95_low": 0.4385029682449546,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "implicit-product": {
+        "numerator": 1,
+        "denominator": 1,
+        "value": 1.0,
+        "ci95_low": 0.20654931437723745,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "incomplete": {
+        "numerator": 10,
+        "denominator": 10,
+        "value": 1.0,
+        "ci95_low": 0.7224672001371107,
+        "ci95_high": 0.9999999999999999,
+        "ci_method": "wilson"
+      },
+      "infinity": {
+        "numerator": 1,
+        "denominator": 1,
+        "value": 1.0,
+        "ci95_low": 0.20654931437723745,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "integral": {
+        "numerator": 4,
+        "denominator": 4,
+        "value": 1.0,
+        "ci95_low": 0.5101091635454027,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "ion": {
+        "numerator": 2,
+        "denominator": 2,
+        "value": 1.0,
+        "ci95_low": 0.34238022750665303,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "known-gap": {
+        "numerator": 0,
+        "denominator": 3,
+        "value": 0.0,
+        "ci95_low": 5.551115123125783e-17,
+        "ci95_high": 0.5614970317550454,
+        "ci_method": "wilson",
+        "zero_count_upper95": 0.6315968501359612
+      },
+      "limit": {
+        "numerator": 4,
+        "denominator": 4,
+        "value": 1.0,
+        "ci95_low": 0.5101091635454027,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "mixed": {
+        "numerator": 1,
+        "denominator": 1,
+        "value": 1.0,
+        "ci95_low": 0.20654931437723745,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "natural-speech": {
+        "numerator": 1,
+        "denominator": 1,
+        "value": 1.0,
+        "ci95_low": 0.20654931437723745,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "number-mentioned": {
+        "numerator": 1,
+        "denominator": 1,
+        "value": 1.0,
+        "ci95_low": 0.20654931437723745,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "one-sided": {
+        "numerator": 2,
+        "denominator": 2,
+        "value": 1.0,
+        "ci95_low": 0.34238022750665303,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "organic": {
+        "numerator": 0,
+        "denominator": 1,
+        "value": 0.0,
+        "ci95_low": 0.0,
+        "ci95_high": 0.7934506856227626,
+        "ci_method": "wilson",
+        "zero_count_upper95": 0.95
+      },
+      "oxidation-state": {
+        "numerator": 2,
+        "denominator": 2,
+        "value": 1.0,
+        "ci95_low": 0.34238022750665303,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "oxide": {
+        "numerator": 3,
+        "denominator": 3,
+        "value": 1.0,
+        "ci95_low": 0.4385029682449546,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "paraphrase": {
+        "numerator": 4,
+        "denominator": 4,
+        "value": 1.0,
+        "ci95_low": 0.5101091635454027,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "partial": {
+        "numerator": 2,
+        "denominator": 2,
+        "value": 1.0,
+        "ci95_low": 0.34238022750665303,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "power": {
+        "numerator": 4,
+        "denominator": 4,
+        "value": 1.0,
+        "ci95_low": 0.5101091635454027,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "precedence": {
+        "numerator": 3,
+        "denominator": 3,
+        "value": 1.0,
+        "ci95_low": 0.4385029682449546,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "prefix": {
+        "numerator": 1,
+        "denominator": 1,
+        "value": 1.0,
+        "ci95_low": 0.20654931437723745,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "provable-dimension": {
+        "numerator": 2,
+        "denominator": 2,
+        "value": 1.0,
+        "ci95_low": 0.34238022750665303,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "raw": {
+        "numerator": 28,
+        "denominator": 28,
+        "value": 1.0,
+        "ci95_low": 0.8793566952341543,
+        "ci95_high": 0.9999999999999998,
+        "ci_method": "wilson"
+      },
+      "reaction": {
+        "numerator": 2,
+        "denominator": 2,
+        "value": 1.0,
+        "ci95_low": 0.34238022750665303,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "relation": {
+        "numerator": 1,
+        "denominator": 1,
+        "value": 1.0,
+        "ci95_low": 0.20654931437723745,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "root": {
+        "numerator": 1,
+        "denominator": 2,
+        "value": 0.5,
+        "ci95_low": 0.09453120573423074,
+        "ci95_high": 0.9054687942657693,
+        "ci_method": "wilson"
+      },
+      "salt": {
+        "numerator": 2,
+        "denominator": 2,
+        "value": 1.0,
+        "ci95_low": 0.34238022750665303,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "sentence": {
+        "numerator": 1,
+        "denominator": 1,
+        "value": 1.0,
+        "ci95_low": 0.20654931437723745,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "spelled": {
+        "numerator": 2,
+        "denominator": 2,
+        "value": 1.0,
+        "ci95_low": 0.34238022750665303,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "state-marker": {
+        "numerator": 1,
+        "denominator": 1,
+        "value": 1.0,
+        "ci95_low": 0.20654931437723745,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "subscript": {
+        "numerator": 1,
+        "denominator": 1,
+        "value": 1.0,
+        "ci95_low": 0.20654931437723745,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "substance": {
+        "numerator": 0,
+        "denominator": 2,
+        "value": 0.0,
+        "ci95_low": 0.0,
+        "ci95_high": 0.6576197724933469,
+        "ci_method": "wilson",
+        "zero_count_upper95": 0.7763932022500211
+      },
+      "substance-mentioned": {
+        "numerator": 4,
+        "denominator": 4,
+        "value": 1.0,
+        "ci95_low": 0.5101091635454027,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "sum": {
+        "numerator": 1,
+        "denominator": 1,
+        "value": 1.0,
+        "ci95_low": 0.20654931437723745,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "systematic-name": {
+        "numerator": 2,
+        "denominator": 2,
+        "value": 1.0,
+        "ci95_low": 0.34238022750665303,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "term-mentioned": {
+        "numerator": 3,
+        "denominator": 3,
+        "value": 1.0,
+        "ci95_low": 0.4385029682449546,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "trivial-name": {
+        "numerator": 1,
+        "denominator": 4,
+        "value": 0.25,
+        "ci95_low": 0.04558726080970055,
+        "ci95_high": 0.6993581574175981,
+        "ci_method": "wilson"
+      },
+      "unbalanced": {
+        "numerator": 1,
+        "denominator": 1,
+        "value": 1.0,
+        "ci95_low": 0.20654931437723745,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "unit": {
+        "numerator": 16,
+        "denominator": 18,
+        "value": 0.8888888888888888,
+        "ci95_low": 0.672002348698212,
+        "ci95_high": 0.9689804773543876,
+        "ci_method": "wilson"
+      },
+      "unknown-dimension": {
+        "numerator": 1,
+        "denominator": 1,
+        "value": 1.0,
+        "ci95_low": 0.20654931437723745,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      },
+      "vector": {
+        "numerator": 1,
+        "denominator": 1,
+        "value": 1.0,
+        "ci95_low": 0.20654931437723745,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
+      }
+    },
+    "by_family": {
+      "chem-al2o3-001": [
+        1,
+        1
+      ],
+      "chem-alcl3-001": [
+        1,
+        1
+      ],
+      "chem-ammonia-001": [
+        0,
+        1
+      ],
+      "chem-caoh2-001": [
+        1,
+        1
+      ],
+      "chem-co2-001": [
+        2,
+        2
+      ],
+      "chem-coefficient-001": [
+        1,
+        1
+      ],
+      "chem-cu-ion-001": [
+        1,
+        1
+      ],
+      "chem-fe2o3-001": [
+        1,
+        1
+      ],
+      "chem-feoh3-001": [
+        1,
+        1
+      ],
+      "chem-ferrite-ba-001": [
+        0,
+        1
+      ],
+      "chem-hydrate-001": [
+        0,
+        1
+      ],
+      "chem-hydrochloric-001": [
+        1,
+        1
+      ],
+      "chem-k2so4-001": [
+        1,
+        1
+      ],
+      "chem-methane-001": [
+        0,
+        1
+      ],
+      "chem-nacl-001": [
+        1,
+        2
+      ],
+      "chem-naoh-001": [
+        1,
+        2
+      ],
+      "chem-nitric-001": [
+        1,
+        1
+      ],
+      "chem-precipitate-001": [
+        1,
+        1
+      ],
+      "chem-reaction-cu-001": [
+        1,
+        1
+      ],
+      "chem-reaction-unbalanced-001": [
+        1,
+        1
+      ],
+      "chem-so3-001": [
+        1,
+        1
+      ],
+      "chem-sulfate-ion-001": [
+        1,
+        1
+      ],
+      "chem-sulfuric-001": [
+        2,
+        2
+      ],
+      "chem-water-001": [
+        1,
+        2
+      ],
+      "chem-zinc-ferrite-001": [
+        1,
+        1
+      ],
+      "math-abs-001": [
+        1,
+        1
+      ],
+      "math-cube-001": [
+        1,
+        1
+      ],
+      "math-deriv-first-001": [
+        2,
+        2
+      ],
+      "math-deriv-second-001": [
+        1,
+        1
+      ],
+      "math-deriv-third-001": [
+        1,
+        1
+      ],
+      "math-exp-001": [
+        1,
+        1
+      ],
+      "math-factorial-001": [
+        1,
+        1
+      ],
+      "math-fraction-boundary-001": [
+        1,
+        1
+      ],
+      "math-fraction-word-001": [
+        1,
+        1
+      ],
+      "math-greek-001": [
+        1,
+        1
+      ],
+      "math-inequality-001": [
+        1,
+        1
+      ],
+      "math-integral-def-001": [
+        1,
+        1
+      ],
+      "math-integral-indef-001": [
+        2,
+        2
+      ],
+      "math-limit-inf-001": [
+        1,
+        1
+      ],
+      "math-limit-left-001": [
+        1,
+        1
+      ],
+      "math-limit-right-001": [
+        1,
+        1
+      ],
+      "math-limit-zero-001": [
+        1,
+        1
+      ],
+      "math-ln-001": [
+        1,
+        1
+      ],
+      "math-mixed-partial-001": [
+        1,
+        1
+      ],
+      "math-paren-001": [
+        1,
+        1
+      ],
+      "math-partial-001": [
+        1,
+        1
+      ],
+      "math-power-001": [
+        1,
+        1
+      ],
+      "math-precedence-001": [
+        1,
+        1
+      ],
+      "math-quadratic-001": [
+        2,
+        2
+      ],
+      "math-root-atom-001": [
+        0,
+        1
+      ],
+      "math-root-group-001": [
+        1,
+        1
+      ],
+      "math-sin-001": [
+        2,
+        2
+      ],
+      "math-subscript-001": [
+        1,
+        1
+      ],
+      "math-sum-001": [
+        1,
+        1
+      ],
+      "phys-ampere-001": [
+        1,
+        1
+      ],
+      "phys-compatible-lengths-001": [
+        1,
+        1
+      ],
+      "phys-delta-g-001": [
+        0,
+        1
+      ],
+      "phys-deriv-velocity-001": [
+        1,
+        1
+      ],
+      "phys-dimensioned-exponent-001": [
+        1,
+        1
+      ],
+      "phys-g-001": [
+        1,
+        1
+      ],
+      "phys-integral-work-001": [
+        1,
+        1
+      ],
+      "phys-inverse-metre-001": [
+        1,
+        1
+      ],
+      "phys-joule-001": [
+        1,
+        1
+      ],
+      "phys-kelvin-001": [
+        0,
+        1
+      ],
+      "phys-lambda-001": [
+        1,
+        1
+      ],
+      "phys-length-001": [
+        1,
+        1
+      ],
+      "phys-length-cm-001": [
+        1,
+        1
+      ],
+      "phys-mismatch-length-time-001": [
+        1,
+        1
+      ],
+      "phys-mismatch-volt-ampere-001": [
+        1,
+        1
+      ],
+      "phys-mole-001": [
+        1,
+        1
+      ],
+      "phys-newton-001": [
+        1,
+        1
+      ],
+      "phys-pascal-001": [
+        0,
+        1
+      ],
+      "phys-sine-of-length-001": [
+        0,
+        1
+      ],
+      "phys-vector-f-001": [
+        1,
+        1
+      ],
+      "phys-volt-001": [
+        1,
+        1
+      ],
+      "phys-watt-001": [
+        1,
+        1
+      ],
+      "raw-acid-storage-001": [
+        1,
+        1
+      ],
+      "raw-ammonia-smell-001": [
+        1,
+        1
+      ],
+      "raw-bare-hydroxide-001": [
+        1,
+        1
+      ],
+      "raw-bare-sine-001": [
+        1,
+        1
+      ],
+      "raw-battery-charge-001": [
+        1,
+        1
+      ],
+      "raw-body-function-001": [
+        1,
+        1
+      ],
+      "raw-degree-of-trust-001": [
+        1,
+        1
+      ],
+      "raw-derivative-published-001": [
+        1,
+        1
+      ],
+      "raw-ferrite-antenna-001": [
+        1,
+        1
+      ],
+      "raw-incomplete-derivative-by-001": [
+        1,
+        1
+      ],
+      "raw-incomplete-derivative-expr-001": [
+        1,
+        1
+      ],
+      "raw-incomplete-division-001": [
+        1,
+        1
+      ],
+      "raw-incomplete-exp-001": [
+        1,
+        1
+      ],
+      "raw-incomplete-integral-001": [
+        1,
+        1
+      ],
+      "raw-incomplete-limit-body-001": [
+        1,
+        1
+      ],
+      "raw-incomplete-limit-var-001": [
+        1,
+        1
+      ],
+      "raw-incomplete-second-derivative-001": [
+        1,
+        1
+      ],
+      "raw-integral-course-001": [
+        1,
+        1
+      ],
+      "raw-limit-patience-001": [
+        2,
+        2
+      ],
+      "raw-memory-module-001": [
+        1,
+        1
+      ],
+      "raw-order-of-magnitude-001": [
+        1,
+        1
+      ],
+      "raw-oxide-sample-001": [
+        1,
+        1
+      ],
+      "raw-root-of-problem-001": [
+        1,
+        1
+      ],
+      "raw-sum-in-words-001": [
+        1,
+        1
+      ],
+      "raw-two-words-001": [
+        1,
+        1
+      ],
+      "raw-violent-reaction-001": [
+        1,
+        1
+      ],
+      "raw-water-boiled-001": [
+        1,
+        1
+      ]
+    }
+  },
+  "error_decomposition": {
+    "counts": {
+      "ASR-first": 0,
+      "candidate-first": 3,
+      "dataset-invalid": 0,
+      "decision-first": 1,
+      "rank-first": 0,
+      "render-first": 0,
+      "router-first": 8
+    },
+    "share_of_errors": {
+      "ASR-first": 0.0,
+      "candidate-first": 0.25,
+      "dataset-invalid": 0.0,
+      "decision-first": 0.08333333333333333,
+      "rank-first": 0.0,
+      "render-first": 0.0,
+      "router-first": 0.6666666666666666
+    },
+    "errors": 12,
+    "examples": 113,
+    "asr_first_applicable_examples": 0,
+    "notes": [
+      "ASR-first is N/A: no record in this corpus carries an ASR hypothesis, so no failure can be attributed to recognition."
+    ]
+  },
+  "oracle_replacement": [
+    {
+      "variant": "real",
+      "overall_exact_match": {
+        "numerator": 101,
+        "denominator": 113,
+        "value": 0.8938053097345132,
+        "ci95_low": 0.8235144111649058,
+        "ci95_high": 0.9382015148282823,
+        "ci_method": "wilson"
+      },
+      "delta_vs_real": 0.0,
+      "applicable_examples": 113
+    },
+    {
+      "variant": "oracle_transcript",
+      "overall_exact_match": {
+        "numerator": 101,
+        "denominator": 113,
+        "value": 0.8938053097345132,
+        "ci95_low": 0.8235144111649058,
+        "ci95_high": 0.9382015148282823,
+        "ci_method": "wilson"
+      },
+      "delta_vs_real": 0.0,
+      "applicable_examples": 0
+    },
+    {
+      "variant": "oracle_domain",
+      "overall_exact_match": {
+        "numerator": 109,
+        "denominator": 113,
+        "value": 0.9646017699115044,
+        "ci95_low": 0.9125037991051361,
+        "ci95_high": 0.9861498214486251,
+        "ci_method": "wilson"
+      },
+      "delta_vs_real": 0.07079646017699115,
+      "applicable_examples": 85
+    },
+    {
+      "variant": "oracle_candidates",
+      "overall_exact_match": {
+        "numerator": 101,
+        "denominator": 113,
+        "value": 0.8938053097345132,
+        "ci95_low": 0.8235144111649058,
+        "ci95_high": 0.9382015148282823,
+        "ci_method": "wilson"
+      },
+      "delta_vs_real": 0.0,
+      "applicable_examples": 113
+    },
+    {
+      "variant": "oracle_ranker",
+      "overall_exact_match": {
+        "numerator": 101,
+        "denominator": 113,
+        "value": 0.8938053097345132,
+        "ci95_low": 0.8235144111649058,
+        "ci95_high": 0.9382015148282823,
+        "ci_method": "wilson"
+      },
+      "delta_vs_real": 0.0,
+      "applicable_examples": 113
+    },
+    {
+      "variant": "oracle_decision",
+      "overall_exact_match": {
+        "numerator": 101,
+        "denominator": 113,
+        "value": 0.8938053097345132,
+        "ci95_low": 0.8235144111649058,
+        "ci95_high": 0.9382015148282823,
+        "ci_method": "wilson"
+      },
+      "delta_vs_real": 0.0,
+      "applicable_examples": 113
+    }
+  ],
+  "component_isolation": {
+    "router_isolated_accuracy": {
+      "numerator": 74,
+      "denominator": 85,
+      "value": 0.8705882352941177,
+      "ci95_low": 0.7829519105661322,
+      "ci95_high": 0.9261764720187473,
+      "ci_method": "wilson"
+    },
+    "candidate_isolated_recall_at_k": {
+      "numerator": 110,
+      "denominator": 113,
+      "value": 0.9734513274336283,
+      "ci95_low": 0.9248403062316028,
+      "ci95_high": 0.9909305261422301,
+      "ci_method": "wilson"
+    },
+    "rank_isolated_accuracy": {
+      "numerator": 109,
+      "denominator": 113,
+      "value": 0.9646017699115044,
+      "ci95_low": 0.9125037991051361,
+      "ci95_high": 0.9861498214486251,
+      "ci_method": "wilson"
+    },
+    "decision_isolated_accuracy": {
+      "numerator": 112,
+      "denominator": 113,
+      "value": 0.9911504424778761,
+      "ci95_low": 0.9515691320824156,
+      "ci95_high": 0.9984361239315607,
+      "ci_method": "wilson"
+    },
+    "note": "Isolated numbers are laboratory component quality, not a product improvement ceiling; they are not additive with the oracle replacement deltas."
+  },
+  "severity": {
+    "errors": 12,
+    "count_by_severity": {
+      "S0": 0,
+      "S1": 12,
+      "S2": 0,
+      "S3": 0,
+      "S4": 0
+    },
+    "probability_given_error": {
+      "S0": 0.0,
+      "S1": 1.0,
+      "S2": 0.0,
+      "S3": 0.0,
+      "S4": 0.0
+    },
+    "max_severity": "S1"
+  },
+  "errors": [
+    {
+      "id": "chem-ammonia-001-a",
+      "domain": "chemistry",
+      "target_action": "ast",
+      "first_blocking": "router-first",
+      "severity": "S1",
+      "transcript": "аммиак",
+      "expected": "NH₃",
+      "produced": "аммиак",
+      "candidates": 1,
+      "gold_rank": null,
+      "selected_key": "RAW",
+      "selected_source": "raw",
+      "selected_warnings": [],
+      "requested_domain": null,
+      "hypothesis_index": 0,
+      "renderer_faithful_to_gold": null
+    },
+    {
+      "id": "chem-ferrite-ba-001-a",
+      "domain": "chemistry",
+      "target_action": "ast",
+      "first_blocking": "candidate-first",
+      "severity": "S1",
+      "transcript": "феррит бария",
+      "expected": "BaFe₁₂O₁₉",
+      "produced": "феррит бария",
+      "candidates": 1,
+      "gold_rank": null,
+      "selected_key": "RAW",
+      "selected_source": "raw",
+      "selected_warnings": [],
+      "requested_domain": null,
+      "hypothesis_index": 0,
+      "renderer_faithful_to_gold": null
+    },
+    {
+      "id": "chem-hydrate-001-a",
+      "domain": "chemistry",
+      "target_action": "ast",
+      "first_blocking": "router-first",
+      "severity": "S1",
+      "transcript": "медный купорос",
+      "expected": "CuSO₄·5H₂O",
+      "produced": "медный купорос",
+      "candidates": 1,
+      "gold_rank": null,
+      "selected_key": "RAW",
+      "selected_source": "raw",
+      "selected_warnings": [],
+      "requested_domain": null,
+      "hypothesis_index": 0,
+      "renderer_faithful_to_gold": true
+    },
+    {
+      "id": "chem-methane-001-a",
+      "domain": "chemistry",
+      "target_action": "ast",
+      "first_blocking": "router-first",
+      "severity": "S1",
+      "transcript": "метан",
+      "expected": "CH₄",
+      "produced": "метан",
+      "candidates": 1,
+      "gold_rank": null,
+      "selected_key": "RAW",
+      "selected_source": "raw",
+      "selected_warnings": [],
+      "requested_domain": null,
+      "hypothesis_index": 0,
+      "renderer_faithful_to_gold": null
+    },
+    {
+      "id": "chem-nacl-001-a",
+      "domain": "chemistry",
+      "target_action": "ast",
+      "first_blocking": "router-first",
+      "severity": "S1",
+      "transcript": "поваренная соль",
+      "expected": "NaCl",
+      "produced": "поваренная соль",
+      "candidates": 1,
+      "gold_rank": null,
+      "selected_key": "RAW",
+      "selected_source": "raw",
+      "selected_warnings": [],
+      "requested_domain": null,
+      "hypothesis_index": 0,
+      "renderer_faithful_to_gold": null
+    },
+    {
+      "id": "chem-naoh-001-b",
+      "domain": "chemistry",
+      "target_action": "ast",
+      "first_blocking": "router-first",
+      "severity": "S1",
+      "transcript": "едкий натр",
+      "expected": "NaOH",
+      "produced": "едкий натр",
+      "candidates": 1,
+      "gold_rank": null,
+      "selected_key": "RAW",
+      "selected_source": "raw",
+      "selected_warnings": [],
+      "requested_domain": null,
+      "hypothesis_index": 0,
+      "renderer_faithful_to_gold": null
+    },
+    {
+      "id": "chem-water-001-a",
+      "domain": "chemistry",
+      "target_action": "ast",
+      "first_blocking": "router-first",
+      "severity": "S1",
+      "transcript": "вода",
+      "expected": "H₂O",
+      "produced": "вода",
+      "candidates": 1,
+      "gold_rank": null,
+      "selected_key": "RAW",
+      "selected_source": "raw",
+      "selected_warnings": [],
+      "requested_domain": null,
+      "hypothesis_index": 0,
+      "renderer_faithful_to_gold": true
+    },
+    {
+      "id": "math-root-atom-001-a",
+      "domain": "mathematics",
+      "target_action": "ast",
+      "first_blocking": "decision-first",
+      "severity": "S1",
+      "transcript": "корень из икс плюс один",
+      "expected": "√x + 1",
+      "produced": "корень из икс плюс один",
+      "candidates": 2,
+      "gold_rank": 1,
+      "selected_key": "AST:{\"Math\":{\"Binary\":{\"left\":{\"Root\":{\"index\":null,\"radicand\":{\"Symbol\":{\"alphabet\":\"Latin\",\"case\":\"Lower\",\"letter\":\"x\"}}}},\"op\":\"Add\",\"right\":{\"Number\":\"1\"}}}}",
+      "selected_source": "primary_parse",
+      "selected_warnings": [
+        "math"
+      ],
+      "requested_domain": "auto",
+      "hypothesis_index": 0,
+      "renderer_faithful_to_gold": null
+    },
+    {
+      "id": "phys-delta-g-001-a",
+      "domain": "physics",
+      "target_action": "ast",
+      "first_blocking": "router-first",
+      "severity": "S1",
+      "transcript": "дельта же равно минус эн эф е",
+      "expected": "ΔG = −nFE",
+      "produced": "дельта же равно минус эн эф е",
+      "candidates": 1,
+      "gold_rank": null,
+      "selected_key": "RAW",
+      "selected_source": "raw",
+      "selected_warnings": [],
+      "requested_domain": null,
+      "hypothesis_index": 0,
+      "renderer_faithful_to_gold": null
+    },
+    {
+      "id": "phys-kelvin-001-a",
+      "domain": "physics",
+      "target_action": "ast",
+      "first_blocking": "candidate-first",
+      "severity": "S1",
+      "transcript": "триста кельвинов",
+      "expected": "300 К",
+      "produced": "триста кельвинов",
+      "candidates": 1,
+      "gold_rank": null,
+      "selected_key": "RAW",
+      "selected_source": "raw",
+      "selected_warnings": [],
+      "requested_domain": null,
+      "hypothesis_index": 0,
+      "renderer_faithful_to_gold": null
+    },
+    {
+      "id": "phys-pascal-001-a",
+      "domain": "physics",
+      "target_action": "ast",
+      "first_blocking": "candidate-first",
+      "severity": "S1",
+      "transcript": "сто паскалей",
+      "expected": "100 Па",
+      "produced": "сто паскалей",
+      "candidates": 1,
+      "gold_rank": null,
+      "selected_key": "RAW",
+      "selected_source": "raw",
+      "selected_warnings": [],
+      "requested_domain": null,
+      "hypothesis_index": 0,
+      "renderer_faithful_to_gold": null
+    },
+    {
+      "id": "phys-sine-of-length-001-a",
+      "domain": "physics",
+      "target_action": "ast",
+      "first_blocking": "router-first",
+      "severity": "S1",
+      "transcript": "синус трёх метров",
+      "expected": "sin(3 м)",
+      "produced": "синус трёх метров",
+      "candidates": 1,
+      "gold_rank": null,
+      "selected_key": "RAW",
+      "selected_source": "raw",
+      "selected_warnings": [],
+      "requested_domain": null,
+      "hypothesis_index": 0,
+      "renderer_faithful_to_gold": null
+    }
+  ],
+  "notes": [
+    "This is a text-level development corpus. There are no real voices in it, and ASR accuracy is not measured here.",
+    "pre_insertion_end_to_end_exact_match stops before the operating-system insertion step. The Word COM path is not exercised by this harness and must not be called verified.",
+    "The confidence produced by sciwhisper-core is a deterministic parse level, not a calibrated probability. No metric here treats it as one.",
+    "Oracle replacement deltas answer the product question and are not additive; component isolation answers the laboratory question and is a different quantity.",
+    "An observed count of zero for a rare safety error is reported with its exact one-sided 95% upper bound, never as a proven zero."
+  ],
+  "timing": {
+    "latency_us_p50": 220,
+    "latency_us_p95": 467
+  }
+}

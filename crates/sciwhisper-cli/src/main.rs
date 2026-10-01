@@ -1,9 +1,15 @@
+mod collect_voice;
+mod ingest;
+
 use std::io::{self, IsTerminal, Read, Write};
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
-use sciwhisper_asr::{doctor, from_audio, from_microphone, PipelineOptions, PipelineResult};
-use sciwhisper_core::{interpret, render_result, Domain, InterpretOptions, Renderer};
+use sciwhisper_asr::{from_audio, from_microphone, PipelineOptions, PipelineResult};
+use sciwhisper_core::{
+    choose_hypothesis, interpret, interpret_utterance, render, render_result, Domain,
+    InterpretOptions, Renderer, UtteranceMode, UtteranceOptions,
+};
 use sciwhisper_shell::config::Config;
 
 #[derive(Parser)]
@@ -19,10 +25,25 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Collect, resume and export a local voice session with explicit consent.
+    CollectVoice(collect_voice::Args),
+    /// Choose one hypothesis from a text n-best list, then compile it.
+    ///
+    /// The first argument is the recognizer's top hypothesis. A later one
+    /// replaces it only when it is a small edit away and the only one the
+    /// grammar can read as a whole utterance.
+    Nbest {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        hypotheses: Vec<String>,
+    },
     /// Compile already-transcribed speech (bypass Whisper).
     Format {
         #[arg(long, default_value = "auto")]
         domain: String,
+        /// mixed: keep the sentence, replace proven spans.
+        /// scientific: drop a recognised dictation shell.
+        #[arg(long, default_value = "mixed")]
+        mode: String,
         #[arg(long, default_value = "unicode")]
         renderer: String,
         #[arg(long)]
@@ -69,7 +90,12 @@ enum Command {
         whisper: Option<PathBuf>,
     },
     /// Show Whisper binary, backend and cached models.
-    Doctor,
+    Doctor {
+        /// Also hash the model file in full. Slower, and the only way to catch
+        /// a file that is the right size but corrupted.
+        #[arg(long)]
+        verify_model: bool,
+    },
     /// Run a local smoke test without microphone or network.
     SelfTest,
     /// Show representative chemistry, mathematics and physics conversions.
@@ -90,6 +116,29 @@ enum Command {
         model: Option<String>,
         #[arg(long, default_value = "ru")]
         language: String,
+    },
+    /// Show the corrections recorded locally, if that was switched on.
+    Corrections {
+        /// Print the raw JSONL instead of the table, for piping into review.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Fill a research corpus manifest from its recordings: measure each
+    /// WAV and transcribe it. Consent, transcript and targets must already
+    /// be in the manifest; this command never invents them.
+    Ingest {
+        /// JSONL manifest. Audio paths are relative to its directory.
+        #[arg(long)]
+        manifest: PathBuf,
+        #[arg(long)]
+        output: PathBuf,
+        #[arg(long)]
+        model: Option<String>,
+        #[arg(long, default_value = "ru")]
+        language: String,
+        /// Measure the audio, skip the recogniser.
+        #[arg(long)]
+        describe_only: bool,
     },
 }
 
@@ -120,13 +169,16 @@ fn main() {
 
 fn run(cli: Cli) -> Result<(), String> {
     match cli.command {
+        Some(Command::CollectVoice(args)) => collect_voice::run(args),
         None => sciwhisper_shell::run().map_err(|e| e.to_string()),
+        Some(Command::Nbest { hypotheses }) => run_nbest(&hypotheses),
         Some(Command::Format {
             domain,
+            mode,
             renderer,
             json,
             text,
-        }) => run_format(&domain, &renderer, json, text),
+        }) => run_format(&domain, &mode, &renderer, json, text),
         Some(Command::Rec {
             domain,
             renderer,
@@ -143,6 +195,7 @@ fn run(cli: Cli) -> Result<(), String> {
                 seconds,
                 PipelineOptions {
                     domain,
+                    mode: UtteranceMode::MixedText,
                     language,
                     model,
                     whisper_bin: whisper,
@@ -170,6 +223,7 @@ fn run(cli: Cli) -> Result<(), String> {
                 &audio,
                 PipelineOptions {
                     domain,
+                    mode: UtteranceMode::MixedText,
                     language,
                     model,
                     whisper_bin: whisper,
@@ -179,9 +233,18 @@ fn run(cli: Cli) -> Result<(), String> {
             .map_err(|e| e.to_string())?;
             print_pipeline(&result, &renderer, json)
         }
-        Some(Command::Doctor) => {
-            println!("{}", doctor());
-            Ok(())
+        Some(Command::Doctor { verify_model }) => {
+            let report = sciwhisper_asr::whisper_cli::DoctorReport::collect(verify_model);
+            println!("{}", report.render());
+            // The exit code is what SciWhisper-Test.cmd checks, so an
+            // incomplete pack has to fail rather than merely print badly.
+            match (&report.backend, report.model_ready) {
+                (Err(reason), _) => Err(format!("движок распознавания не готов: {reason}")),
+                // The reason is already worked out and printed above; repeating
+                // a generic sentence here would contradict it.
+                (Ok(_), false) => Err(format!("модель не готова: {}", report.model)),
+                (Ok(_), true) => Ok(()),
+            }
         }
         Some(Command::SelfTest) => run_self_test(),
         Some(Command::Demo) => run_demo(),
@@ -193,6 +256,14 @@ fn run(cli: Cli) -> Result<(), String> {
             model,
             language,
         }) => run_corpus(dir, &domain, model, language),
+        Some(Command::Corrections { json }) => run_corrections(json),
+        Some(Command::Ingest {
+            manifest,
+            output,
+            model,
+            language,
+            describe_only,
+        }) => run_ingest(manifest, output, model, language, describe_only),
     }
 }
 
@@ -230,6 +301,7 @@ fn show_settings(config: &Config) -> Result<(), String> {
     println!("  config:          {}", Config::path().display());
     println!("  domain:          {}", config.domain);
     println!("  output:          {}", config.output);
+    println!("  dictation:       {}", config.dictation);
     println!("  language:        {}", config.language);
     println!(
         "  model:           {}",
@@ -269,6 +341,13 @@ fn configure_settings() -> Result<(), String> {
         &mut config,
         "output",
         "Формат [auto/unicode/latex/word]",
+        &current,
+    )?;
+    let current = config.dictation.clone();
+    update_from_prompt(
+        &mut config,
+        "dictation",
+        "Диктовка [mixed = сохранять речь / scientific = только формула]",
         &current,
     )?;
     let current = config.language.clone();
@@ -393,6 +472,7 @@ fn run_corpus(
             f,
             PipelineOptions {
                 domain,
+                mode: UtteranceMode::MixedText,
                 language: language.clone(),
                 model: model.clone(),
                 whisper_bin: None,
@@ -409,6 +489,76 @@ fn run_corpus(
     }
     println!("done: {ok}/{} transcribed", files.len());
     Ok(())
+}
+
+/// Shows what the user has disagreed with.
+///
+/// Deliberately read-only, and deliberately **not** an export to the
+/// research corpus. A corpus entry needs a gold AST, and deriving one by
+/// re-parsing the user's chosen text would be gold produced by the parser —
+/// exactly what `research/README_RU.md` forbids. Turning these into corpus
+/// records is a human step.
+fn run_corrections(json: bool) -> Result<(), String> {
+    let file = sciwhisper_shell::corrections::path(&Config::path());
+    let entries = sciwhisper_shell::corrections::read(&file);
+    if entries.is_empty() {
+        println!("исправлений нет: {}", file.display());
+        println!("включить запись можно в меню значка или командой");
+        println!("  sciwhisper settings set remember_corrections true");
+        return Ok(());
+    }
+    if json {
+        for entry in &entries {
+            println!(
+                "{}",
+                serde_json::to_string(entry).map_err(|error| error.to_string())?
+            );
+        }
+        return Ok(());
+    }
+    println!("{} исправлений в {}", entries.len(), file.display());
+    for entry in &entries {
+        println!();
+        println!("  услышано : {}", entry.transcript);
+        println!("  вставлено: {}", entry.inserted);
+        println!("  выбрано  : {}  [{}]", entry.chosen, entry.kind);
+        if let Some(domain) = &entry.domain {
+            println!("  домен    : {domain}");
+        }
+    }
+    println!();
+    println!("Это материал для корпуса, а не корпус: gold-разметку по нему");
+    println!("нужно проставить руками — см. research/README_RU.md.");
+    Ok(())
+}
+
+fn run_ingest(
+    manifest: PathBuf,
+    output: PathBuf,
+    model: Option<String>,
+    language: String,
+    describe_only: bool,
+) -> Result<(), String> {
+    let options = ingest::IngestOptions {
+        manifest,
+        output,
+        describe_only,
+    };
+    ingest::run(options, &mut |path| {
+        from_audio(
+            path,
+            PipelineOptions {
+                domain: Domain::Auto,
+                mode: UtteranceMode::MixedText,
+                language: language.clone(),
+                model: model.clone(),
+                whisper_bin: None,
+                mic: None,
+            },
+        )
+        .map(|result| result.transcript.text)
+        .map_err(|e| e.to_string())
+    })
 }
 
 fn preview_cases() -> [(Domain, &'static str, &'static str); 8] {
@@ -555,7 +705,48 @@ fn print_warnings(warnings: &[sciwhisper_core::ast::Warning]) {
     }
 }
 
-fn run_format(domain: &str, renderer: &str, json: bool, text: Vec<String>) -> Result<(), String> {
+fn run_nbest(hypotheses: &[String]) -> Result<(), String> {
+    if hypotheses.is_empty() {
+        return Err("nbest needs at least one hypothesis".into());
+    }
+    let refs: Vec<&str> = hypotheses.iter().map(String::as_str).collect();
+    let choice = choose_hypothesis(&refs);
+    let text = hypotheses
+        .get(choice.index)
+        .map(String::as_str)
+        .unwrap_or("");
+    let reason = match choice.reason {
+        sciwhisper_core::ChoiceReason::Empty => "empty",
+        sciwhisper_core::ChoiceReason::TopAlreadyParsed => "top_already_parsed",
+        sciwhisper_core::ChoiceReason::NearHypothesisParsed => "near_hypothesis_parsed",
+        sciwhisper_core::ChoiceReason::NothingNearParsed => "nothing_near_parsed",
+        sciwhisper_core::ChoiceReason::NearHypothesesDisagree => "near_hypotheses_disagree",
+        sciwhisper_core::ChoiceReason::NoScientificAnchor => "no_scientific_anchor",
+    };
+    println!("hypothesis {}: {text}", choice.index);
+    println!("reason: {reason}");
+    let result = interpret(
+        text,
+        InterpretOptions {
+            domain: Domain::Auto,
+            allow_shortcuts: true,
+        },
+    );
+    println!("{}", render_result(&result, Renderer::Unicode));
+    print_warnings(&result.warnings);
+    if result.confidence <= 0.0 {
+        return Err("could not parse input; raw transcript preserved".into());
+    }
+    Ok(())
+}
+
+fn run_format(
+    domain: &str,
+    mode: &str,
+    renderer: &str,
+    json: bool,
+    text: Vec<String>,
+) -> Result<(), String> {
     let spoken = if text.is_empty() {
         let mut buf = String::new();
         io::stdin()
@@ -566,21 +757,29 @@ fn run_format(domain: &str, renderer: &str, json: bool, text: Vec<String>) -> Re
         text.join(" ")
     };
     let domain: Domain = domain.parse().map_err(|e: String| e)?;
-    let result = interpret(
+    let mode: UtteranceMode = mode.parse().map_err(|e: String| e)?;
+    // One parse, then three views of the same structure.
+    let utterance = interpret_utterance(
         spoken.trim(),
-        InterpretOptions {
+        UtteranceOptions {
             domain,
+            mode,
             allow_shortcuts: true,
         },
     );
+    let result = utterance.to_interpretation(domain);
+    let show = |r: Renderer| render(&utterance.document, r);
     if json {
         let v = serde_json::json!({
             "domain": result.domain.as_str(),
+            "mode": utterance.mode.as_str(),
+            "decision": utterance.decision.as_str(),
             "confidence": result.confidence,
             "normalized": result.normalized_transcript,
-            "unicode": render_result(&result, Renderer::Unicode),
-            "latex": render_result(&result, Renderer::Latex),
-            "omml": render_result(&result, Renderer::Omml),
+            "unicode": show(Renderer::Unicode),
+            "latex": show(Renderer::Latex),
+            "omml": show(Renderer::Omml),
+            "spans": utterance.spans.len(),
             "warnings": result.warnings,
             "unresolved": result.unresolved_spans,
         });
@@ -592,17 +791,17 @@ fn run_format(domain: &str, renderer: &str, json: bool, text: Vec<String>) -> Re
     }
     match renderer {
         "all" => {
-            println!("unicode: {}", render_result(&result, Renderer::Unicode));
-            println!("latex:   {}", render_result(&result, Renderer::Latex));
-            println!("omml:    {}", render_result(&result, Renderer::Omml));
+            println!("unicode: {}", show(Renderer::Unicode));
+            println!("latex:   {}", show(Renderer::Latex));
+            println!("omml:    {}", show(Renderer::Omml));
         }
         other => {
             let r: Renderer = other.parse().map_err(|e: String| e)?;
-            println!("{}", render_result(&result, r));
+            println!("{}", show(r));
         }
     }
     print_warnings(&result.warnings);
-    if result.confidence <= 0.0 {
+    if utterance.is_raw() {
         return Err("could not parse input; raw transcript preserved".into());
     }
     Ok(())

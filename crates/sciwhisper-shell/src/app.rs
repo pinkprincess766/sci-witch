@@ -7,9 +7,10 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use sciwhisper_asr::capture::{PttSession, Recording};
-use sciwhisper_asr::pipeline::{compile_transcript, PipelineResult};
+use sciwhisper_asr::pipeline::{compile_transcript, compile_transcript_with, PipelineResult};
 use sciwhisper_asr::{prompt, SharedEngine, TranscribeOptions};
 use sciwhisper_core::Domain;
+use sciwhisper_core::UtteranceMode;
 use tray_icon::menu::MenuEvent;
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
@@ -26,7 +27,9 @@ use crate::key_listener::KeyEvent;
 use crate::tray::{self, StatusIcon, Tray};
 
 enum Msg {
-    PttDown { sticky: Option<OutputMode> },
+    PttDown {
+        sticky: Option<OutputMode>,
+    },
     PttUp,
     ToggleRecording,
     Cancel,
@@ -34,6 +37,25 @@ enum Msg {
     WhisperFailed(String),
     HotkeyFailed(String),
     Done(DoneKind),
+    /// Result of the one network request the application makes.
+    UpdateChecked(std::result::Result<Option<crate::update::UpdateInfo>, String>),
+    /// A downloaded archive was unpacked and checked; nothing is installed
+    /// yet.
+    UpdateStaged(std::result::Result<Box<crate::upgrade::Staged>, String>),
+}
+
+/// How far the user has chosen to take an update. Every transition is a
+/// press: nothing here advances on its own, and nothing runs on a timer.
+enum UpdateState {
+    /// Nothing asked for, or nothing found.
+    None,
+    /// A request is in flight; a second press must not start another.
+    Busy(&'static str),
+    /// Found and described, not downloaded.
+    Available(Box<crate::update::UpdateInfo>),
+    /// Downloaded, unpacked and verified beside the installation. The
+    /// running program is still untouched.
+    Staged(Box<crate::upgrade::Staged>),
 }
 
 enum DoneKind {
@@ -45,11 +67,37 @@ struct State {
     config: Config,
     domain: Domain,
     output: OutputMode,
+    /// Whether the ordinary words around a formula survive. Changeable from
+    /// the tray so a user never has to edit a config file to get it.
+    dictation: UtteranceMode,
     history: History,
     last_insert: Option<LastInsert>,
     phase: Phase,
     sticky_output: Option<OutputMode>,
     accessibility: bool,
+    update: UpdateState,
+    /// Release notes URL of whatever the update menu currently offers.
+    update_notes_url: Option<String>,
+    /// The readings of the last utterance, in menu order. Empty when the
+    /// last utterance had only one.
+    choices: Vec<Choice>,
+}
+
+/// One reading of what was said, ready to be inserted in place of another.
+///
+/// The point of holding these is that the answer is not withheld while the
+/// user decides. The primary reading is inserted immediately, exactly as
+/// before; a choice here **replaces** it. Waiting for a decision would make
+/// every ambiguous utterance slower, and ambiguity is the common case for
+/// spoken mathematics, not the rare one.
+struct Choice {
+    label: String,
+    unicode: String,
+    latex: String,
+    omml: String,
+    /// `false` for the raw Whisper transcript, which is words rather than a
+    /// compiled formula and must never be inserted as one.
+    compiled: bool,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -63,6 +111,7 @@ pub fn run() -> Result<()> {
     let config = Config::load().unwrap_or_default();
     let domain = config.domain();
     let output = config.output();
+    let dictation = config.dictation_mode();
     let ptt = Combo::parse(&config.ptt).map_err(Error::Message)?;
     let ptt_latex = Combo::parse(&config.ptt_latex).ok();
     let ptt_word = Combo::parse(&config.ptt_word).ok();
@@ -98,11 +147,15 @@ pub fn run() -> Result<()> {
         config,
         domain,
         output,
+        dictation,
         history: History::default(),
         last_insert: None,
         phase: Phase::Idle,
         sticky_output: None,
         accessibility: cfg!(not(target_os = "macos")),
+        update: UpdateState::None,
+        update_notes_url: None,
+        choices: Vec::new(),
     };
 
     event_loop.set_control_flow(ControlFlow::Wait);
@@ -138,7 +191,7 @@ struct DesktopApp {
 
 impl DesktopApp {
     fn handle_event(&mut self, event: Msg) {
-        let Some(tray) = self.tray.as_ref() else {
+        let Some(tray) = self.tray.as_mut() else {
             self.pending.push(event);
             return;
         };
@@ -182,8 +235,10 @@ impl ApplicationHandler<Msg> for DesktopApp {
         match tray::build(
             self.state.domain,
             self.state.output,
+            self.state.dictation,
             self.state.config.mic.as_deref(),
             "загрузка Whisper…",
+            self.state.config.remember_corrections,
         ) {
             Ok(tray) => {
                 self.tray = Some(tray);
@@ -398,7 +453,7 @@ fn is_control(key: Key) -> bool {
 
 fn handle_msg(
     msg: Msg,
-    tray: &Tray,
+    tray: &mut Tray,
     state: &mut State,
     audio: &Sender<AudioCmd>,
     tx: &Sender<Msg>,
@@ -431,6 +486,58 @@ fn handle_msg(
             tray::set_status(tray, StatusIcon::Failed, &e);
             insert::notify("SciWhisper", &e);
         }
+        Msg::UpdateChecked(result) => match result {
+            Ok(Some(info)) => {
+                let text = crate::upgrade::describe(&info, env!("CARGO_PKG_VERSION"));
+                tray.set_update_step(&format!("Скачать обновление {}", info.version), true);
+                state.update_notes_url = Some(info.notes_url.clone());
+                state.update = UpdateState::Available(Box::new(info));
+                tray::set_status(tray, StatusIcon::Idle, &text);
+                insert::notify("SciWhisper", &text);
+            }
+            Ok(None) => {
+                tray.clear_update_step();
+                state.update = UpdateState::None;
+                state.update_notes_url = None;
+                let text = format!("Обновлений нет, установлена {}", env!("CARGO_PKG_VERSION"));
+                tray::set_status(tray, StatusIcon::Idle, &text);
+                insert::notify("SciWhisper", &text);
+            }
+            Err(error) => {
+                tray.clear_update_step();
+                state.update = UpdateState::None;
+                tray::set_status(
+                    tray,
+                    StatusIcon::Idle,
+                    &format!("проверка обновлений: {error}"),
+                );
+                insert::notify(
+                    "SciWhisper",
+                    &format!("Проверить обновления не удалось: {error}"),
+                );
+            }
+        },
+        Msg::UpdateStaged(result) => match result {
+            Ok(staged) => {
+                let text = crate::upgrade::describe_staged(&staged);
+                tray.set_update_step(
+                    &format!("Установить {} и перезапустить", staged.version),
+                    state.update_notes_url.is_some(),
+                );
+                state.update = UpdateState::Staged(staged);
+                tray::set_status(tray, StatusIcon::Idle, &text);
+                insert::notify("SciWhisper", &text);
+            }
+            Err(error) => {
+                // Nothing was replaced, so the running version is the one it
+                // always was; say that rather than leaving the user guessing.
+                tray.clear_update_step();
+                state.update = UpdateState::None;
+                let text = format!("Обновление не установлено: {error}. Программа не изменена.");
+                tray::set_status(tray, StatusIcon::Idle, &text);
+                insert::notify("SciWhisper", &text);
+            }
+        },
         Msg::PttDown { sticky } => {
             if state.phase != Phase::Idle {
                 return;
@@ -460,6 +567,7 @@ fn handle_msg(
             state.phase = Phase::Processing;
             tray::set_status(tray, StatusIcon::Processing, "Whisper…");
             let domain = state.domain;
+            let dictation = state.dictation;
             let language = state.config.language.clone();
             let tx = tx.clone();
             let audio = audio.clone();
@@ -491,7 +599,7 @@ fn handle_msg(
                             temperature: 0.0,
                         },
                     )?;
-                    Ok::<_, sciwhisper_asr::Error>(compile_transcript(t, domain))
+                    Ok::<_, sciwhisper_asr::Error>(compile_transcript_with(t, domain, dictation))
                 })();
                 match done {
                     Ok(p) => {
@@ -528,7 +636,11 @@ fn handle_msg(
                     domain: res.interpretation.domain.as_str().into(),
                 });
                 let mode = state.sticky_output.take().unwrap_or(state.output);
-                match insert::insert(insert::InsertRequest { result: &res, mode }) {
+                match insert::insert(insert::InsertRequest {
+                    result: &res,
+                    mode,
+                    profiles: &state.config.profiles,
+                }) {
                     Ok(out) => {
                         let preview = if res.interpretation.confidence > 0.0 {
                             &res.unicode
@@ -548,6 +660,7 @@ fn handle_msg(
                             payload: out.payload,
                             raw: res.transcript.text.clone(),
                         });
+                        offer_choices(tray, state, &res);
                     }
                     Err(e) => {
                         insert::notify("SciWhisper", &e.to_string());
@@ -561,8 +674,266 @@ fn handle_msg(
                 if let Some(notice) = chemistry_balance_notice(&res.interpretation.warnings) {
                     insert::notify("SciWhisper", &notice);
                 }
+                // Same shape as the balance notice: the dictated quantity is
+                // what was inserted, and the other way of writing it is
+                // offered beside it.
+                for warning in &res.interpretation.warnings {
+                    if warning.code == "physics.unit_equivalent" {
+                        insert::notify("SciWhisper", &warning.message);
+                    }
+                }
             }
         },
+    }
+}
+
+/// The one place the application touches the network, and only because a
+/// menu item was pressed.
+fn handle_update_check(tray: &mut Tray, st: &mut State, tx: &Sender<Msg>) {
+    if let UpdateState::Busy(what) = st.update {
+        insert::notify("SciWhisper", &format!("уже идёт: {what}"));
+        return;
+    }
+    st.update = UpdateState::Busy("проверка обновлений");
+    tray::set_status(tray, StatusIcon::Processing, "проверка обновлений…");
+    let tx = tx.clone();
+    thread::spawn(move || {
+        let result = crate::update::check_for_update(env!("CARGO_PKG_VERSION"))
+            .map_err(|error| error.to_string());
+        let _ = tx.send(Msg::UpdateChecked(result));
+    });
+}
+
+/// Advances the update by exactly one step, and only the step the menu item
+/// currently names.
+fn handle_update_action(tray: &mut Tray, st: &mut State, tx: &Sender<Msg>, quit: &mut bool) {
+    match std::mem::replace(&mut st.update, UpdateState::None) {
+        UpdateState::None => {}
+        UpdateState::Busy(what) => {
+            st.update = UpdateState::Busy(what);
+            insert::notify("SciWhisper", &format!("уже идёт: {what}"));
+        }
+        UpdateState::Available(info) => {
+            let root = match crate::upgrade::install_root() {
+                Ok(root) => root,
+                Err(error) => {
+                    // macOS lands here by design: the archive is downloaded
+                    // and the user installs it, rather than having their
+                    // microphone permissions silently reset.
+                    insert::notify("SciWhisper", &error.to_string());
+                    st.update = UpdateState::Available(info);
+                    return;
+                }
+            };
+            st.update = UpdateState::Busy("скачивание обновления");
+            tray::set_status(tray, StatusIcon::Processing, "скачивание обновления…");
+            let tx = tx.clone();
+            thread::spawn(move || {
+                let paths = crate::upgrade::plan_paths(&root, &info.version);
+                let result = (|| {
+                    std::fs::create_dir_all(&paths.archive).map_err(|e| e.to_string())?;
+                    let archive = crate::update::download_and_verify(&info, &paths.archive)
+                        .map_err(|e| e.to_string())?;
+                    crate::upgrade::stage(&info, &archive, &root).map_err(|e| e.to_string())
+                })();
+                let _ = tx.send(Msg::UpdateStaged(result.map(Box::new)));
+            });
+        }
+        UpdateState::Staged(staged) => match crate::upgrade::start_replacement(&staged) {
+            Ok(()) => {
+                // The helper is waiting for this process to let go of the
+                // directory, so quitting is the last step of the install.
+                insert::notify(
+                    "SciWhisper",
+                    &format!("Устанавливаю {} и перезапускаю…", staged.version),
+                );
+                *quit = true;
+            }
+            Err(error) => {
+                insert::notify(
+                    "SciWhisper",
+                    &format!("Установить не удалось: {error}. Программа не изменена."),
+                );
+                st.update = UpdateState::Staged(staged);
+            }
+        },
+    }
+}
+
+/// Fills the «Варианты прочтения» menu for what was just inserted.
+///
+/// Two kinds of entry go in, and they are different things wearing the same
+/// shape. The competing readings exist only when the parser genuinely could
+/// not tell them apart — «корень из икс плюс один» is `√x + 1` or `√(x+1)`,
+/// and speech carries no bracket. The raw transcript is always offered,
+/// because "it heard me wrong" is the one failure the user can always see
+/// and the system never can.
+fn offer_choices(tray: &mut Tray, state: &mut State, res: &PipelineResult) {
+    let choices = build_choices(res, tray::MAX_CHOICES);
+    let labels: Vec<String> = choices.iter().map(|choice| choice.label.clone()).collect();
+    tray.set_choices(&labels);
+    let competing = choices.iter().filter(|choice| choice.compiled).count();
+    state.choices = choices;
+    if competing > 0 {
+        // Said out loud, because a silently chosen reading of an ambiguous
+        // phrase is exactly the kind of quiet guess this project refuses to
+        // make elsewhere.
+        insert::notify(
+            "SciWhisper",
+            &format!(
+                "Услышанное можно прочитать {} способами. Вставлено: {}. Другое прочтение — в меню «Варианты прочтения».",
+                competing + 1,
+                res.unicode
+            ),
+        );
+    }
+}
+
+/// The list itself, with no tray and no notification, so what goes into the
+/// menu can be checked without a desktop session.
+fn build_choices(res: &PipelineResult, max: usize) -> Vec<Choice> {
+    let mut choices = Vec::new();
+    let interpretation = &res.interpretation;
+    if interpretation.confidence > 0.0 {
+        for node in &interpretation.alternatives {
+            // One slot is always kept for the raw transcript.
+            if choices.len() + 1 >= max {
+                break;
+            }
+            let unicode = sciwhisper_core::render(node, sciwhisper_core::Renderer::Unicode);
+            // A reading identical to what was inserted is not a choice, and
+            // neither is a repeat of one already offered.
+            if unicode == res.unicode || choices.iter().any(|c: &Choice| c.unicode == unicode) {
+                continue;
+            }
+            choices.push(Choice {
+                label: format!("Вставить вместо: {unicode}"),
+                latex: sciwhisper_core::render(node, sciwhisper_core::Renderer::Latex),
+                omml: sciwhisper_core::render(node, sciwhisper_core::Renderer::Omml),
+                unicode,
+                compiled: true,
+            });
+        }
+    }
+    let raw = res.transcript.text.trim();
+    if !raw.is_empty() && raw != res.unicode {
+        choices.push(Choice {
+            label: format!("Вернуть услышанное: {raw}"),
+            unicode: raw.to_string(),
+            latex: raw.to_string(),
+            omml: raw.to_string(),
+            compiled: false,
+        });
+    }
+    choices
+}
+
+/// Replaces what was just inserted with another reading.
+///
+/// This is an undo followed by an insert, and it only runs while the undo is
+/// still safe — the same application must still be in front. Sending Ctrl+Z
+/// into a window that was not the one typed into would delete something the
+/// user did themselves, which is far worse than declining to help.
+fn replace_insertion(tray: &mut Tray, st: &mut State, index: usize) {
+    let Some(choice) = st.choices.get(index) else {
+        return;
+    };
+    let undoable = st.last_insert.as_ref().is_some_and(|last| last.can_undo());
+    if !undoable {
+        // The words are still put where the user can get at them; only the
+        // automatic replacement is refused.
+        let copied = crate::clipboard::set_text(&choice.unicode).is_ok();
+        insert::notify(
+            "SciWhisper",
+            &if copied {
+                format!(
+                    "Окно сменилось, отменять вставку в нём небезопасно. Вариант скопирован в буфер: {}",
+                    choice.unicode
+                )
+            } else {
+                format!(
+                    "Окно сменилось, замена не выполнена. Вариант: {}",
+                    choice.unicode
+                )
+            },
+        );
+        return;
+    }
+
+    insert::send_undo();
+    let mut replacement = compile_transcript(
+        sciwhisper_asr::Transcript {
+            text: choice.unicode.clone(),
+            language: None,
+            segments: vec![],
+            no_speech: false,
+        },
+        Domain::Auto,
+    );
+    replacement.unicode = choice.unicode.clone();
+    replacement.latex = choice.latex.clone();
+    replacement.omml = choice.omml.clone();
+    // The raw transcript is words, not a formula: leaving confidence at zero
+    // is what keeps the insertion path from treating it as native Word maths.
+    replacement.interpretation.confidence = if choice.compiled { 1.0 } else { 0.0 };
+
+    match insert::insert(insert::InsertRequest {
+        result: &replacement,
+        mode: st.output,
+        profiles: &st.config.profiles,
+    }) {
+        Ok(out) => {
+            // Recorded before `last_insert` is replaced below: the entry
+            // needs what was heard and what had been inserted, and both
+            // live in the old value.
+            remember_correction(st, choice);
+            tray::set_status(
+                tray,
+                StatusIcon::Idle,
+                &format!("заменено: {}", choice.unicode),
+            );
+            st.last_insert = Some(LastInsert {
+                front: out.front,
+                payload: out.payload,
+                raw: choice.unicode.clone(),
+            });
+        }
+        Err(error) => insert::notify("SciWhisper", &error.to_string()),
+    }
+}
+
+/// Writes down that the user disagreed, if they asked for that to be
+/// written down.
+///
+/// This is the cheapest labelled data the project can get: the words that
+/// were heard, what was inserted, and what the person actually wanted. It
+/// is also the user's own speech, so it is off unless they turned it on,
+/// and a failure to write is never allowed to interrupt the insertion that
+/// just succeeded.
+fn remember_correction(st: &State, choice: &Choice) {
+    let Some(last) = st.last_insert.as_ref() else {
+        return;
+    };
+    let record = crate::corrections::Correction::new(
+        &last.raw,
+        &last.payload,
+        &choice.unicode,
+        if choice.compiled {
+            crate::corrections::Kind::Alternative
+        } else {
+            crate::corrections::Kind::RawTranscript
+        },
+        st.history.last().map(|item| item.domain.as_str()),
+    );
+    let file = crate::corrections::path(&Config::path());
+    if let Err(error) = crate::corrections::record(&file, &record, st.config.remember_corrections) {
+        // Only worth a word when the user asked for this and it still did
+        // not happen; the ordinary "switched off" case is not news.
+        if st.config.remember_corrections
+            && !matches!(error, crate::corrections::Refusal::Uninformative)
+        {
+            insert::notify("SciWhisper", &format!("исправление не записано: {error}"));
+        }
     }
 }
 
@@ -605,6 +976,8 @@ fn handle_menu(
     if id == ids.clear.as_ref() {
         st.history.clear();
         st.last_insert = None;
+        st.choices.clear();
+        tray.clear_choices();
         insert::notify("SciWhisper", "история очищена");
         return;
     }
@@ -638,6 +1011,7 @@ fn handle_menu(
             let _ = insert::insert(insert::InsertRequest {
                 result: &dummy,
                 mode: st.output,
+                profiles: &st.config.profiles,
             });
         }
         return;
@@ -655,8 +1029,46 @@ fn handle_menu(
         }
         return;
     }
+    if let Some(index) = ids.choices.iter().position(|slot| id == slot.as_ref()) {
+        replace_insertion(tray, st, index);
+        return;
+    }
+    if id == ids.update_check.as_ref() {
+        handle_update_check(tray, st, tx);
+        return;
+    }
+    if id == ids.update_action.as_ref() {
+        handle_update_action(tray, st, tx, quit);
+        return;
+    }
+    if id == ids.update_notes.as_ref() {
+        if let Some(url) = st.update_notes_url.clone() {
+            if let Err(error) = crate::upgrade::open_notes(&url) {
+                insert::notify("SciWhisper", &error.to_string());
+            }
+        }
+        return;
+    }
+    if id == ids.remember_corrections.id().as_ref() {
+        // The item toggled itself when clicked; the config follows it.
+        st.config.remember_corrections = ids.remember_corrections.is_checked();
+        let file = crate::corrections::path(&Config::path());
+        insert::notify(
+            "SciWhisper",
+            &if st.config.remember_corrections {
+                format!(
+                    "Исправления записываются в {} — только на этом компьютере, ничего никуда не отправляется.",
+                    file.display()
+                )
+            } else {
+                "Исправления больше не записываются. Уже записанное остаётся на месте.".into()
+            },
+        );
+        let _ = st.config.save();
+        return;
+    }
     if id == ids.mic_refresh.as_ref() {
-        tray.refresh(st.domain, st.output, st.config.mic.as_deref());
+        tray.refresh(st.domain, st.output, st.dictation, st.config.mic.as_deref());
         return;
     }
     if let Some((_, value)) = ids
@@ -672,6 +1084,13 @@ fn handle_menu(
         .find(|(item, _)| id == item.id().as_ref())
     {
         st.output = *value;
+    }
+    if let Some((_, value)) = ids
+        .dictation_checks
+        .iter()
+        .find(|(item, _)| id == item.id().as_ref())
+    {
+        st.dictation = *value;
     }
     if let Some((_, value)) = ids
         .mic_checks
@@ -690,11 +1109,15 @@ fn handle_menu(
     for (item, value) in &ids.output_checks {
         item.set_checked(*value == st.output);
     }
+    for (item, value) in &ids.dictation_checks {
+        item.set_checked(*value == st.dictation);
+    }
     for (item, value) in &ids.mic_checks {
         item.set_checked(*value == st.config.mic);
     }
     st.config.domain = st.domain.as_str().into();
     st.config.output = st.output.as_str().into();
+    st.config.dictation = st.dictation.as_str().into();
     let _ = st.config.save();
 }
 
@@ -783,5 +1206,85 @@ mod tests {
             chemistry_balance_notice(&warnings),
             Some("Уравнение не сбалансировано.".to_string())
         );
+    }
+}
+
+#[cfg(test)]
+mod choice_tests {
+    use super::*;
+    use sciwhisper_asr::engine::Transcript;
+
+    fn compiled(spoken: &str) -> PipelineResult {
+        compile_transcript(
+            Transcript {
+                text: spoken.into(),
+                language: Some("ru".into()),
+                segments: vec![],
+                no_speech: false,
+            },
+            Domain::Auto,
+        )
+    }
+
+    /// The reading that could not be told apart from the one inserted is
+    /// offered, and the words actually heard are always offered next to it.
+    #[test]
+    fn an_ambiguous_root_offers_the_other_reading_and_the_raw_words() {
+        let result = compiled("корень из икс плюс один");
+        assert_eq!(result.unicode, "√x + 1");
+        let choices = build_choices(&result, tray::MAX_CHOICES);
+        let labels: Vec<&str> = choices.iter().map(|c| c.label.as_str()).collect();
+        assert_eq!(
+            labels,
+            [
+                "Вставить вместо: √(x + 1)",
+                "Вернуть услышанное: корень из икс плюс один",
+            ]
+        );
+        assert!(choices[0].compiled);
+        // The raw transcript is words, not a formula, and must not be
+        // inserted as native Word mathematics.
+        assert!(!choices[1].compiled);
+    }
+
+    /// No ambiguity means no choice to make; only the words heard stay on
+    /// offer, because misrecognition is always possible.
+    #[test]
+    fn an_unambiguous_utterance_offers_only_the_raw_words() {
+        let result = compiled("икс в квадрате");
+        let choices = build_choices(&result, tray::MAX_CHOICES);
+        assert_eq!(choices.len(), 1);
+        assert!(!choices[0].compiled);
+        assert!(choices[0].label.starts_with("Вернуть услышанное"));
+    }
+
+    /// A menu the user has to read through is not a choice. One slot is
+    /// always kept for the raw transcript, whatever the parser offers.
+    #[test]
+    fn the_menu_never_grows_past_its_slots() {
+        let mut result = compiled("корень из икс плюс один");
+        // Pretend a future grammar found many readings.
+        let extra = result.interpretation.alternatives[0].clone();
+        for _ in 0..10 {
+            result.interpretation.alternatives.push(extra.clone());
+        }
+        let choices = build_choices(&result, tray::MAX_CHOICES);
+        assert!(choices.len() <= tray::MAX_CHOICES);
+        assert!(
+            choices.last().is_some_and(|c| !c.compiled),
+            "the raw transcript keeps its slot"
+        );
+        // Identical readings are collapsed rather than listed twice.
+        assert_eq!(choices.iter().filter(|c| c.compiled).count(), 1);
+    }
+
+    /// Speech that produced no formula at all has nothing to offer instead
+    /// of itself.
+    #[test]
+    fn plain_speech_that_was_kept_as_words_offers_nothing() {
+        let result = compiled("обычная неразобранная фраза");
+        assert_eq!(result.interpretation.confidence, 0.0);
+        assert_eq!(result.unicode, "обычная неразобранная фраза");
+        assert!(build_choices(&result, tray::MAX_CHOICES).is_empty());
     }
 }

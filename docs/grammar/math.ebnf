@@ -1,0 +1,675 @@
+(* =====================================================================
+   math.ebnf — грамматика устной математической и физической речи.
+
+   Описывает ТЕКУЩИЙ КОД, а не желаемое поведение:
+   crates/sciwhisper-core/src/parser/math.rs. Один и тот же разбор
+   обслуживает математику и физику (MathMode::Math / MathMode::Physics);
+   единицы измерения (UNIT) токенизатор выдаёт только в физике.
+
+   Нотация (подмножество ISO 14977):
+     имя = тело ;      правило; ; обязательна
+     строчные имена    нетерминалы (синтаксис над токенами)
+     ЗАГЛАВНЫЕ имена   терминалы: классы токенов, то есть варианты enum Tok
+     A | B             выбор       ( A B )  группа
+     [ A ]             необязательно (0 или 1 раз)
+     { A }             повторение 0 или больше раз
+     "слово"           литерал: слово или фраза, как её видит токенизатор
+     ? ... ?           специальная последовательность: класс, описанный словами
+     скобка-звёздочка ... звёздочка-скобка   комментарий (как этот); не вкладывается
+
+   Ссылка на код стоит в комментарии ПЕРЕД правилом и состоит из трёх
+   частей через двоеточие: имя исходного файла, имя функции (или константы),
+   буква L с номером строки конструкции в этой копии кода. Откуда берутся
+   фразы терминала, сказано второй формой: имя yaml-файла, двоеточие, путь
+   раздел.ключ внутри файла. Обе формы читает тест.
+
+   Два слоя, как в коде:
+     1. Лексический слой (tokenize, L1111): слова превращаются в токены.
+        Терминалы определены в конце файла.
+     2. Синтаксический слой (struct Parser): рекурсивный спуск над токенами.
+
+   Запятая. Токен COMMA в синтаксических правилах не показан: парсер
+   пропускает его в семи местах (skip_commas, L238) и разбирает как
+   разделитель только в списке аргументов функции. Подробно — раздел
+   «Семантические ограничения», пункт С1. Конец входа в грамматике не
+   записан: после math_input пропускаются запятые, и поток должен кончиться.
+
+   Проверяет этот файл тест
+   crates/sciwhisper-core/tests/grammar_first_follow.rs: разбирает его,
+   считает FIRST/FOLLOW, сверяет терминалы с enum Tok, фразы с
+   operators.yaml, функции со строками в math.rs.
+   ===================================================================== *)
+
+
+(* ---------------------------------------------------------------------
+   СИНТАКСИС: уровни приоритета
+   --------------------------------------------------------------------- *)
+
+(* math.rs:parse_math:L108 — вход: parse_eq, затем запятые и конец потока *)
+math_input = eq_expr ;
+
+(* math.rs:parse_eq:L245 — сравнения левоассоциативны, a < b = c допустимо.
+   «равно нулю» токенизатор раскладывает на EQ и NUM, поэтому здесь отдельного
+   терминала для него нет *)
+eq_expr = add_expr { rel_op add_expr } ;
+
+(* math.rs:parse_eq:L249 *)
+rel_op = EQ | NE | LT | GT | LE | GE ;
+
+(* math.rs:parse_add:L269 *)
+add_expr = mul_expr { add_op mul_expr } ;
+
+(* math.rs:parse_add:L273 *)
+add_op = PLUS | MINUS | PLUS_MINUS ;
+
+(* math.rs:parse_mul:L290 *)
+mul_expr = unary_expr { mul_op unary_expr } ;
+
+(* math.rs:parse_mul:L294 *)
+mul_op = TIMES | DIV ;
+
+(* math.rs:parse_unary:L310 — унарный плюс отбрасывается, минус даёт UnaryMinus *)
+unary_expr = MINUS unary_expr | PLUS unary_expr | juxt ;
+
+(* math.rs:parse_juxt:L322 — неявное умножение: операнды без знака между ними *)
+juxt = postfix { juxt_item } ;
+
+(* math.rs:parse_juxt:L331 — цикл идёт, пока starts_atom (L379) и
+   may_join_juxtaposition (L371); первым элементом может быть любой atom,
+   следующим — только common_atom, см. guard_starts_atom *)
+juxt_item = common_atom { postfix_op } ;
+
+(* math.rs:parse_postfix:L438 *)
+postfix = atom { postfix_op } ;
+
+(* math.rs:parse_postfix:L441 — квадрат, куб, факториал, степень, индекс,
+   единицы. «в второй степени» и «в минус первой» токенизатор раскладывает
+   на DEGREE и NUM, поэтому отдельных терминалов у них нет *)
+postfix_op =
+      SQUARED
+    | CUBED
+    | FACT
+    | DEGREE atom
+    | POW_START add_expr [ POW_END ]
+    | SUB_KW atom
+    | unit_expr ;
+
+
+(* ---------------------------------------------------------------------
+   СИНТАКСИС: атомы
+   --------------------------------------------------------------------- *)
+
+(* math.rs:parse_atom:L536 *)
+atom = common_atom | prefix_atom ;
+
+(* math.rs:parse_atom:L538 — атомы, с которых может начинаться и очередной
+   множитель в juxt. Строки конструкций: NUM L539, символ L553, INF L555,
+   DELTA L557, VECTOR_KW L577, FACT L581, ABS_KW L585, FUNCTION L589, скобки
+   L590 L600 L608, дробь L616, корень L617 L627, производная L647, предел
+   L672, сумма L691, произведение L692, интеграл L693 *)
+common_atom =
+      NUM [ unit_expr ]
+    | symbol_atom
+    | INF
+    | ELLIPSIS
+    | DELTA [ juxt_item ]
+    | VECTOR_KW postfix
+    | FACT juxt
+    | ABS_KW postfix
+    | FUNCTION postfix
+    | L_PAREN eq_expr [ R_PAREN ]
+    | L_BRACK eq_expr [ R_BRACK ]
+    | L_BRACE eq_expr [ R_BRACE ]
+    | FRAC_START fraction_tail
+    | ROOT_START add_expr [ ROOT_END ]
+    | ROOT root_body
+    | DERIVATIVE derivative_tail
+    | LIMIT limit_tail
+    | SUM nary_tail [ SUM_END ]
+    | PRODUCT nary_tail [ PROD_END ]
+    | INTEGRAL integral_tail ;
+
+(* math.rs:parse_atom:L547 — эти формы разбирает parse_atom, но starts_atom
+   их не пропускает (L428-L431): так задумано, чтобы цикл juxt не втягивался
+   в недоговорённую производную или предел. Работают только как первый
+   элемент операнда *)
+prefix_atom =
+      FUNC_FILLER atom
+    | PARTIAL DERIVATIVE derivative_tail
+    | ORDINAL [ PARTIAL ] DERIVATIVE derivative_tail
+    | LIMIT_LEFT LIMIT limit_tail
+    | LIMIT_RIGHT LIMIT limit_tail ;
+
+(* math.rs:parse_symbol_atom:L511 — буква, ещё не разобранная как часть
+   большего: «эф от икс» (применение функции) либо «икс два» (целое число сразу
+   за обычной буквой — индекс, то же дерево Subscript, что и «икс индекс
+   два»). Вызывается из parse_atom: L553 для SYM (индекс разрешён), L554 для
+   WEAK_SYM (индекс запрещён, allow_implicit_subscript = false, L511 и L520).
+   Это правило стоит в parse_atom, а не в postfix_op: слабая буква и обычная —
+   оба Math::Symbol после parse_atom, и postfix_op их различить не мог бы *)
+symbol_atom = SYM [ application | NUM ] | WEAK_SYM [ application ] ;
+
+(* math.rs:parse_application:L836 *)
+application = FROM argument_list ;
+
+(* math.rs:parse_arguments:L850 — не больше MAX_FUNCTION_ARGS = 8 (L106, L853) *)
+argument_list = mul_expr { COMMA mul_expr } ;
+
+(* math.rs:parse_unit_expr:L1030 — после «на» без единицы токен DIV всё
+   равно съеден (L1047), а единица не добавлена *)
+unit_expr = unit_factor { DIV unit_factor } [ DIV ] ;
+
+(* math.rs:parse_unit_expr:L1033 *)
+unit_factor = UNIT [ SQUARED | CUBED ] ;
+
+
+(* ---------------------------------------------------------------------
+   СИНТАКСИС: конструкции с границами и без них
+   --------------------------------------------------------------------- *)
+
+(* math.rs:parse_fraction:L705 — «числитель» необязателен, «знаменатель»
+   обязателен, «конец дроби» необязателен *)
+fraction_tail = [ NUMER ] add_expr DENOM add_expr [ FRAC_END ] ;
+
+(* math.rs:parse_atom:L627 — две привязки корня без «конец корня»
+   (enum RootBinding, L198). NextAtom — первый проход, RestOfTerm — второй
+   (reparse_with, L154). Грамматика записана как ОБЪЕДИНЕНИЕ двух проходов:
+   в одном проходе выбор между альтернативами определён параметром, а не
+   входом *)
+root_body = postfix | add_expr ;
+
+(* math.rs:parse_nary:L722 — тело берётся только если следующий токен
+   начинает операнд; оно разбирается как mul_body, то есть без знака впереди *)
+nary_tail = [ FROM eq_expr ] [ TO postfix ] [ mul_body ] ;
+
+(* math.rs:parse_integral:L784 — с границами «от … до …» либо без них. Если
+   после «от» и первого postfix нет «до», разбор ОТКАТЫВАЕТСЯ (L797): «от»
+   остаётся съеденным, постфикс разбирается заново как подынтегральное *)
+integral_tail =
+      ( FROM postfix TO postfix | [ FROM ] )
+      [ mul_body ] [ differential ] [ INT_END ] ;
+
+(* math.rs:parse_integral:L809 — дифференциал: буква d (SYM) и после неё
+   начало операнда, либо слово «по» *)
+differential = SYM postfix | BY postfix ;
+
+(* math.rs:parse_derivative:L871 — порядок до слова «производная» (ORDINAL в
+   prefix_atom) и после него («третьего порядка») обязан совпадать. Две
+   лексемы вперёд: L879 *)
+derivative_tail =
+      [ ORDINAL ORDER_KW ] [ FROM ] [ FUNC_FILLER ]
+      mul_body deriv_var { deriv_var } ;
+
+(* math.rs:parse_derivative:L903 — переменная дифференцирования; перед ней
+   проверяется starts_atom (L908) *)
+deriv_var = ( BY | AND_BY ) juxt_item ;
+
+(* math.rs:parse_limit:L936 — тело до «при» либо после точки стремления *)
+limit_tail =
+      [ direction ] [ FUNC_FILLER ] [ FROM ]
+      ( mul_body approach [ direction ]
+      | approach [ direction ] mul_body ) ;
+
+(* math.rs:parse_limit:L955 *)
+approach = LIMIT_VAR juxt_item TENDS limit_target ;
+
+(* math.rs:parse_limit_target:L1016 *)
+limit_target = MINUS limit_target | [ PLUS ] juxt_item ;
+
+(* math.rs:eat_direction:L1000 *)
+direction = LIMIT_LEFT | LIMIT_RIGHT ;
+
+(* math.rs:parse_mul:L290 — тело конструкции: parse_mul, вызванный после
+   проверки starts_atom, поэтому первый операнд не может начинаться ни со
+   знака, ни с prefix_atom: это juxt, у которого первый элемент — juxt_item *)
+mul_body = juxt_item { juxt_item } { mul_op unary_expr } ;
+
+(* math.rs:atom_token_is_supported:L403 — защитный предикат starts_atom: не
+   часть грамматики, а множество токенов, которое проверяют циклы и тела.
+   Правило недостижимо из math_input намеренно; тест сверяет его с кодом *)
+guard_starts_atom =
+      NUM | SYM | WEAK_SYM | UNIT | L_PAREN | L_BRACK | L_BRACE | FRAC_START
+    | ROOT | ROOT_START | SUM | PRODUCT | INTEGRAL | FACT | ABS_KW | FUNCTION
+    | VECTOR_KW | DELTA | INF | ELLIPSIS | POW_START | DERIVATIVE | LIMIT ;
+
+
+(* ---------------------------------------------------------------------
+   ЛЕКСИКА: классы токенов, не берущиеся из operators.yaml
+   --------------------------------------------------------------------- *)
+
+(* numbers.rs:consume_number:L106 — число словами («тридцать два»),
+   школьная десятичная («девять целых восемьдесят одна» = 9,81) или арабское;
+   слова — data/domains/common/spoken_numbers.yaml. Токенизатор пробует
+   число раньше символа (tokenize L1158), поэтому слово-число никогда не
+   буква *)
+NUM = ? число ? ;
+
+(* numbers.rs:ordinal:L53 — «вторая», «третьего»; раздел ordinals в spoken_numbers.yaml.
+   Порядковое слово смыслово годится только как порядок производной; в
+   любом другом месте парсер его отвергает (tokenize L1149) *)
+ORDINAL = ? порядковое числительное ? ;
+
+(* math.rs:consume_symbol:L1347 — слово-название буквы, за которым идут
+   модификаторы алфавита и регистра. Греческие названия: common/greek.yaml;
+   латинские и кириллические: common/symbols.yaml. Это токен Sym *)
+SYM = ? название буквы { модификатор } ? ;
+
+(* math.rs:tokenize:L1167 — та же буква, но сказанная голым служебным
+   словом из FUNCTION_WORD_LETTERS (chemistry.rs:FUNCTION_WORD_LETTERS:L706)
+   и без модификатора. Это токен WeakSym *)
+WEAK_SYM = "а" | "б" | "в" | "ж" | "же" | "и" | "к" | "о" | "с" | "у" | "я" ;
+
+(* helper: math.rs:consume_symbol:L1357 — модификаторы, пока они идут подряд *)
+SYM_MODIFIER =
+      "латинская" | "латинский" | "латинское"
+    | "греческая" | "греческий" | "греческое"
+    | "русская" | "русский" | "русское" | "кириллическая"
+    | "большое" | "большая" | "большой" | "заглавная" | "заглавный"
+    | "малое" | "малая" | "малый" | "строчная" | "строчный" ;
+
+(* math.rs:tokenize:L1178 — единица измерения; только в физике. Словарь:
+   data/domains/physics/units.yaml, поиск самой длинной формы
+   (lexicon.rs:longest_unit:L377) *)
+UNIT = ? единица измерения (только Physics) ? ;
+
+(* emits: DEGREE NUM; math.rs:tokenize:L1120 — «во второй степени» даёт два токена.
+   Здесь записано одним терминалом, потому что порядковое слово после
+   «в» и до «степени» здесь не бывает ничем иным *)
+DEGREE_ORDINAL = ( "в" | "во" ) ? порядковое числительное ? "степени" ;
+
+
+(* ---------------------------------------------------------------------
+   ЛЕКСИКА: токены из data/domains/mathematics/operators.yaml.
+   Таблица «ключ yaml → токен» — math.rs:operator_tokens (L1274). Самая
+   длинная фраза побеждает (load_operator_patterns, L1251).
+   --------------------------------------------------------------------- *)
+
+(* operators.yaml:binary.plus math.rs:operator_tokens:L1276 math.rs:match_keyword:L1193 *)
+PLUS =
+      "плюс" | "+" ;
+
+(* operators.yaml:binary.minus operators.yaml:unary.minus math.rs:operator_tokens:L1277 math.rs:match_keyword:L1193 *)
+MINUS =
+      "минус" | "-" ;
+
+(* operators.yaml:binary.times math.rs:operator_tokens:L1278 math.rs:match_keyword:L1193 *)
+TIMES =
+      "умножить" | "умножить на" | "умноженное на" | "умноженная на" | "умноженный на" | "умноженные на"
+    | "умножения" | "*" | "·" ;
+
+(* operators.yaml:binary.divide operators.yaml:delimiters.over math.rs:operator_tokens:L1279 math.rs:match_keyword:L1193 *)
+DIV =
+      "разделить" | "разделить на" | "поделить" | "поделить на" | "делить на" | "деленное на"
+    | "делённое на" | "деленного на" | "делённого на" | "деленной на" | "делённой на" | "делить"
+    | "на" | "/" ;
+
+(* operators.yaml:binary.equal math.rs:operator_tokens:L1280 math.rs:match_keyword:L1193 *)
+EQ =
+      "равно" | "равен" | "равна" | "равняется" | "=" ;
+
+(* operators.yaml:binary.not_equal math.rs:operator_tokens:L1281 *)
+NE =
+      "не равно" ;
+
+(* operators.yaml:binary.lt math.rs:operator_tokens:L1282 *)
+LT =
+      "меньше" ;
+
+(* operators.yaml:binary.gt math.rs:operator_tokens:L1283 *)
+GT =
+      "больше" ;
+
+(* operators.yaml:binary.le math.rs:operator_tokens:L1284 *)
+LE =
+      "меньше или равно" | "не больше" ;
+
+(* operators.yaml:binary.ge math.rs:operator_tokens:L1285 *)
+GE =
+      "больше или равно" | "не меньше" ;
+
+(* operators.yaml:binary.plus_minus math.rs:operator_tokens:L1286 *)
+PLUS_MINUS =
+      "плюс-минус" | "плюс минус" ;
+
+(* operators.yaml:unary.abs math.rs:operator_tokens:L1287 *)
+ABS_KW =
+      "модуль" ;
+
+(* operators.yaml:unary.factorial math.rs:operator_tokens:L1288 *)
+FACT =
+      "факториал" ;
+
+(* operators.yaml:unary.sin operators.yaml:unary.cos operators.yaml:unary.tan operators.yaml:unary.cot operators.yaml:unary.ln operators.yaml:unary.log operators.yaml:unary.exp math.rs:operator_tokens:L1289 *)
+FUNCTION =
+      "синус от" | "синуса от" | "синус" | "синуса" | "sin" | "косинус от"
+    | "косинуса от" | "косинус" | "косинуса" | "cos" | "тангенс от" | "тангенса от"
+    | "тангенс" | "тангенса" | "tg" | "котангенс от" | "котангенса от" | "котангенс"
+    | "котангенса" | "ctg" | "натуральный логарифм от" | "натуральный логарифм" | "эл эн от" | "эл эн"
+    | "ln" | "логарифм от" | "логарифма от" | "логарифм" | "логарифма" | "log"
+    | "экспонента от" | "экспоненту от" | "экспоненты от" | "экспоненциальная функция от" | "exp" ;
+
+(* operators.yaml:postfix_power.squared math.rs:operator_tokens:L1296 *)
+SQUARED =
+      "возвести в квадрат" | "в квадрате" | "в квадрат" | "квадрате" ;
+
+(* operators.yaml:postfix_power.cubed math.rs:operator_tokens:L1297 *)
+CUBED =
+      "возвести в куб" | "в кубе" | "в куб" | "кубе" ;
+
+(* operators.yaml:postfix_power.degree math.rs:operator_tokens:L1298 *)
+DEGREE =
+      "в степени" ;
+
+(* emits: DEGREE NUM; operators.yaml:postfix_power.inverse math.rs:operator_tokens:L1299 *)
+DEGREE_INVERSE =
+      "в минус первой" | "в минус первую" ;
+
+(* operators.yaml:delimiters.fraction_start math.rs:operator_tokens:L1300 *)
+FRAC_START =
+      "начало дроби" | "дробь" ;
+
+(* operators.yaml:delimiters.numerator math.rs:operator_tokens:L1301 *)
+NUMER =
+      "в числителе" | "числитель" ;
+
+(* operators.yaml:delimiters.denominator math.rs:operator_tokens:L1302 *)
+DENOM =
+      "в знаменателе" | "знаменатель" ;
+
+(* operators.yaml:delimiters.fraction_end math.rs:operator_tokens:L1303 *)
+FRAC_END =
+      "конец дроби" ;
+
+(* operators.yaml:delimiters.power_start math.rs:operator_tokens:L1304 *)
+POW_START =
+      "начало степени" ;
+
+(* operators.yaml:delimiters.power_end math.rs:operator_tokens:L1305 *)
+POW_END =
+      "конец степени" ;
+
+(* operators.yaml:delimiters.paren_open math.rs:operator_tokens:L1306 *)
+L_PAREN =
+      "открыть скобку" | "открывается скобка" | "скобка открыть" ;
+
+(* operators.yaml:delimiters.paren_close math.rs:operator_tokens:L1307 *)
+R_PAREN =
+      "закрыть скобку" | "закрывается скобка" | "скобка закрыть" | "конец скобки" ;
+
+(* operators.yaml:delimiters.bracket_open math.rs:operator_tokens:L1308 *)
+L_BRACK =
+      "открыть квадратную скобку" ;
+
+(* operators.yaml:delimiters.bracket_close math.rs:operator_tokens:L1309 *)
+R_BRACK =
+      "закрыть квадратную скобку" ;
+
+(* operators.yaml:delimiters.brace_open math.rs:operator_tokens:L1310 *)
+L_BRACE =
+      "открыть фигурную скобку" ;
+
+(* operators.yaml:delimiters.brace_close math.rs:operator_tokens:L1311 *)
+R_BRACE =
+      "закрыть фигурную скобку" ;
+
+(* operators.yaml:delimiters.root_start math.rs:operator_tokens:L1312 *)
+ROOT_START =
+      "начало корня" ;
+
+(* operators.yaml:delimiters.root_end math.rs:operator_tokens:L1313 *)
+ROOT_END =
+      "конец корня" ;
+
+(* operators.yaml:delimiters.root math.rs:operator_tokens:L1314 *)
+ROOT =
+      "корень из" | "корень" ;
+
+(* operators.yaml:delimiters.sum math.rs:operator_tokens:L1315 *)
+SUM =
+      "сумма" ;
+
+(* operators.yaml:delimiters.product math.rs:operator_tokens:L1316 *)
+PRODUCT =
+      "произведение" ;
+
+(* operators.yaml:delimiters.integral math.rs:operator_tokens:L1317 *)
+INTEGRAL =
+      "интеграл" ;
+
+(* operators.yaml:delimiters.from math.rs:operator_tokens:L1318 *)
+FROM =
+      "от" ;
+
+(* operators.yaml:delimiters.to math.rs:operator_tokens:L1319 *)
+TO =
+      "до" ;
+
+(* operators.yaml:delimiters.of_var math.rs:operator_tokens:L1320 *)
+BY =
+      "по" | "под" ;
+
+(* operators.yaml:delimiters.sum_end math.rs:operator_tokens:L1321 *)
+SUM_END =
+      "конец суммы" ;
+
+(* operators.yaml:delimiters.product_end math.rs:operator_tokens:L1322 *)
+PROD_END =
+      "конец произведения" ;
+
+(* operators.yaml:delimiters.integral_end math.rs:operator_tokens:L1323 *)
+INT_END =
+      "конец интеграла" ;
+
+(* operators.yaml:delimiters.subscript math.rs:operator_tokens:L1324 *)
+SUB_KW =
+      "индекс" | "нижний индекс" ;
+
+(* operators.yaml:delimiters.vector math.rs:operator_tokens:L1325 *)
+VECTOR_KW =
+      "вектор" ;
+
+(* operators.yaml:delimiters.infinity math.rs:operator_tokens:L1326 *)
+INF =
+      "бесконечность" | "бесконечности" ;
+
+(* operators.yaml:delimiters.ellipsis math.rs:operator_tokens:L1327 *)
+ELLIPSIS =
+      "многоточие" ;
+
+(* operators.yaml:delimiters.delta math.rs:operator_tokens:L1328 *)
+DELTA =
+      "дельта" ;
+
+(* operators.yaml:delimiters.comma math.rs:operator_tokens:L1329 math.rs:match_keyword:L1193 *)
+COMMA =
+      "запятая" | "," ;
+
+(* operators.yaml:delimiters.derivative math.rs:operator_tokens:L1331 *)
+DERIVATIVE =
+      "производная" | "производную" | "производной" | "производные" | "производных" ;
+
+(* operators.yaml:delimiters.partial math.rs:operator_tokens:L1332 *)
+PARTIAL =
+      "частная" | "частную" | "частной" | "частные" | "частных" ;
+
+(* operators.yaml:delimiters.order math.rs:operator_tokens:L1333 *)
+ORDER_KW =
+      "порядка" | "порядке" | "порядок" ;
+
+(* operators.yaml:delimiters.and_by math.rs:operator_tokens:L1334 *)
+AND_BY =
+      "и по" ;
+
+(* operators.yaml:delimiters.limit math.rs:operator_tokens:L1335 *)
+LIMIT =
+      "предел" | "предела" | "пределу" | "пределы" ;
+
+(* operators.yaml:delimiters.limit_left math.rs:operator_tokens:L1336 *)
+LIMIT_LEFT =
+      "слева" | "левый" | "левосторонний" ;
+
+(* operators.yaml:delimiters.limit_right math.rs:operator_tokens:L1337 *)
+LIMIT_RIGHT =
+      "справа" | "правый" | "правосторонний" ;
+
+(* operators.yaml:delimiters.limit_var math.rs:operator_tokens:L1338 *)
+LIMIT_VAR =
+      "при" ;
+
+(* operators.yaml:delimiters.tends_to math.rs:operator_tokens:L1339 *)
+TENDS =
+      "стремящемся к" | "стремящейся к" | "стремящемуся к" | "стремящегося к" | "стремящихся к" | "стремится к"
+    | "стремятся к" | "стремящемся" | "стремящейся" | "стремящемуся" | "стремящегося" ;
+
+(* operators.yaml:delimiters.function_filler math.rs:operator_tokens:L1340 *)
+FUNC_FILLER =
+      "функции" | "функция" | "функцию" ;
+
+(* emits: EQ NUM; operators.yaml:special.zero_eq math.rs:operator_tokens:L1341 *)
+EQ_ZERO =
+      "равно нулю" ;
+
+
+
+(* =====================================================================
+   СЕМАНТИЧЕСКИЕ ОГРАНИЧЕНИЯ — то, чего КС-грамматика выше не выражает.
+   Каждый пункт сверен с кодом; строки — в этой копии math.rs, если не
+   сказано иное. Проверенные запуском примеры — в ANALYSIS_RU.md.
+   =====================================================================
+
+   С1. Запятая. skip_commas (L238) съедает запятые только в начале parse_eq,
+       parse_add, parse_mul (их циклы, L248 L272 L293), parse_unary (L311),
+       parse_atom (L537), parse_derivative (L904), parse_limit (L949, L970,
+       L987) и после разбора в parse_math (L123). Цикл juxt и цикл postfix
+       запятых НЕ пропускают, поэтому запятая между двумя операндами рвёт
+       неявное умножение: «икс запятая игрек» — не x y, а ошибка. Флаг
+       stop_at_comma (L178) выключает пропуск на время разбора аргументов
+       функции (parse_application, L841) и остаётся выключенным во всех
+       вложенных конструкциях аргумента. Максимум аргументов —
+       MAX_FUNCTION_ARGS = 8 (L106, проверка L853).
+
+   С2. Склейка слабой буквы (WEAK_SYM). parse_juxt (L322) и
+       may_join_juxtaposition (L371): слабая буква НЕ продолжает неявное
+       произведение, если за ней стоит ещё один операнд (L376); если операнда
+       за ней нет, она склеивается только после числа или после голой буквы
+       (L375). Слабая буква, с которой операнд НАЧИНАЕТСЯ, склеиваться не
+       обязана (первый элемент). Слабая буква первой плюс число сразу за ней:
+       число не склеивается (weak_first, L328 и L332-L334). Это условие на
+       значения уже разобранных операндов, КС-грамматикой оно не записывается.
+
+   С3. Предикат starts_atom (L379) и atom_token_is_supported (L403) —
+       правило guard_starts_atom. Он расходится с тем, что принимает
+       parse_atom: пропускает UNIT и POW_START, хотя parse_atom их как
+       начало операнда отвергает (L694-L697), и НЕ пропускает FUNC_FILLER,
+       PARTIAL, ORDINAL, LIMIT_LEFT и LIMIT_RIGHT, хотя parse_atom их
+       принимает (L547, L648, L657, L673, L682) — это сделано нарочно (L428-
+       L431). Поэтому тела конструкций записаны через juxt_item, а не atom.
+
+   С4. Дифференциал. stop_at_differential (L175) включается на время
+       подынтегрального выражения (L800) и выключается (L803, L806) — не
+       восстанавливается к прежнему значению, как stop_at_comma. В
+       вложенном интеграле внутренний выключает флаг для внешнего. Буква d
+       считается дифференциалом, только если это Sym (не WeakSym), латинская
+       d или D и за ней стоит начало операнда (is_differential_here, L386).
+
+   С5. DELTA (L557-L576). Если за ней число — это просто δ (с предупреждением,
+       L558-L564); если за ней не начало операнда — тоже δ (L565-L567);
+       иначе аргумент разбирается как postfix, и латинская одиночная буква
+       поднимается до заглавной (L569-L574).
+
+   С6. Корень без «конец корня» (L627-L646). Привязка выбирается полем
+       RootBinding (L198): NextAtom — postfix, RestOfTerm — add_expr. Первый
+       проход всегда NextAtom. Поле saw_open_root выставляется ТОЛЬКО если
+       сразу после радиканда стоит PLUS или MINUS (L635-L636); второй проход
+       reparse_with (L154) запускается только в этом случае (L136-L142).
+       Для «корень из два икс» или «корень из икс на два» второго прочтения
+       не предлагается, хотя оно отличается.
+
+   С7. Интеграл с границами (L787-L799). Перед разбором первого postfix
+       позиция запоминается (L788), и если «до» не следует, позиция
+       возвращается (L797): откат без разбора заново дерева, но
+       предупреждения, добавленные при пробном разборе, не откатываются —
+       они остаются в списке и повторяются при повторном разборе.
+
+   С8. Производная (L871-L927). Порядок до слова «производная» (ORDINAL
+       в prefix_atom) и после него («третьего порядка», пара ORDINAL ORDER_KW,
+       смотрится на две лексемы вперёд, L879) обязан совпадать (L884).
+       Число переменных не больше MAX_DERIVATIVE_ORDER = 16 (ast.rs:341, проверка
+       L915). Распределение порядка по переменным — distribute_order (L1080):
+       одна переменная берёт весь порядок; несколько допускаются, только если
+       порядок равен их числу; ноль и порядок выше предела отвергаются.
+
+   С9. Предел (L936-L998). Направление, сказанное до и после, обязано
+       совпадать (L939, L979). Тело ровно одно: до «при» либо после точки
+       стремления, но не оба (L950-L954, L988-L996); если тела нет — ошибка
+       (L991). Конструктор Math::limit лежит в ast.rs.
+
+   С10. Закрывающие слова. Отсутствие закрывающего слова не всегда ошибка
+        и не всегда предупреждение: скобка () даёт предупреждение
+        (L592-L594), [] и {} — тихо (L602, L610), степень — предупреждение
+        (L471-L474), корень — предупреждение (L619-L621), дробь, сумма,
+        произведение, интеграл — тихо (L715, L764, L773, L817). Предупреждение
+        снижает confidence с 0.95 до 0.7 (interpret.rs:interpret, L82).
+
+   С11. Единицы (L1030-L1060). Токен UNIT выдаёт токенизатор только в режиме
+        Physics (L1178-L1183). Слово «в» между двумя единицами становится
+        делением (L1140-L1148). После «на» без единицы токен DIV всё равно
+        съеден (L1047), единица не добавлена.
+
+   С12. Порядок работы токенизатора (L1111-L1191): запятая; «в|во <порядковое>
+        степени»; ключевая фраза из operators.yaml, самая длинная первой
+        (match_keyword L1193, сортировка load_operator_patterns L1251); в
+        физике «в» между единицами; порядковое числительное; число; название
+        буквы; в физике единица. Неизвестное слово — ошибка всего разбора
+        (L1185-L1188). Пересечения классов слов разрешены этим порядком,
+        перечень пересечений — в ANALYSIS_RU.md.
+
+   С13. Физика и математика — один разбор. Режим MathMode::Physics (L90) лишь
+        включает единицы (L1178), деление через «в» (L1140) и заглавные f и e
+        по умолчанию (L1416, L1426). Какой из режимов выбран при автоопределении,
+        решает interpret.rs:route (L271); см. ниже.
+
+   С14. Глубина. Каждое вложенное подвыражение входит через nested
+        (math.rs:nested:L241): скобки, дробь, корень, функция, степень
+        («начало степени»), модуль, сумма, произведение, интеграл, предел,
+        производная, ведущий минус. Верхний parse_eq уровнем не считается.
+        Предел — MAX_PARSE_DEPTH = 64 (L114), меньше MAX_MATH_DEPTH = 128
+        в validate.rs. Выше предела — обычная ошибка разбора, без паники,
+        фраза остаётся словами. reparse_with начинает счёт заново.
+        Длина входа по-прежнему ограничена выше, в utterance.rs
+        (MAX_UTTERANCE_WORDS = 400, MAX_SPAN_WORDS = 64), и сама по себе
+        не защищает прямые вызовы parse_math и interpret.
+
+   Что делает код и чего грамматика описать не может:
+
+   * Повторный разбор (reparse_with, L154). Для открытого корня parse_math
+     (L108) разбирает те же токены второй раз с другой привязкой и
+     предлагает второй результат как альтернативу (L136-L142).
+   * Выбор домена (interpret.rs:interpret, L23, и route, L271). В режиме Auto
+     пробуются Chemistry, Mathematics, Physics; побеждает тот, что вообще
+     разобрался; если разобралось несколько и результаты различаются,
+     решает сумма ключевых слов (collect_evidence, L160). Затем для
+     выбранной математики или физики parse_math вызывается ещё раз ради
+     предупреждений и альтернатив (L63-L79).
+   * Режим MixedText и деление на промежутки (utterance.rs): грамматика
+     применяется к промежуткам, а не ко всей фразе; поэтому на уровне
+     compile отказ разбора может выглядеть как «часть фразы стала формулой,
+     часть осталась словами».
+
+   С15. Индекс буквы (symbol_atom, parse_symbol_atom L511). Целое число сразу
+        после SYM становится нижним индексом (Math::Subscript с Math::Number,
+        L527-L530), то же дерево, что у «икс индекс два» (postfix_op, SUB_KW).
+        Условия, которых грамматика не выражает: (а) токен NUM — голое целое,
+        is_bare_integer (L1064): школьная десятичная («икс два целых пять»,
+        токен «2,5») индексом не становится и остаётся множителем
+        juxt (L523-L531); (б) WEAK_SYM индекс не берёт (L554: параметр false):
+        «а два», «и два» — по-прежнему не произведение и не индекс; (в)
+        сначала проверяется FROM (применение функции, L517-L519), и только
+        потом число; (г) индекс берёт одно число: «икс два три» — индекс два и
+        множитель три. Правило записано в parse_atom, а не в postfix_op,
+        потому что после parse_atom SYM и WEAK_SYM — один и тот же
+        Math::Symbol. Новый конфликт `symbol_atom~O1` на токене NUM: число
+        после буквы — индекс или следующий множитель juxt; код берёт индекс
+        жадно. Старое правило weak_first (L328-L336, С2) осталось и по-прежнему
+        нужно: оно обрывает склейку, а не создаёт индекс.
+   ===================================================================== *)

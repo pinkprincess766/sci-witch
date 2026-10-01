@@ -1,0 +1,9 @@
+# Pinned compiler for local builds and CI. `u32::is_multiple_of` in
+# `crates/sciwhisper-core/src/numbers.rs` needs rustc 1.87 or newer;
+# 1.98.0 is the compiler this tree is developed and tested against.
+# Lowering `[workspace.package] rust-version` requires a clean build
+# on that older compiler, not just a guess.
+[toolchain]
+channel = "1.98.0"
+components = ["rustfmt", "clippy"]
+profile = "minimal"

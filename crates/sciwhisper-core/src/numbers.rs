@@ -13,6 +13,7 @@ pub struct NumberLex {
     words: HashMap<String, u32>,
     ordinals: HashMap<String, u32>,
     decimal_markers: HashSet<String>,
+    scale_markers: HashSet<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -29,6 +30,8 @@ struct NumberLexYaml {
 #[derive(Debug, Deserialize)]
 struct NumberMarkersYaml {
     decimal: Vec<String>,
+    #[serde(default)]
+    scale: Vec<String>,
 }
 
 impl Default for NumberLex {
@@ -49,6 +52,20 @@ impl NumberLex {
 
     pub fn ordinal(&self, w: &str) -> Option<u32> {
         self.ordinals.get(w).copied()
+    }
+
+    /// Whether the word at `i` multiplies the number before it by something
+    /// this lexicon cannot represent.
+    ///
+    /// [`Self::consume_int`] only adds, so it reads «девятьсот девяносто
+    /// девять тысяч» as `999` and leaves «тысяч» behind. Wherever that
+    /// number becomes chemistry, the difference between 999 and 999 000 is
+    /// the difference between a formula and a wrong formula, so the caller
+    /// has to refuse instead of taking the part it understood.
+    pub fn starts_unsupported_scale(&self, words: &[String], i: usize) -> bool {
+        words
+            .get(i)
+            .is_some_and(|word| self.scale_markers.contains(word))
     }
 
     /// Consume a (possibly multi-word) integer starting at `i`.
@@ -132,10 +149,17 @@ fn load_builtin() -> NumberLex {
         .into_iter()
         .map(|name| crate::normalize::normalize_word(&name))
         .collect();
+    let scale_markers = parsed
+        .markers
+        .scale
+        .into_iter()
+        .map(|name| crate::normalize::normalize_word(&name))
+        .collect();
     NumberLex {
         words,
         ordinals,
         decimal_markers,
+        scale_markers,
     }
 }
 

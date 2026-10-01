@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "product": "sci-witch",
+  "platform": "windows-x64",
+  "comment": "Single source of truth for what a shipped Windows bundle must contain. The release workflow verifies the built ZIP against this list, and a Rust test verifies that the same list describes a bundle the application accepts.",
+  "required_files": [
+    "sciwhisper.exe",
+    "sciwhisper-updater.exe",
+    "whisper/whisper-cli.exe",
+    "SciWhisper.cmd",
+    "SciWhisper-Test.cmd",
+    "SciWhisper-Settings.cmd",
+    "README-WINDOWS.txt",
+    "LICENSE",
+    "NOTICE",
+    "DATA_LICENSE.md",
+    "docs/user/TESTING_RU.md",
+    "docs/user/PRIVACY_RU.md",
+    "docs/user/KNOWN_LIMITATIONS_RU.md",
+    "docs/user/WINDOWS_ACCEPTANCE_RU.md"
+  ],
+  "required_dirs": [
+    "whisper",
+    "docs/user"
+  ],
+  "model_pack_files": [
+    "whisper/MODEL_MANIFEST.json"
+  ],
+  "notes": [
+    "README-WINDOWS.txt is also the marker the application uses to recognise a packaged bundle; without it a missing backend would be treated as a developer machine instead of a packaging fault.",
+    "The model itself ships as a separate model pack asset and is unpacked into whisper/. The main archive is therefore usable for a self-test before the model is downloaded.",
+    "sciwhisper-updater.exe replaces the installation after the application exits. Windows cannot rename the directory holding a running executable, so without this helper an update can be downloaded and verified and then never installed."
+  ]
+}

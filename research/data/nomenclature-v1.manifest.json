@@ -1,0 +1,110 @@
+{
+  "asr": "none: this is a text-level corpus.",
+  "audio": "none",
+  "corpus_id": "nomenclature-v1",
+  "counts_by_action": {
+    "ast": 26,
+    "raw": 27
+  },
+  "counts_by_domain": {
+    "chemistry": 22,
+    "mathematics": 4,
+    "plain": 27
+  },
+  "counts_by_provenance": {
+    "handcrafted_text": 53
+  },
+  "counts_by_split": {
+    "train": 40,
+    "validation": 13
+  },
+  "counts_by_tag": {
+    "alkane": 4,
+    "alkene": 1,
+    "alkyne": 1,
+    "coordination_negative": 8,
+    "coordination_positive": 4,
+    "counterfactual_pair": 9,
+    "equation": 2,
+    "function_application": 3,
+    "half_reaction": 2,
+    "hydrates": 2,
+    "ion_charge": 2,
+    "ionic": 6,
+    "material_classes": 2,
+    "ordinary_prose_with_chemical_terms": 15,
+    "organic": 6,
+    "organic_negative": 4,
+    "oxidation_state_ambiguity": 2,
+    "raw": 27,
+    "subscript": 1
+  },
+  "created": "2026-09-28",
+  "dataset_schema_version": 1,
+  "families": 48,
+  "families_by_split": {
+    "dev_holdout": [],
+    "train": [
+      "coord-tetrahydroxozincate",
+      "hydrate-copper-sulfate-penta",
+      "hydrate-sodium-carbonate-deca",
+      "ion-chloride",
+      "ion-neutralisation",
+      "ion-prose-charge",
+      "ion-prose-electron",
+      "ion-prose-halfreaction",
+      "ion-silver",
+      "material-zinc-ferrite",
+      "math-apply-two-args",
+      "math-subscript-letter",
+      "neg-ferrite-barium",
+      "neg-ferrite-copper",
+      "neg-hexacyano-alone",
+      "neg-hydrate-alone",
+      "neg-multivalent-centre",
+      "neg-no-counter-ion",
+      "neg-unknown-center",
+      "neg-unknown-ligand",
+      "organic-decane",
+      "organic-neg-cyclohexane",
+      "organic-neg-isobutane",
+      "organic-neg-methene",
+      "organic-neg-methyne",
+      "organic-octane",
+      "organic-pentane",
+      "organic-prose-boiling",
+      "organic-prose-dean",
+      "organic-prose-isomers",
+      "oxidation-roman-three",
+      "prose-coordination-number",
+      "prose-copper-complex",
+      "prose-ferrite-unstable",
+      "prose-ferrites-discussed",
+      "prose-hexacyano-compound",
+      "prose-hydrate-formed",
+      "prose-iron-washed",
+      "prose-ligand-chosen",
+      "prose-oxidation-later"
+    ],
+    "validation": [
+      "coord-hexacyanoferrate",
+      "coord-tetraamminecopper",
+      "half-reaction-family",
+      "ion-precipitation",
+      "material-zinc-ferrite-adj",
+      "math-apply-family",
+      "organic-propane-family",
+      "oxidation-plus-three"
+    ]
+  },
+  "file": "nomenclature-v1.jsonl",
+  "gold_provenance": "Written directly as JSONL during Chemistry Interpretation v2 (commit 823d0d0 and earlier); there is no builder script. Gold was written by hand from the intended meaning, with the nomenclature sources listed in docs/development/CHEMISTRY_NOMENCLATURE_RU.md.",
+  "limitations": [
+    "Written by the author of the parser; it carries the author's blind spots.",
+    "Coordination compounds, material classes and hydrocarbons are covered only within the bounds documented in CHEMISTRY_NOMENCLATURE_RU.md."
+  ],
+  "manifest_note": "This manifest was added on 2026-09-28, after the corpus had been in use, so that the compiler benchmark can pin it by digest like every other corpus. The data file was not changed: the sha256 above is the digest of the file as it was committed.",
+  "manifest_schema_version": 1,
+  "records": 53,
+  "sha256": "a2e265d7c97a69858d662c4a99c9f1e9e31e89f61e0737a4c75303736a14e528"
+}

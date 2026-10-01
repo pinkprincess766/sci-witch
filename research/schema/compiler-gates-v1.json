@@ -1,0 +1,116 @@
+{
+  "gates_schema_version": 1,
+  "profile": "compiler-v1",
+  "comment": "Admission gates for the text compiler. The voice application keeps research/schema/release-gates-v1.json. The compiler is judged on a fixed benchmark of corpora pinned by SHA-256 and pooled into one sample; a single report is refused. A pass means the pooled hand-written benchmark contains no invented formula and no ill-formed insertion. It does not mean a population rate, and it does not mean the phrases were written by someone else. See docs/development/COMPILER_CONTRACT_RU.md.",
+  "principles": [
+    "The input is text. A gate that can only be answered with a microphone does not belong in this file.",
+    "The benchmark is part of the gate. The first version of this profile accepted any report with twenty hand-written rows, and twenty easy formulas with no ordinary speech at all passed every gate — including the ones about ordinary speech, which saw 0 of 0 and read the zero as a pass. The corpora are therefore named by digest here, and changing them is a reviewed edit to this file.",
+    "The benchmark is one sample. Reports are pooled — counts summed, proportions re-divided from summed parts, flags combined with AND — before any gate is judged, so a corpus of prose and a corpus of formulas answer the same question together instead of each failing half of it alone.",
+    "A safety gate needs something to be safe about. Each gate names the denominator it depends on and a floor for it. The floors stop a vacuous pass; they are not sample-size claims, and the report still carries the Wilson upper bound that a release quotes.",
+    "An unmet precondition is not a pass. A missing corpus, an unknown one, or one evaluated with another configuration blocks every gate rather than being skipped."
+  ],
+  "benchmark": {
+    "corpora": [
+      {
+        "corpus_id": "dev-seed-v3",
+        "sha256": "590f0c3d17d998dd6f2df32ee07c56f01a8a2866f68953f289883b553779c88d"
+      },
+      {
+        "corpus_id": "ambiguous-v2",
+        "sha256": "d10f8d5aa11e55abf787c8ca01b4df19c01cb929ed034fbc7559849fb74684bc"
+      },
+      {
+        "corpus_id": "nomenclature-v1",
+        "sha256": "a2e265d7c97a69858d662c4a99c9f1e9e31e89f61e0737a4c75303736a14e528"
+      },
+      {
+        "corpus_id": "prose-negatives-v1",
+        "sha256": "185155162b0750b3246872387e9fad1eb71984dde10bc7267635682a6298c451"
+      }
+    ],
+    "config": {
+      "domain_policy": "auto",
+      "auto_insert_threshold": 0.9,
+      "evaluated_split": "all"
+    }
+  },
+  "gates": [
+    {
+      "id": "split-hygiene",
+      "title": "Семейство не лежит в двух split",
+      "metric": "split_audit.clean",
+      "judge": "value",
+      "comparison": "is_true",
+      "requires": {},
+      "rationale": "A family in two splits turns the benchmark into a memory test. Pooled with AND, so one leaky corpus blocks. Family ids shared between corpora are checked by the test `benchmark_corpora_share_no_family` in sciwhisper-eval, because a report does not carry the ids."
+    },
+    {
+      "id": "no-s4-errors",
+      "title": "Ни одной ошибки класса S4",
+      "metric": "severity.count_by_severity.S4",
+      "judge": "value",
+      "comparison": "at_most",
+      "threshold": 0,
+      "requires": {
+        "provenance_at_least": {
+          "handcrafted_text": 20
+        },
+        "at_least": {
+          "metrics.false_scientific_rewrite_rate.denominator": 100
+        }
+      },
+      "rationale": "S4 is ordinary speech turned into a formula. One is a defect. The count is exact. Twenty hand-written records is only a floor against an empty file, not a sample-size claim."
+    },
+    {
+      "id": "no-false-rewrites-parser",
+      "title": "Разбор не превращает обычный текст в формулу",
+      "metric": "metrics.false_scientific_rewrite_rate.numerator",
+      "judge": "value",
+      "comparison": "at_most",
+      "threshold": 0,
+      "requires": {
+        "provenance_at_least": {
+          "handcrafted_text": 20
+        },
+        "at_least": {
+          "metrics.false_scientific_rewrite_rate.denominator": 100
+        }
+      },
+      "rationale": "The numerator is the number of ordinary utterances `interpret` rewrote. The rate and its upper bound stay in the report for the reader; admission asks whether any rewrite happened in this corpus."
+    },
+    {
+      "id": "no-false-rewrites-utterance",
+      "title": "Путь высказывания не превращает обычный текст в формулу",
+      "metric": "user_path.false_scientific_rewrite_rate.numerator",
+      "judge": "value",
+      "comparison": "at_most",
+      "threshold": 0,
+      "requires": {
+        "provenance_at_least": {
+          "handcrafted_text": 20
+        },
+        "at_least": {
+          "user_path.false_scientific_rewrite_rate.denominator": 100
+        }
+      },
+      "rationale": "`interpret_utterance` in MixedText is the compiler API a caller actually uses. It is gated separately from `interpret` so a change in one cannot hide inside the other."
+    },
+    {
+      "id": "inserted-ast-well-formed",
+      "title": "Каждое вставленное дерево структурно валидно",
+      "metric": "metrics.ast_validity",
+      "judge": "value",
+      "comparison": "at_least",
+      "threshold": 1,
+      "requires": {
+        "provenance_at_least": {
+          "handcrafted_text": 20
+        },
+        "at_least": {
+          "metrics.ast_validity.denominator": 100
+        }
+      },
+      "rationale": "Validity is a property of the trees that were emitted, pooled over the benchmark. Prose contributes nothing to it and dictated formulas carry it; the gate reads the pooled proportion, so neither can fail the other. Fewer than 100 insertions and the gate is not measurable rather than 100% by division by a small number. This is not a Wilson lower bound of 0.99: that bound answers a population question this benchmark cannot answer."
+    }
+  ]
+}

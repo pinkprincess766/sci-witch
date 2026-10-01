@@ -226,18 +226,22 @@ fn split_terms(s: &str) -> Result<Vec<Species>> {
         .collect()
 }
 
-pub fn gcd_i32(mut a: i32, mut b: i32) -> i32 {
-    a = a.abs();
-    b = b.abs();
-    while b != 0 {
-        let t = a % b;
-        a = b;
-        b = t;
-    }
-    a.max(1)
-}
-
-/// Build an ionic compound from cation/anion formulas and charges.
+/// Builds an ionic compound from cation/anion formulas and charges.
+///
+/// `None` when no compound follows from the inputs. Three ways that happens,
+/// and all three used to produce a formula anyway:
+///
+/// * **a zero charge** — «гидроксид железа ноль» gave `Fe`, an iron atom with
+///   the hydroxide silently deleted. A neutral "ion" forms no salt;
+/// * **two charges of the same sign** — «гидроксид железа 4294967295» wrapped
+///   to −1 against hydroxide's −1 and produced `FeOH`, which balances
+///   nothing;
+/// * **arithmetic that leaves the range of its type** — a count that
+///   overflowed used to drop the part it belonged to, leaving a formula that
+///   looked finished and was not.
+///
+/// A partial formula is worse than no formula: the caller can keep the
+/// spoken words, but it cannot know that half an answer is half.
 pub fn ionic_compound(
     cation: Formula,
     cat_charge: i32,
@@ -245,51 +249,93 @@ pub fn ionic_compound(
     an_charge: i32,
     anion_poly: bool,
     cation_poly: bool,
-) -> Formula {
-    let g = gcd_i32(cat_charge, an_charge);
-    let n_cat = (an_charge.abs() / g) as u32;
-    let n_an = (cat_charge.abs() / g) as u32;
+) -> Option<Formula> {
+    if cat_charge == 0 || an_charge == 0 {
+        return None;
+    }
+    // A salt needs the two parts to pull in opposite directions.
+    if (cat_charge > 0) == (an_charge > 0) {
+        return None;
+    }
+    // `unsigned_abs` rather than `abs`: `i32::MIN.abs()` panics, and an
+    // oxidation state read from a spoken number can reach it.
+    let divisor = u64::from(gcd_u32(cat_charge.unsigned_abs(), an_charge.unsigned_abs()));
+    let n_cat = u32::try_from(u64::from(an_charge.unsigned_abs()) / divisor).ok()?;
+    let n_an = u32::try_from(u64::from(cat_charge.unsigned_abs()) / divisor).ok()?;
+    if n_cat == 0 || n_an == 0 {
+        return None;
+    }
     let mut parts = Vec::new();
-    push_scaled(&mut parts, cation, n_cat, cation_poly);
-    push_scaled(&mut parts, anion, n_an, anion_poly);
-    Formula { parts }
+    push_scaled(&mut parts, cation, n_cat, cation_poly)?;
+    push_scaled(&mut parts, anion, n_an, anion_poly)?;
+    Some(Formula { parts })
 }
 
-fn push_scaled(out: &mut Vec<Part>, f: Formula, n: u32, poly: bool) {
+/// Appends `f` repeated `n` times.
+///
+/// `None` on overflow. It never appends a partially scaled part: either the
+/// whole repetition goes in or nothing does, so a caller that stops on
+/// `None` is left with no formula rather than a shortened one.
+fn push_scaled(out: &mut Vec<Part>, f: Formula, n: u32, poly: bool) -> Option<()> {
     if n == 0 {
-        return;
+        return None;
     }
     if poly && n > 1 {
         out.push(Part::Group { inner: f, count: n });
-        return;
+        return Some(());
     }
     if n == 1 {
         out.extend(f.parts);
-        return;
+        return Some(());
     }
     if f.parts.len() == 1 {
         match &f.parts[0] {
             Part::Atom { symbol, count } => {
                 out.push(Part::Atom {
                     symbol: symbol.clone(),
-                    count: count * n,
+                    count: count.checked_mul(n)?,
                 });
-                return;
+                return Some(());
             }
             Part::Group { inner, count } => {
                 out.push(Part::Group {
                     inner: inner.clone(),
-                    count: count * n,
+                    count: count.checked_mul(n)?,
                 });
-                return;
+                return Some(());
+            }
+            Part::Complex(complex) => {
+                let mut complex = complex.clone();
+                complex.count = complex.count.checked_mul(n)?;
+                out.push(Part::Complex(complex));
+                return Some(());
             }
             Part::Hydrate { count } => {
-                out.push(Part::Hydrate { count: count * n });
-                return;
+                out.push(Part::Hydrate {
+                    count: count.checked_mul(n)?,
+                });
+                return Some(());
             }
+            // An electron has no count of its own; repeating it is what the
+            // species coefficient is for, so scaling one here would be
+            // counting it twice.
+            Part::Electron => return None,
         }
     }
     out.push(Part::Group { inner: f, count: n });
+    Some(())
+}
+
+/// Greatest common divisor of two counts. Unsigned throughout, so there is
+/// no `i32::MIN` to trip over, and never zero: a zero divisor would be a
+/// division by zero one line later.
+pub fn gcd_u32(mut a: u32, mut b: u32) -> u32 {
+    while b != 0 {
+        let t = a % b;
+        a = b;
+        b = t;
+    }
+    a.max(1)
 }
 
 #[cfg(test)]

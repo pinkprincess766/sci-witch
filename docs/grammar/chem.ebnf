@@ -1,0 +1,369 @@
+(* =====================================================================
+   chem.ebnf — грамматика устной химической речи.
+
+   Описывает ТЕКУЩИЙ КОД: crates/sciwhisper-core/src/parser/chemistry.rs.
+   Нотация та же, что в math.ebnf (там она описана подробно).
+
+   Главное отличие от математики. Математический парсер — рекурсивный
+   спуск над токенами. Химический парсер работает над СЛОВАМИ и словарями:
+     1. фраза режется на куски по связкам (connective_at), условия
+        вырезаются заранее (strip_conditions);
+     2. каждый кусок читается как вещество (parse_species) ПО ПОРЯДКУ
+        попыток: первая подошедшая побеждает. Это упорядоченный выбор (как в
+        PEG), а не КС-выбор: если слово есть в двух словарях, побеждает не
+        «правильная» ветка, а та, что стоит раньше в parse_species_inner.
+   Поэтому терминалы здесь — КЛАССЫ СЛОВ, а не токены, и классы пересекаются
+   (слово «кислород» есть и среди веществ, и среди элементов). Грамматика
+   ниже верна как описание того, какие цепочки слов принимаются; порядок
+   попыток в ней записан комментариями и в ANALYSIS_RU.md.
+
+   Правила, которые КС-грамматикой не выразить (условия на букву-служебное
+   слово, ограничения MAX_ATOM_COUNT), — в конце файла.
+
+   Слои:
+     reaction     — разбиение по связкам (parse_reaction)
+     species      — одно вещество (parse_species_inner)
+     spelled      — формула, продиктованная по буквам (try_spelled)
+   ===================================================================== *)
+
+
+(* ---------------------------------------------------------------------
+   СИНТАКСИС: вход и реакция
+   --------------------------------------------------------------------- *)
+
+(* chemistry.rs:parse_chemistry:L15 — сначала ищется форма реакции; если она
+   найдена, любая сторона обязана читаться как вещество, иначе вся фраза
+   не разобрана; если формы нет — вся фраза читается как одно вещество *)
+chem_input = reaction | species ;
+
+(* chemistry.rs:parse_reaction:L62 — «между A и B протекает реакция с
+   образованием C»: открывающее слово, левая часть, существительное
+   «реакция», слово-стрелка, правая часть *)
+reaction = [ REACTION_OPEN ] side { REACTION_NOUN } ARROW_JOINT side ;
+
+(* chemistry.rs:parse_reaction:L150 — сторона реакции: вещества через связки
+   «плюс», «и», «реагирует с» *)
+side = species { side_joint species } ;
+
+(* chemistry.rs:parse_reaction:L154 — «и» допустима только рядом с группой,
+   уже читаемой как химия (L154-L165) *)
+side_joint = PLUS | CONJUNCTION | JOIN_REAGENT ;
+
+
+(* ---------------------------------------------------------------------
+   СИНТАКСИС: вещество
+   --------------------------------------------------------------------- *)
+
+(* chemistry.rs:parse_species_with_evidence:L291 — слово-гидрат в конце
+   отрывается первым (strip_hydrate, L1219) и приклеивается обратно *)
+species = species_head [ HYDRATE_WORD ] ;
+
+(* chemistry.rs:parse_species_inner:L326 — число впереди берётся как
+   коэффициент, только если после него остаются слова (used < words.len) и
+   оно больше нуля *)
+species_head = [ INTEGER ] species_core ;
+
+(* chemistry.rs:parse_species_inner:L344 — порядок попыток сверху вниз:
+   подстановка из словаря веществ (try_full_substance, L440), катионный
+   комплекс (L350), анионный комплекс (L355), электрон (L360), углеводород
+   (L365), класс материала (L370); после них отрывается маркер состояния и
+   идут ион (L388), систематическая соль (L393), формула по буквам (L398),
+   одиночный элемент (L403) *)
+species_core =
+      SUBSTANCE_NAME
+    | cationic_complex
+    | anionic_complex
+    | ELECTRON_NAME
+    | HYDROCARBON_WORD
+    | material_class
+    | marked_species ;
+
+(* chemistry.rs:try_coordination_cationic:L1074 — «ион тетрамминмеди два» *)
+cationic_complex = ION_LEAD_IN CATIONIC_COMPLEX_WORD [ oxidation ] ;
+
+(* chemistry.rs:try_coordination_anionic:L1000 — «гексацианоферрат три калия»:
+   слово-комплекс, степень окисления, противоион *)
+anionic_complex = ANIONIC_COMPLEX_WORD [ oxidation ] ELEMENT_BY_WORD ;
+
+(* chemistry.rs:try_material_class:L1140 — «феррит цинка», «цинковый феррит» *)
+material_class =
+      CLASS_WORD ELEMENT_BY_WORD
+    | CLASS_ADJECTIVE CLASS_WORD ;
+
+(* chemistry.rs:oxidation_at:L955 — явная фраза, римская цифра или число *)
+oxidation = [ OXIDATION_MARKER ] ( ROMAN | INTEGER ) ;
+
+(* chemistry.rs:parse_species_inner:L381 — маркер «газ» или «осадок» стоит в
+   конце и отрывается до разбора иона, систематической соли и формулы *)
+marked_species =
+      ( ion_species | systematic_salt | spelled_formula | ELEMENT_WORD )
+      [ STATE_MARKER ] ;
+
+(* chemistry.rs:try_ion:L449 — слова-маркеры «ион» отфильтровываются из ЛЮБОГО
+   места (L454-L461), поэтому здесь они стоят до и после тела; хотя бы один
+   обязателен. В конце — число (заряд) и знак *)
+ion_species = [ ION_MARKER ] ion_body [ ION_MARKER ] [ INTEGER ] [ ion_sign ] ;
+
+(* chemistry.rs:try_ion:L484 *)
+ion_body = ANION_CLASS | ELEMENT_WORD [ INTEGER ] ;
+
+(* chemistry.rs:try_ion:L463 — последний «плюс» или «минус» — знак заряда.
+   «плюс» — тот же токен, что связка между реагентами; какой из двух смыслов
+   выбран, решает plus_is_a_charge (L82) *)
+ion_sign = PLUS | CHARGE_MINUS ;
+
+(* chemistry.rs:try_systematic:L565 — «гидроксид меди два», «хлорид аммония» *)
+systematic_salt = ANION_CLASS ( ELEMENT_WORD [ oxidation ] | CATION_CLASS [ INTEGER ] ) ;
+
+
+(* ---------------------------------------------------------------------
+   СИНТАКСИС: формула по буквам
+   --------------------------------------------------------------------- *)
+
+(* chemistry.rs:try_spelled:L642 — «аш два эс о четыре» = H2SO4; хотя бы один
+   элемент обязателен *)
+spelled_formula = element_item { spelled_item } ;
+
+(* chemistry.rs:try_spelled:L652 — «дважды» группирует предыдущий радикал
+   (apply_times, L868) и потому первым словом формулы быть не может (L653-L655,
+   apply_times при пустых частях возвращает false) *)
+spelled_item = GROUPING | element_item ;
+
+(* chemistry.rs:try_spelled:L659 — у элемента необязателен индекс; ноль и
+   больше MAX_ATOM_COUNT отвергают всю формулу (L667) *)
+element_item = spelled_element [ INTEGER ] ;
+
+(* chemistry.rs:chemistry_element_at:L803 — сперва таблица пар из двух слов,
+   затем слово-элемент, затем название латинской буквы, затем служебное
+   слово-буква (оно допускается лишь в контексте, см. spelled_context, L747) *)
+spelled_element = element_pair | ELEMENT_WORD | LETTER_NAME | FUNCTION_LETTER ;
+
+(* chemistry.rs:chemistry_element_at:L811 — только пары из таблицы PAIR_TABLE *)
+element_pair = pair_word pair_word ;
+
+(* chemistry.rs:chemistry_element_at:L811 *)
+pair_word = LETTER_NAME | FUNCTION_LETTER ;
+
+
+(* ---------------------------------------------------------------------
+   ЛЕКСИКА: связки и маркеры из data/domains/chemistry/aliases.yaml
+   (читает lexicon.rs:load_chemistry_speech, L856). Самая длинная фраза
+   побеждает; одна фраза не может иметь два смысла.
+   --------------------------------------------------------------------- *)
+
+(* aliases.yaml:reaction.plus chemistry.rs:parse_reaction:L73 *)
+PLUS = "плюс" ;
+
+(* aliases.yaml:reaction.conjunction chemistry.rs:parse_reaction:L154 *)
+CONJUNCTION = "и" ;
+
+(* aliases.yaml:reaction.join_reagent chemistry.rs:parse_reaction:L166 *)
+JOIN_REAGENT =
+      "реагирует с" | "реагируют с" | "взаимодействует с" | "взаимодействуют с"
+    | "вступает в реакцию с" | "вступают в реакцию с" ;
+
+(* aliases.yaml:reaction.from_marker aliases.yaml:reaction.between_marker
+   chemistry.rs:parse_reaction:L167 *)
+REACTION_OPEN = "из" | "между" ;
+
+(* aliases.yaml:reaction.reaction_noun chemistry.rs:parse_reaction:L176 *)
+REACTION_NOUN =
+      "протекает реакция" | "протекают реакции" | "идёт реакция"
+    | "происходит реакция" | "идёт процесс" ;
+
+(* Слово-стрелка. Пять групп из aliases.yaml: forward, equilibrium,
+   product_marker, decompose, to_marker. Разница между ними — только в
+   реакции на «и» справа (decompose) и в типе стрелки (equilibrium).
+   aliases.yaml:reaction.forward aliases.yaml:reaction.equilibrium
+   aliases.yaml:reaction.product_marker aliases.yaml:reaction.decompose
+   aliases.yaml:reaction.to_marker chemistry.rs:parse_reaction:L177 *)
+ARROW_JOINT =
+      "превращается в" | "превращаются в" | "переходит в" | "переходят в"
+    | "окисляется до" | "окисляются до" | "восстанавливается до"
+    | "восстанавливаются до" | "разлагается до" | "превращается" | "превращаются"
+    | "образует" | "образуют" | "даёт" | "стрелка"
+    | "равновесная стрелка" | "обратимо" | "находится в равновесии с"
+    | "в равновесии с"
+    | "в результате образуется" | "в результате образуются"
+    | "в результате получается" | "при этом образуется" | "при этом образуются"
+    | "с образованием" | "с выделением" | "образуя"
+    | "разлагается на" | "разлагаются на" | "распадается на" | "распадаются на"
+    | "получается" | "получаются" | "получают" | "образуется" | "образуются" ;
+
+(* helper: условия «при нагревании», «на свету», «электролиз», «катализатор» в
+   любом месте фразы вырезаются заранее и записываются в поле condition.
+   aliases.yaml:conditions.heat aliases.yaml:conditions.light
+   aliases.yaml:conditions.electrolysis aliases.yaml:conditions.catalyst
+   chemistry.rs:strip_conditions:L263 *)
+CONDITION =
+      "при нагревании" | "при нагреве" | "если нагреть" | "если нагревать"
+    | "нагревание" | "нагреть" | "на свету" | "при освещении" | "электролиз"
+    | "при электролизе" | "катализатор" | "в присутствии катализатора" ;
+
+(* aliases.yaml:markers.gas aliases.yaml:markers.precipitate
+   chemistry.rs:strip_marker:L428 *)
+STATE_MARKER = "газ" | "в виде газа" | "осадок" | "выпадает в осадок" ;
+
+(* aliases.yaml:ion.markers chemistry.rs:try_ion:L451 *)
+ION_MARKER = "ион" | "иона" | "ионы" ;
+
+(* aliases.yaml:grouping.twice aliases.yaml:grouping.thrice
+   chemistry.rs:try_spelled:L652 *)
+GROUPING = "дважды" | "трижды" ;
+
+(* chemistry.rs:try_ion:L468 — «минус» как знак заряда; «плюс» — PLUS *)
+CHARGE_MINUS = "минус" ;
+
+
+(* ---------------------------------------------------------------------
+   ЛЕКСИКА: слова из словарей. Каждый класс — «слово есть в такой-то
+   таблице»; классы пересекаются, порядок решает parse_species_inner.
+   --------------------------------------------------------------------- *)
+
+(* numbers.rs:consume_int:L72 — целое словами или цифрами; максимум для
+   подстрочного индекса и коэффициента — MAX_ATOM_COUNT = 999
+   (chemistry.rs:parse_species_inner:L330) *)
+INTEGER = ? целое число ? ;
+
+(* lexicon.rs:longest_substance:L337 — имя из data/domains/chemistry/
+   substances.yaml, возможно из нескольких слов («углекислый газ»), в точной
+   форме или с точностью до окончания (same_russian_stem, L167); должно
+   покрыть ВСЕ слова куска *)
+SUBSTANCE_NAME = ? имя вещества из словаря ? ;
+
+(* coordination.yaml:electron_names coordination.rs:is_electron:L386 *)
+ELECTRON_NAME = "электрон" | "электрона" | "электроном" | "электронов" | "электроны" ;
+
+(* organic.rs:parse:L163 — одно слово «пентан», «пропен», «этин»: основа числа
+   атомов углерода и суффикс класса, organic.yaml. Формула следует
+   арифметически; «метин» — отказ *)
+HYDROCARBON_WORD = ? название углеводорода одним словом ? ;
+
+(* coordination.rs:hydrate:L396 — слово из числовой приставки и основы
+   «гидрат» («пентагидрат»); основы — раздел hydrate_stems файла coordination.yaml *)
+HYDRATE_WORD = ? приставка-число плюс «гидрат» одним словом ? ;
+
+(* coordination.yaml:ion_lead_ins coordination.rs:is_ion_lead_in:L391 *)
+ION_LEAD_IN = "ион" | "иона" | "ионом" ;
+
+(* coordination.rs:split_cationic:L468 — одно склеенное слово: приставка +
+   лиганд + металл в родительном падеже; таблицы — разделы ligands и
+   cationic_centers файла coordination.yaml *)
+CATIONIC_COMPLEX_WORD = ? приставка лиганд металл — одно слово ? ;
+
+(* coordination.rs:split:L433 — одно склеенное слово: приставка + лиганд +
+   латинская основа центра + «ат» («гексацианоферрат»); таблицы — разделы
+   ligands и anionic_centers файла coordination.yaml *)
+ANIONIC_COMPLEX_WORD = ? приставка лиганд основа-ат — одно слово ? ;
+
+(* coordination.rs:oxidation_marker:L420 — фразы из раздела oxidation_markers
+   файла coordination.yaml: «плюс», «минус», «римское», «римская», «в степени
+   окисления», «со степенью окисления», «степень окисления» *)
+OXIDATION_MARKER = ? фраза «степень окисления» ? ;
+
+(* coordination.rs:roman:L381 — римская цифра, выданная распознавателем
+   символами; раздел roman_numerals файла coordination.yaml *)
+ROMAN = ? римская цифра ? ;
+
+(* coordination.rs:class_of:L858 — слово класса материала («феррит») из
+   data/domains/chemistry/material-classes.yaml *)
+CLASS_WORD = ? слово класса материала ? ;
+
+(* coordination.rs:cation_of_adjective:L867 — «цинковый» *)
+CLASS_ADJECTIVE = ? прилагательное катиона ? ;
+
+(* lexicon.rs:anion:L325 — класс аниона («сульфат», «гидроксид»),
+   data/domains/chemistry/ions.yaml, role = anion *)
+ANION_CLASS = ? название аниона из ions.yaml ? ;
+
+(* lexicon.rs:anion:L325 — класс катиона («аммоний»), ions.yaml, role = cation *)
+CATION_CLASS = ? название катиона из ions.yaml ? ;
+
+(* lexicon.rs:element:L321 — название элемента или его произносимое имя
+   из elements.yaml: names и spelled_names. Включает и служебные слова-буквы,
+   если elements.yaml перечисляет их среди имён *)
+ELEMENT_WORD = ? слово из elements.yaml ? ;
+
+(* chemistry.rs:element_by_word:L938 — название элемента из elements.yaml или
+   его символ без учёта регистра *)
+ELEMENT_BY_WORD = ? название или символ элемента ? ;
+
+(* chemistry.rs:chemistry_element:L853 — название латинской буквы из
+   symbols.yaml (lexicon.rs:latin:L333): «эс», «аш», «цэ». Служебные слова из
+   FUNCTION_LETTER сюда не входят: их принимает отдельный терминал *)
+LETTER_NAME = ? название латинской буквы ? ;
+
+(* chemistry.rs:FUNCTION_WORD_LETTERS:L706 — слова, которые одновременно
+   названия букв и предлоги, союзы, частицы. Принимаются как элемент только
+   если spelled_context (L747) подтверждает формулу *)
+FUNCTION_LETTER = "а" | "б" | "в" | "ж" | "же" | "и" | "к" | "о" | "с" | "у" | "я" ;
+
+(* helper: chemistry.rs:chemistry_element_at:L811 — таблица двухсловных
+   символов: «эн а» = Na, «цэ а» = Ca, «цэ эль» = Cl, «эм гэ» = Mg, «а эль» = Al,
+   «цэ у» = Cu, «зет эн» = Zn, «эф е» = Fe, «эм эн» = Mn. Пара проверяется
+   раньше одиночных слов *)
+PAIR_TABLE =
+      "эн" "а" | "цэ" "а" | "це" "а" | "цэ" "эль" | "це" "эль" | "эм" "гэ"
+    | "эм" "г" | "а" "эль" | "цэ" "у" | "це" "у" | "зет" "эн" | "эф" "е"
+    | "эм" "эн" ;
+
+
+(* =====================================================================
+   СЕМАНТИЧЕСКИЕ ОГРАНИЧЕНИЯ — то, чего КС-грамматика не выражает
+   =====================================================================
+
+   Х1. Предварительная чистка (parse_chemistry, L17-L21): токены «,» «-» «.»
+       удаляются из списка слов до любого разбора. Фраза с запятой между
+       словами разбирается так, будто запятой не было.
+
+   Х2. Условия («при нагревании» и т. п.) вырезаются из любого места фразы до
+       поиска реакции (strip_conditions, L263) и сохраняются в поле
+       condition; берётся первое встреченное (get_or_insert_with, L270).
+
+   Х3. Форма реакции распознаётся глобально, а не слева направо: цикл
+       parse_reaction (L72-L110) просматривает ВЕСЬ список слов, режет его по
+       связкам и только потом решает, что это реакция. Если связок-структур
+       нет, или стрелки нет (L202), результат None и фраза читается как
+       вещество. Если форма есть, а сторона не читается как вещество — отказ
+       всей фразы (L216-L223). Для КС-грамматики это неограниченный взгляд
+       вперёд.
+
+   Х4. «плюс» — заряд иона или связка. Токен тот же; решает функция
+       starts_a_species (L242): первый «плюс» после слова-маркера иона —
+       заряд, только если дальше нет слова, с которого мог бы начаться новый
+       реагент (L82-L88). Это взгляд вперёд на неограниченное число слов.
+
+   Х5. «и» — «+» только внутри стороны, уже читаемой как химия
+       (L154-L165), и никогда до структуры.
+
+   Х6. Пустой кусок между связками допустим только рядом со связкой
+       REACTION_NOUN, REACTION_OPEN (L116-L142).
+
+   Х7. Стрелка одна (L177-L182), открывающее слово REACTION_OPEN после стрелки
+       — отказ (L168-L173). decompose разрешает «и» справа.
+
+   Х8. Служебные слова-буквы (FUNCTION_LETTER) как элемент допустимы только
+       при spelled_context (L747): либо у буквы есть индекс-число, либо в куске
+       есть слово, которое возможно только при диктовке по буквам
+       (spelling_evidence, L724).
+       Союз «а» или «и» между двумя числами не доказывает формулу (L755-L779).
+       Если контекста нет, chemistry_element возвращает None и try_spelled
+       отвергает ВСЮ формулу (L687).
+
+   Х9. Пределы: MAX_ATOM_COUNT = 999 (L13) — для индекса, коэффициента и
+       степени окисления; нулевой индекс отвергается (L667); после числа слово
+       множителя «тысяч», «миллион» отвергает формулу (starts_unsupported_scale,
+       L673). MAX_LIGAND_MULTIPLICITY, MAX_COUNTER_IONS, MAX_HYDRATE_WATERS,
+       MAX_CARBONS — в coordination.rs и organic.rs.
+
+   Х10. Порядок попыток в parse_species_inner (L313) — упорядоченный выбор.
+        Слово, попавшее в два словаря, читается по первой подошедшей ветке.
+        Примеры пересечений словарей — в ANALYSIS_RU.md.
+
+   Х11. Выбор домена не является частью химической грамматики. Он делается в
+        interpret.rs: route (L271) пробует химию, математику и физику и
+        сравнивает уверенность по ключевым словам (collect_evidence, L160).
+
+   TODO(letter-index): правило «буква + целое → индекс» относится к
+        математической грамматике и в chem.ebnf не входит.
+   ===================================================================== *)

@@ -6,7 +6,7 @@ letters:
   - spoken: [бэ, б]
     latin: b
     cyrillic: б
-  - spoken: [цэ, ц]
+  - spoken: [цэ, це, ц]
     latin: c
     cyrillic: ц
   - spoken: [дэ, д]
@@ -59,7 +59,7 @@ letters:
     cyrillic: с
   - spoken: [тэ, т]
     latin: t
-    cyrillic: t
+    cyrillic: т
   - spoken: [у]
     latin: u
     cyrillic: у
