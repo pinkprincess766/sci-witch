@@ -4,9 +4,22 @@
 команду — не для галочки: их ставит прогон, а не человек, который посмотрел и решил.
 
 ```bash
-cargo run -p sciwhisper-eval -- evaluate --dataset research/data/dev-seed-v2.jsonl --output report.json
-cargo run -p sciwhisper-eval -- gate --report report.json [--seal research/schema/frozen-test-seal.json]
+# компилятор: закреплённый набор из четырёх корпусов, судится как одна выборка
+cargo run -p sciwhisper-eval -- gate \
+  --report research/results/deterministic-v6.json \
+  --report research/results/ambiguous-auto-v2.json \
+  --report research/results/nomenclature-v1.json \
+  --report research/results/prose-negatives-v2.json
+
+# голосовое приложение: один отчёт, профиль назван явно
+cargo run -p sciwhisper-eval -- gate --report report.json \
+  --gates research/schema/release-gates-v1.json [--seal research/schema/frozen-test-seal.json]
 ```
+
+Профиль компилятора не принимает одиночный отчёт и корпус не из своего списка:
+корпуса закреплены по SHA-256 в самом файле ворот. Голосовой профиль всегда
+называется явно — по умолчанию `gate` читает профиль компилятора, и голосовой
+выпуск, проверенный без `--gates`, был бы проверен не теми воротами.
 
 `gate` возвращает ненулевой код, если хотя бы одни ворота не пройдены **или не измеримы**.
 Не измеримо — это не «пропустить»: ворота о живой речи, посчитанные на письменном корпусе,
@@ -69,10 +82,23 @@ cargo run -p sciwhisper-eval -- gate --report report.json [--seal research/schem
 - [ ] архив проверен на чистой пользовательской машине
 - [ ] версия в Cargo, changelog и названии релиза совпадает
 
-## Ворота допуска 0.5 (`sciwhisper-eval gate`)
+## Ворота допуска
 
-Определены в [`research/schema/release-gates-v1.json`](../../research/schema/release-gates-v1.json).
-Каждые судятся по границе доверительного интервала, а не по точечной оценке.
+С 28.09.2026 продукт — компилятор. Его контракт —
+[`COMPILER_CONTRACT_RU.md`](COMPILER_CONTRACT_RU.md), ворота —
+[`research/schema/compiler-gates-v2.json`](../../research/schema/compiler-gates-v2.json).
+Команда `sciwhisper-eval gate` читает этот файл по умолчанию и судит
+закреплённый набор корпусов (`dev-seed-v3`, `ambiguous-v2`, `nomenclature-v1`,
+`prose-negatives-v2`) как одну выборку. Проход означает: на этом наборе не
+выдумана формула и не вставлено битое дерево, и за этим стоят не меньше 100
+обычных фраз и 100 вставленных деревьев. Точность на фразах автора в эти
+ворота не входит.
+
+Голосовое приложение проверяется отдельно и по-прежнему не выпускается без
+записей. Его ворота —
+[`research/schema/release-gates-v1.json`](../../research/schema/release-gates-v1.json)
+(`--gates` этим путём). Каждые судятся по границе доверительного интервала,
+а не по точечной оценке.
 
 - [ ] `end-to-end-accuracy` — нижняя граница 95% CI ≥ 0.90
 - [ ] `shipped-end-to-end-accuracy` — нижняя граница 95% CI пользовательского `MixedText` ≥ 0.90
