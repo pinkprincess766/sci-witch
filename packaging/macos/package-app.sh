@@ -5,7 +5,7 @@ set -euo pipefail
 ROOT_DIR="${0:A:h:h:h}"
 APP_DIR="${1:-$ROOT_DIR/dist/SciWhisper.app}"
 BIN_PATH="${SCIWHISPER_BIN:-$ROOT_DIR/target/release/sciwhisper}"
-APP_ICON_PATH="$ROOT_DIR/assets/branding/si-witch-app-icon-wink-broom-sand-v1.png"
+APP_ICON_PATH="$ROOT_DIR/packaging/branding/si-witch-app-icon-wink-broom-sand-v1.png"
 
 if [[ ! -x "$BIN_PATH" ]]; then
   echo "Не найден собранный бинарник: $BIN_PATH" >&2

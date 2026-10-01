@@ -19,7 +19,7 @@ AST-метрика → structured loss → локальная неоднозна
 
 ### `classify_severity` — это уже `d_sci`, только пятизначная
 
-[`metrics.rs`](../../../crates/sciwhisper-eval/src/metrics.rs) берёт JSON-диф двух AST,
+[`metrics.rs`](../../crates/sciwhisper-eval/src/metrics.rs) берёт JSON-диф двух AST,
 собирает имена различающихся полей и классифицирует по спискам `S3_FIELDS`
 (`coefficient`, `charge`, `arrow`, `op`, …) и `S2_FIELDS` (`symbol`, `count`, `letter`, …).
 
@@ -39,7 +39,7 @@ AST-метрика → structured loss → локальная неоднозна
 
 ### `alternatives` — мёртвая проводка
 
-Поле [`ast.rs`](../../../crates/sciwhisper-core/src/ast.rs) `InterpretationResult::alternatives`
+Поле [`ast.rs`](../../crates/sciwhisper-core/src/ast.rs) `InterpretationResult::alternatives`
 протянуто через `interpret` → `utterance` → `candidates`, но `alternatives.push` не
 вызывается нигде. Это ровно то, что лаборатория измерила как «0 примеров из 113 с ≥2
 различными научными AST»: генератор кандидатов физически не может выдать больше одного
@@ -72,7 +72,7 @@ AST**: подстрочные индексы — дело рендерера, AS
 
 `max_{y≠y*}` пробегает по кандидатам. Кандидатов два, второй — `RAW`. Структурный hinge
 вырождается в «отдели единственный AST от `RAW` с зазором `Δ(y*, RAW)`» — буквально та
-фиктивная задача, которую [`research/reranker/README_RU.md`](../../../research/reranker/README_RU.md)
+фиктивная задача, которую [`research/reranker/README_RU.md`](../../research/reranker/README_RU.md)
 уже отказался решать. Ворота (50 неоднозначных примеров, 20 с правильным ответом не
 первым) не пройдены: 0 и 1.
 
@@ -102,7 +102,7 @@ risk(y₁ | x) = Σ_j P(y_j|x) · d_sci(y₁, y_j)
 
 Обе версии требуют `P(y|x)`, которого нет: `confidence` — детерминированный уровень
 разбора с четырьмя значениями (1.0 / 0.95 / 0.7 / 0.0), и
-[ML_LAB_RU.md §11](../ML_LAB_RU.md) запрещает обращаться с ним как с вероятностью.
+[ML_LAB_RU.md §11](../research/ML_LAB_RU.md) запрещает обращаться с ним как с вероятностью.
 Внедряется после появления кандидатов и калиброванных весов.
 
 ### 4. Устойчивость — принято, без константы Липшица
@@ -179,12 +179,12 @@ risk(y₁ | x) = Σ_j P(y_j|x) · d_sci(y₁, y_j)
 | 5 | Conformal, structured loss | голосовой корпус | откалиброванный порог вместо 0.9 |
 
 Пункты 1–3 внедряемы без единой новой записи корпуса. 4–5 — после голосового корпуса
-0.3, см. [VOICE_CORPUS_RU.md](../../../research/data/VOICE_CORPUS_RU.md).
+0.3, см. [VOICE_CORPUS_RU.md](../../research/data/VOICE_CORPUS_RU.md).
 
 ## Что получилось при внедрении (2026-09-06)
 
-Реализовано в [`distance.rs`](../../../crates/sciwhisper-eval/src/distance.rs) и
-[`ast-distance-v1.json`](../../../research/schema/ast-distance-v1.json):
+Реализовано в [`distance.rs`](../../crates/sciwhisper-eval/src/distance.rs) и
+[`ast-distance-v1.json`](../../research/schema/ast-distance-v1.json):
 взвешенное дерево-редакционное расстояние (Zhang–Shasha) поверх типизированного AST.
 Аксиомы не только доказаны в комментарии, но и проверяются на всех парах и всех тройках
 из 18 настоящих интерпретаций корпуса. Загрузчик отказывается принять файл весов,
@@ -226,7 +226,7 @@ ADR обещал «`classify_severity` выводится из неё». При 
 
 ### Что нашла проверка устойчивости
 
-Тесты в [`stability.rs`](../../../crates/sciwhisper-eval/src/stability.rs) прогоняют
+Тесты в [`stability.rs`](../../crates/sciwhisper-eval/src/stability.rs) прогоняют
 безобидные перестановки (регистр, ё/е, пробелы) по всему корпусу — больше 200 проверок —
 и требуют `d_sci = 0` точно. Плюс инвариантность по семействам: 10 семейств парафраз
 корпуса дают один и тот же AST, и декодер обязан соглашаться.
@@ -254,11 +254,11 @@ ADR обещал «`classify_severity` выводится из неё». При 
 ## Последствия
 
 * Таксономия `S0`–`S4` остаётся публичным интерфейсом отчёта; её подложка меняется.
-  Числа в [`deterministic-v2.json`](../../../research/results/deterministic-v2.json)
+  Числа в [`deterministic-v2.json`](../../research/results/deterministic-v2.json)
   после этого перестанут быть сравнимыми со старыми по severity — потребуется новый
-  прогон и явная отметка в [ML_LAB_RU.md](../ML_LAB_RU.md).
+  прогон и явная отметка в [ML_LAB_RU.md](../research/ML_LAB_RU.md).
 * `d_sci` становится частью контракта лаборатории, значит её веса — данные, а не
-  константы в коде: место им рядом с [`severity-v1.json`](../../../research/schema/severity-v1.json),
+  константы в коде: место им рядом с [`severity-v1.json`](../../research/schema/severity-v1.json),
   с версией схемы.
 * Пункт 3 (`alternatives`) меняет поведение приложения, а не только измерений: там, где
   сейчас происходит отказ по низкой confidence, появится выбор. Это ослабление

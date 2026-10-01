@@ -10,7 +10,7 @@
 //! Every expected value was written from what the name means, not pasted
 //! from a run. Where a Russian form was chosen over an equally defensible
 //! one, the choice is stated in
-//! `docs/development/CHEMISTRY_NOMENCLATURE_RU.md` and pinned below.
+//! `docs/compiler/CHEMISTRY_NOMENCLATURE_RU.md` and pinned below.
 
 use sciwhisper_core::ast::{Node, Part};
 use sciwhisper_core::coordination::{

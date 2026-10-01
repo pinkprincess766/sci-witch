@@ -111,7 +111,7 @@ $$
 
 Например, для `H₂ + O₂ → H₂O` ядро находит минимальный положительный вектор коэффициентов $\nu=(2,1,2)^T$ и предлагает `2H₂ + O₂ → 2H₂O`. Продиктованная реакция при этом не изменяется незаметно: результат показывается отдельным предупреждением.
 
-Подробный разбор формул, алгоритмов, сложности, ограничений и ссылок на реализацию: **[«Математика под капотом sci-witch»](docs/development/MATHEMATICS_RU.md)**. Более широкая схема проекта находится в [описании архитектуры](docs/development/ARCHITECTURE_RU.md), а будущий ML оценивается по отдельному [протоколу исследования](docs/development/ML_RESEARCH_RU.md).
+Подробный разбор формул, алгоритмов, сложности, ограничений и ссылок на реализацию: **[«Математика под капотом sci-witch»](docs/compiler/MATHEMATICS_RU.md)**. Более широкая схема проекта находится в [описании архитектуры](docs/compiler/ARCHITECTURE_RU.md), а будущий ML оценивается по отдельному [протоколу исследования](docs/research/ML_RESEARCH_RU.md).
 
 ## Химическая диктовка
 
@@ -301,14 +301,14 @@ crates/sciwhisper-cli    format / rec / transcribe / app / settings / corpus / d
 
 ## Документы
 
-- [Математика под капотом sci-witch](docs/development/MATHEMATICS_RU.md)
-- [Архитектура научного декодера](docs/development/ARCHITECTURE_RU.md)
-- [Протокол ML-исследования](docs/development/ML_RESEARCH_RU.md)
+- [Математика под капотом sci-witch](docs/compiler/MATHEMATICS_RU.md)
+- [Архитектура научного декодера](docs/compiler/ARCHITECTURE_RU.md)
+- [Протокол ML-исследования](docs/research/ML_RESEARCH_RU.md)
 - [Тестирование без знания программирования](docs/user/TESTING_RU.md)
 - [Приватность](docs/user/PRIVACY_RU.md)
 - [Известные ограничения](docs/user/KNOWN_LIMITATIONS_RU.md)
-- [Как участвовать](CONTRIBUTING.md)
-- [Политика безопасности](SECURITY.md)
+- [Как участвовать](.github/CONTRIBUTING.md)
+- [Политика безопасности](.github/SECURITY.md)
 
 ## Лицензии
 

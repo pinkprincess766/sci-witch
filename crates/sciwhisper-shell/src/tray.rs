@@ -336,7 +336,7 @@ pub fn make_icon(kind: StatusIcon) -> Icon {
 
 fn make_icon_rgba(kind: StatusIcon) -> Vec<u8> {
     const WITCH_ICON: &[u8] =
-        include_bytes!("../../../assets/branding/si-witch-tray-wink-broom-sand-v1.png");
+        include_bytes!("../../../packaging/branding/si-witch-tray-wink-broom-sand-v1.png");
     let source = image::load_from_memory(WITCH_ICON).expect("embedded tray icon must be valid");
     let mut icon = source.resize_exact(32, 32, FilterType::Lanczos3).to_rgba8();
 

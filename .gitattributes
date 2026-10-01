@@ -4,3 +4,15 @@
 # both, so they keep LF on every platform.
 research/** text eol=lf
 docs/grammar/** text eol=lf
+
+# Binary formats are never text, wherever they live — an audio clip moved
+# under research/ must not have its bytes "normalised" by the rule above.
+*.caf binary
+*.wav binary
+*.flac binary
+*.mp3 binary
+*.png binary
+*.gif binary
+*.ico binary
+*.icns binary
+*.pdf binary

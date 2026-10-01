@@ -269,7 +269,7 @@ dataset-invalid → ASR-first → router-first → candidate-first → rank-firs
 тоже: исправлять нечего. Оба случая выглядят успехом на кривой recall, и оба
 не оставляют ранжировщику чему учиться.
 
-Схема и пределы решётки: [`CANDIDATE_LATTICE_RU.md`](CANDIDATE_LATTICE_RU.md).
+Схема и пределы решётки: [`CANDIDATE_LATTICE_RU.md`](../compiler/CANDIDATE_LATTICE_RU.md).
 
 ## 11. Расстояние между интерпретациями
 
@@ -397,7 +397,7 @@ Brier 0.0093 · ECE 0.0535 · ошибок среди отвеченного 1
 `compiler-v2` в [`compiler-gates-v2.json`](../../research/schema/compiler-gates-v2.json),
 где `prose-negatives-v1` заменён на `prose-negatives-v2`.
 Контракт, который они проверяют, —
-[`COMPILER_CONTRACT_RU.md`](COMPILER_CONTRACT_RU.md). Это текстовый
+[`COMPILER_CONTRACT_RU.md`](../compiler/COMPILER_CONTRACT_RU.md). Это текстовый
 компилятор: микрофон там не предусловие, а корпус закреплён — профиль судит
 четыре корпуса по SHA-256 как одну выборку и не принимает одиночный отчёт
 (почему — в разделе «Ворота» контракта). Ниже в этом разделе описан

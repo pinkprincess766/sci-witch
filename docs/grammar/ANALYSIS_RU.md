@@ -1,6 +1,6 @@
 # Грамматика как объект: FIRST, FOLLOW и LL(1)
 
-Этап 3А плана ([`sci-witch-plan.md`](../development/sci-witch-plan.md)), часть 1.
+Этап 3А плана ([`sci-witch-plan.md`](../research/sci-witch-plan.md)), часть 1.
 Здесь разобраны два файла: [`math.ebnf`](math.ebnf) и [`chem.ebnf`](chem.ebnf).
 Они описывают то, что принимают рукописные парсеры
 `crates/sciwhisper-core/src/parser/math.rs` и `chemistry.rs`, а не то, что

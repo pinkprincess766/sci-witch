@@ -60,7 +60,7 @@ jobs:
           Copy-Item packaging/windows/SciWhisper-Settings.cmd artifact/
           Copy-Item packaging/windows/SciWhisper-Settings.ps1 artifact/
           Copy-Item packaging/windows/README-WINDOWS.txt artifact/
-          Copy-Item assets/branding/SciWhisper-wink-broom-sand-v1.ico artifact/SciWhisper.ico
+          Copy-Item packaging/branding/SciWhisper-wink-broom-sand-v1.ico artifact/SciWhisper.ico
           Copy-Item README.md, LICENSE, NOTICE, DATA_LICENSE.md artifact/
           Copy-Item docs/user/TESTING_RU.md, docs/user/PRIVACY_RU.md, docs/user/KNOWN_LIMITATIONS_RU.md, docs/user/WINDOWS_ACCEPTANCE_RU.md artifact/docs/user/
 

@@ -85,7 +85,7 @@ cargo run -p sciwhisper-eval -- gate --report report.json \
 ## Ворота допуска
 
 С 28.09.2026 продукт — компилятор. Его контракт —
-[`COMPILER_CONTRACT_RU.md`](COMPILER_CONTRACT_RU.md), ворота —
+[`COMPILER_CONTRACT_RU.md`](../compiler/COMPILER_CONTRACT_RU.md), ворота —
 [`research/schema/compiler-gates-v2.json`](../../research/schema/compiler-gates-v2.json).
 Команда `sciwhisper-eval gate` читает этот файл по умолчанию и судит
 закреплённый набор корпусов (`dev-seed-v3`, `ambiguous-v2`, `nomenclature-v1`,

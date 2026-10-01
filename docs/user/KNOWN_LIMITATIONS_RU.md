@@ -14,7 +14,7 @@
 
 Композиционная номенклатура поддержана ограниченно и честно очерченно —
 подробности и источники IUPAC в
-[CHEMISTRY_NOMENCLATURE_RU.md](../development/CHEMISTRY_NOMENCLATURE_RU.md).
+[CHEMISTRY_NOMENCLATURE_RU.md](../compiler/CHEMISTRY_NOMENCLATURE_RU.md).
 
 Работает: подсказка о единицах — «один километр» вставляется как `1 км`, а
 рядом сообщается «то же самое: 1000 м (тысяча метров)». Значение при этом

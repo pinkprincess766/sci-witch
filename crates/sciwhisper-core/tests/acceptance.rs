@@ -1,4 +1,4 @@
-//! MVP acceptance corpus from docs/development/SPECIFICATION_RU.md §16.
+//! MVP acceptance corpus from docs/compiler/SPECIFICATION_RU.md §16.
 
 use sciwhisper_core::ast::{Chemical, Math, Node};
 use sciwhisper_core::{interpret, render_result, Domain, InterpretOptions, Renderer};
@@ -521,7 +521,7 @@ fn same_ast_three_renderers() {
     assert!(render_result(&r, Renderer::Omml).contains("oMath"));
 }
 
-// --- Dimensional analysis v1 (docs/development/MATHEMATICS_RU.md §8) ---
+// --- Dimensional analysis v1 (docs/compiler/MATHEMATICS_RU.md §8) ---
 
 fn dictated(text: &str) -> sciwhisper_core::InterpretationResult {
     let r = interpret(

@@ -3,7 +3,7 @@
 //! # What is stable
 //!
 //! This crate is the compiler, and its contract is
-//! `docs/development/COMPILER_CONTRACT_RU.md`. Two tiers, stated here because
+//! `docs/compiler/COMPILER_CONTRACT_RU.md`. Two tiers, stated here because
 //! Rust's visibility cannot say it on its own — every `pub mod` below is
 //! reachable from outside:
 //!

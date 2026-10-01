@@ -4,7 +4,7 @@
 
 **sci-witch** studies how spoken Russian scientific language — chemistry, mathematics, physics — can be compiled into a typed structure, and when that compilation should refuse. The object of study is the path from an utterance to one tree (or to the original words). The crates and the `sciwhisper` binary are internal names; the public name of the project is sci-witch.
 
-The compiler's contract is [docs/development/COMPILER_CONTRACT_RU.md](docs/development/COMPILER_CONTRACT_RU.md). The research programme, including both experimental questions and the live-speech critical path, is [docs/development/sci-witch-plan.md](docs/development/sci-witch-plan.md). Related fields, the mathematical formulation and where to look for prior work: [research/LITERATURE_MAP_RU.md](research/LITERATURE_MAP_RU.md).
+The compiler's contract is [docs/compiler/COMPILER_CONTRACT_RU.md](docs/compiler/COMPILER_CONTRACT_RU.md). The research programme, including both experimental questions and the live-speech critical path, is [docs/research/sci-witch-plan.md](docs/research/sci-witch-plan.md). Related fields, the mathematical formulation and where to look for prior work: [research/LITERATURE_MAP_RU.md](research/LITERATURE_MAP_RU.md).
 
 ## Research questions
 
@@ -14,7 +14,7 @@ The compiler's contract is [docs/development/COMPILER_CONTRACT_RU.md](docs/devel
 | 2 | Does a fitted confidence model (ASR and grammar features) give lower risk at the same coverage than the four hand-set parse levels 1.0 / 0.95 / 0.7 / 0.0 with insert threshold 0.9? | Open. | Live speakers, and any corpus with at least `MIN_ERRORS_TO_FIT` (20) errors among answered items ([`crates/sciwhisper-eval/src/selective.rs`](crates/sciwhisper-eval/src/selective.rs)). On `dev-seed-v3`, `selective_prediction.calibration.errors` is 1 ([research/results/deterministic-v6.json](research/results/deterministic-v6.json)). |
 | 3 | Can it be guaranteed that ordinary speech is left as words — that a substance name inside a sentence is not replaced by a formula (severity S4 in [research/schema/severity-v1.json](research/schema/severity-v1.json))? | Preliminary answer on author-written text: observed S4 count 0 and false-rewrite numerator 0 on the four benchmark corpora, with the Wilson upper bounds in the table below. | Live speakers, other authors' phrasing, recognizer output. The prose corpus is a floor on the author's own traps ([research/data/prose-negatives-v1.manifest.json](research/data/prose-negatives-v1.manifest.json)). |
 
-Question 1 and question 2 are stated in [docs/development/sci-witch-plan.md](docs/development/sci-witch-plan.md) (постановка №1, постановка №2). Question 3 is the safety claim the compiler gates already judge on text ([research/schema/compiler-gates-v1.json](research/schema/compiler-gates-v1.json)).
+Question 1 and question 2 are stated in [docs/research/sci-witch-plan.md](docs/research/sci-witch-plan.md) (постановка №1, постановка №2). Question 3 is the safety claim the compiler gates already judge on text ([research/schema/compiler-gates-v1.json](research/schema/compiler-gates-v1.json)).
 
 The voice-collection protocol [research/protocol/voice-v1.md](research/protocol/voice-v1.md) is a preregistration of *how* the first live recordings will be taken (five speakers `spk01`–`spk05`, 220 clips, test held out by speaker). It is not a preregistration of questions 1 or 2. Status there: **preregistration, no recordings yet.**
 
@@ -45,7 +45,7 @@ Refusal is a result:
 - `balance_equation` ([`crates/sciwhisper-core/src/balance.rs`](crates/sciwhisper-core/src/balance.rs)) may propose coefficients from *Aν* = 0 as a warning. The dictated reaction is left as said.
 - `choose_hypothesis` ([`crates/sciwhisper-core/src/nbest.rs`](crates/sciwhisper-core/src/nbest.rs)) reads at most `MAX_HYPOTHESES` (16) entries, counting the first. The first hypothesis is kept when it is already a whole-utterance reading (`TopAlreadyParsed`); that check runs before any other. A later hypothesis replaces it only when the first did not parse as a whole utterance and exactly one near hypothesis (within `MAX_HYPOTHESIS_EDITS` (2) characters) did parse as a whole utterance and shares a scientific word with the first (`NearHypothesisParsed`). The first is also kept on `NearHypothesesDisagree`, `NoScientificAnchor`, `NothingNearParsed`, and `Empty`. Strings longer than `lattice::MAX_INPUT_BYTES` (16 KiB) are not compared. There is no acoustic score in this choice.
 
-Chemical nomenclature is the documented subset in [docs/development/CHEMISTRY_NOMENCLATURE_RU.md](docs/development/CHEMISTRY_NOMENCLATURE_RU.md). The formulas of the implemented algorithms are in [docs/development/MATHEMATICS_RU.md](docs/development/MATHEMATICS_RU.md).
+Chemical nomenclature is the documented subset in [docs/compiler/CHEMISTRY_NOMENCLATURE_RU.md](docs/compiler/CHEMISTRY_NOMENCLATURE_RU.md). The formulas of the implemented algorithms are in [docs/compiler/MATHEMATICS_RU.md](docs/compiler/MATHEMATICS_RU.md).
 
 ## What is measured / what is not
 
@@ -88,7 +88,7 @@ The one miss on `dev-seed-v3` is S1 (`severity.errors` 1, `count_by_severity.S1`
 
 These four reports are the compiler benchmark pinned in [research/schema/compiler-gates-v2.json](research/schema/compiler-gates-v2.json). Config in every report: `domain_policy` `auto`, `auto_insert_threshold` 0.9, `evaluated_split` `all`, `bootstrap_seed` 20260904, `bootstrap_resamples` 2000.
 
-Three synthesized clips live under [`corpus/voice/synthetic/`](corpus/voice/synthetic/). They are pipeline fixtures, not a speaker study ([`corpus/voice/README.md`](corpus/voice/README.md)).
+Three synthesized clips live under [`research/voice-samples/synthetic/`](research/voice-samples/synthetic/). They are pipeline fixtures, not a speaker study ([`research/voice-samples/README.md`](research/voice-samples/README.md)).
 
 ## Data
 
@@ -167,7 +167,7 @@ The voice-application profile `release-0.5` ([research/schema/release-gates-v1.j
 
 ## Roadmap
 
-From [docs/development/sci-witch-plan.md](docs/development/sci-witch-plan.md):
+From [docs/research/sci-witch-plan.md](docs/research/sci-witch-plan.md):
 
 | Stage | What |
 |---|---|
@@ -211,7 +211,7 @@ Stable surface of the compiler: re-exports in [`crates/sciwhisper-core/src/lib.r
 - Live speakers: 0. WER: unmeasured. Gold and transcripts: author-written. The compiler-gate zeros are counts on this benchmark, with the Wilson upper bounds above.
 - Questions 1 and 2 are open. `choose_hypothesis` has been exercised on synthetic text lists without acoustic scores.
 - `confidence` is a four-level parse flag. [`crates/sciwhisper-eval/src/selective.rs`](crates/sciwhisper-eval/src/selective.rs) reports risk–coverage and refuses to fit a threshold below `MIN_ERRORS_TO_FIT` (20).
-- Chemical nomenclature is the subset in [docs/development/CHEMISTRY_NOMENCLATURE_RU.md](docs/development/CHEMISTRY_NOMENCLATURE_RU.md). Organic names are not searched for inside a sentence (so that «декан факультета» is not read as a hydrocarbon).
+- Chemical nomenclature is the subset in [docs/compiler/CHEMISTRY_NOMENCLATURE_RU.md](docs/compiler/CHEMISTRY_NOMENCLATURE_RU.md). Organic names are not searched for inside a sentence (so that «декан факультета» is not read as a hydrocarbon).
 - The four published reports were written from a dirty worktree (`git_dirty`: `true`).
 - OMML generation ([`crates/sciwhisper-core/tests/acceptance.rs`](crates/sciwhisper-core/tests/acceptance.rs), [`crates/sciwhisper-core/tests/functions.rs`](crates/sciwhisper-core/tests/functions.rs)) and insert-mode selection (`resolve_mode` in [`crates/sciwhisper-shell/src/insert.rs`](crates/sciwhisper-shell/src/insert.rs)) are covered by tests. Word insertion through COM ([`crates/sciwhisper-shell/src/word_win.rs`](crates/sciwhisper-shell/src/word_win.rs), `#[cfg(windows)]`) is not covered by automatic tests and has not been checked by hand.
 - Windows builds of the reference frontend are unsigned. macOS builds are ad-hoc signed, not notarized.
@@ -220,5 +220,5 @@ Stable surface of the compiler: re-exports in [`crates/sciwhisper-core/src/lib.r
 ## Licenses
 
 - Code: [Apache-2.0](LICENSE). Notices: [NOTICE](NOTICE).
-- Project lexicons and teaching sets in [`crates/sciwhisper-core/data/`](crates/sciwhisper-core/data/): [CC BY 4.0](DATA_LICENSE.md). That file does not cover the corpora in `research/data/` or the clips in `corpus/voice/`; a license for those is not declared separately.
+- Project lexicons and teaching sets in [`crates/sciwhisper-core/data/`](crates/sciwhisper-core/data/): [CC BY 4.0](DATA_LICENSE.md). That file does not cover the corpora in `research/data/` or the clips in `research/voice-samples/`; a license for those is not declared separately.
 - Speech models and third-party recognizers are not in this repository and keep their own licenses.

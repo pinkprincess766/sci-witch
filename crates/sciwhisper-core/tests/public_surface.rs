@@ -1,6 +1,6 @@
 //! The stable surface of the compiler, pinned by signature.
 //!
-//! `docs/development/COMPILER_CONTRACT_RU.md` promises that breaking these is
+//! `docs/compiler/COMPILER_CONTRACT_RU.md` promises that breaking these is
 //! a release defect. A promise in a document is checked by nobody; this file
 //! is checked by the compiler. Each function is assigned to a `fn` pointer of
 //! its exact type, so a renamed item, a moved item, an extra parameter or a

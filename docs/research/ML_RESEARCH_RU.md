@@ -565,7 +565,7 @@ Protocol v1.0 замораживается до первой полной сер
 
 ## Ссылки
 
-- [Математическое устройство sci-witch](ARCHITECTURE_RU.md)
-- [Голосовая грамматика](GRAMMAR_RU.md)
+- [Математическое устройство sci-witch](../compiler/ARCHITECTURE_RU.md)
+- [Голосовая грамматика](../compiler/GRAMMAR_RU.md)
 - [Лаборатория измерений](ML_LAB_RU.md) и [исследовательский контур](../../research/README_RU.md)
 - [Karpathy autoresearch](https://github.com/karpathy/autoresearch)
