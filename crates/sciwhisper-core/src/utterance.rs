@@ -1709,10 +1709,27 @@ fn stops_before_an_oxidation_state(utterance: &Utterance<'_>, end: usize) -> boo
     // treating «... + партнёр» as an oxidation state cut «2NaOH» out of an
     // equation.
     match crate::coordination::Coordination::builtin().oxidation_marker(&utterance.words, end) {
-        Some((_, used)) => utterance
-            .words
-            .get(end + used)
-            .is_some_and(|word| is_number_word(word)),
+        Some((_, used)) => {
+            let number_at = end + used;
+            if !utterance
+                .words
+                .get(number_at)
+                .is_some_and(|word| is_number_word(word))
+            {
+                return false;
+            }
+            // «ион кальция плюс два иона хлора»: the number is followed by
+            // «иона», so it counts ions — a coefficient of the next species,
+            // not the charge of this one. Treating it as an oxidation state
+            // refused «ион кальция» and left it as `ион Ca`.
+            let after_number = (number_at..utterance.words.len())
+                .find(|&index| !is_number_word(&utterance.words[index]));
+            !after_number.is_some_and(|index| {
+                crate::lexicon::Lexicon::builtin()
+                    .chemistry_speech
+                    .is_ion_marker(&utterance.words[index])
+            })
+        }
         None => false,
     }
 }

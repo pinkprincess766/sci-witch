@@ -395,6 +395,17 @@ fn parse_species_inner(
         s.marker = marker;
         return Ok((s, SpeciesEvidence::default()));
     }
+    // An element *named* — «водород», «бром», not the letter «аш» — is the
+    // substance, and the substance of a diatomic element is its molecule.
+    // This has to come before `try_spelled`, which reads the same word as the
+    // atom: «водород газ» answered `H↑` while «водород» answered `H₂`, so a
+    // state marker changed the formula. A letter dictation is a different
+    // register and stays as dictated («аш газ» is `H↑`).
+    if let Some(mut s) = try_named_diatomic(&words, lex) {
+        s.coefficient = coefficient;
+        s.marker = marker;
+        return Ok((s, SpeciesEvidence::default()));
+    }
     if let Some(mut s) = try_spelled(&words, lex, nums, had_coefficient) {
         s.coefficient = coefficient;
         s.marker = marker;
@@ -437,6 +448,22 @@ fn strip_marker(words: &[String], lex: &Lexicon) -> (Vec<String>, Option<StateMa
     (words.to_vec(), None)
 }
 
+/// One word that names a diatomic element (`diatomic: true` in
+/// `elements.yaml`) and is not a spelled letter or Latin-register name.
+fn try_named_diatomic(words: &[String], lex: &Lexicon) -> Option<Species> {
+    let [word] = words else {
+        return None;
+    };
+    if spelling_evidence(lex, word) || FUNCTION_WORD_LETTERS.contains(&word.as_str()) {
+        return None;
+    }
+    let el = lex.element(word)?;
+    if !el.diatomic {
+        return None;
+    }
+    Some(Species::new(Formula::atom(&el.symbol, 2)))
+}
+
 fn try_full_substance(words: &[String], lex: &Lexicon) -> Option<Species> {
     if let Some((formula, used)) = lex.longest_substance(words, 0) {
         if used == words.len() {
@@ -450,6 +477,17 @@ fn try_ion(words: &[String], lex: &Lexicon, nums: &NumberLex) -> Option<Species>
     let speech = &lex.chemistry_speech;
     if !words.iter().any(|w| speech.is_ion_marker(w)) {
         return None;
+    }
+    // A charge sign closes the species. An ion marker that comes *after* one
+    // opens the next species: «ион натрия плюс ион» is not Na⁺ with a stray
+    // word left over, it is Na⁺, a «плюс» and the start of another ion.
+    // Filtering every marker out of the words wherever it stood used to
+    // swallow that second «ион», so «ион натрия плюс ион хлора» came out as
+    // `Na⁺ Cl₂`: the «плюс» gone, the second ion turned into a molecule.
+    if let Some(sign) = words.iter().position(|w| w == "плюс" || w == "минус") {
+        if words[sign + 1..].iter().any(|w| speech.is_ion_marker(w)) {
+            return None;
+        }
     }
     let mut filtered: Vec<String> = words
         .iter()
