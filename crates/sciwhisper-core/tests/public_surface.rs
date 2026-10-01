@@ -84,4 +84,6 @@ fn the_documented_bounds_are_the_ones_in_the_code() {
     assert_eq!(sciwhisper_core::utterance::MAX_UTTERANCE_WORDS, 400);
     assert_eq!(sciwhisper_core::utterance::MAX_CORRECTIONS, 4);
     assert_eq!(sciwhisper_core::utterance::MIN_ENUMERATION_SPANS, 2);
+    // Not re-exported at the crate root; same path as `MAX_FUNCTION_ARGS`.
+    assert_eq!(sciwhisper_core::parser::math::MAX_PARSE_DEPTH, 64);
 }

@@ -105,6 +105,14 @@ pub struct MathParse {
 /// an ever-longer argument list.
 pub const MAX_FUNCTION_ARGS: usize = 8;
 
+/// How many nested subexpressions one formula may contain.
+///
+/// A level is one [`Parser::nested`] call, not a precedence function. The
+/// chain `parse_eq` … `parse_atom` is one expression. 64 is below
+/// `MAX_MATH_DEPTH` (128) in `validate.rs`, so checks and renderers never
+/// see a deeper tree, and it is more than any real dictation.
+pub const MAX_PARSE_DEPTH: usize = 64;
+
 pub fn parse_math(
     words: &[String],
     lex: &Lexicon,
@@ -182,6 +190,8 @@ struct Parser<'a> {
     /// Whether this parse ever met that ambiguity. Set on the narrow pass so
     /// the caller knows a second pass is worth running at all.
     saw_open_root: bool,
+    /// Open [`Parser::nested`] calls. A new parser, including `reparse_with`, starts at zero.
+    depth: usize,
 }
 
 /// «корень из икс плюс один» has two readings — `√x + 1` and `√(x+1)` — and
@@ -214,7 +224,32 @@ impl<'a> Parser<'a> {
             stop_at_comma: false,
             root_binding,
             saw_open_root: false,
+            depth: 0,
         }
+    }
+
+    /// One nesting level for every inner expression.
+    ///
+    /// Parentheses, fractions, roots, functions, powers, absolute value,
+    /// sums, products, integrals, limits, derivatives and a leading minus
+    /// all enter through here, so the limit is not special to one construct.
+    /// The top-level `parse_eq` is not a level, and `reparse_with` starts
+    /// over on a new parser. Depth drops on every return, `Err` included,
+    /// so a later token rollback (`parse_integral`) cannot leave it raised
+    /// the way `stop_at_differential` stays raised when its reset follows `?`.
+    fn nested(&mut self, parse: impl FnOnce(&mut Self) -> Result<Math>) -> Result<Math> {
+        if self.depth >= MAX_PARSE_DEPTH {
+            return Err(Error::Parse {
+                domain: "mathematics",
+                reason: format!(
+                    "выражение вложено глубже {MAX_PARSE_DEPTH}; это не похоже на продиктованную формулу"
+                ),
+            });
+        }
+        self.depth += 1;
+        let result = parse(self);
+        self.depth -= 1;
+        result
     }
 
     fn peek(&self) -> Option<&'a Tok> {
@@ -310,11 +345,11 @@ impl<'a> Parser<'a> {
     fn parse_unary(&mut self) -> Result<Math> {
         self.skip_commas();
         if self.eat(|t| matches!(t, Tok::Minus)) {
-            let inner = self.parse_unary()?;
+            let inner = self.nested(|p| p.parse_unary())?;
             return Ok(Math::UnaryMinus(Box::new(inner)));
         }
         if self.eat(|t| matches!(t, Tok::Plus)) {
-            return self.parse_unary();
+            return self.nested(|p| p.parse_unary());
         }
         self.parse_juxt()
     }
@@ -467,7 +502,7 @@ impl<'a> Parser<'a> {
                 }
                 Some(Tok::PowStart) => {
                     self.bump();
-                    let exp = self.parse_add()?;
+                    let exp = self.nested(|p| p.parse_add())?;
                     if !self.eat(|t| matches!(t, Tok::PowEnd)) {
                         self.warnings
                             .push("unclosed power; inserting anyway".into());
@@ -515,7 +550,7 @@ impl<'a> Parser<'a> {
         // use it for bounds (integral, sum, product) are introduced
         // by their own token, never by a bare symbol.
         if matches!(self.peek(), Some(Tok::From)) {
-            return self.parse_application(name);
+            return self.nested(move |p| p.parse_application(name));
         }
         if !allow_implicit_subscript {
             return Ok(name);
@@ -547,7 +582,7 @@ impl<'a> Parser<'a> {
             Some(Tok::FuncFiller) => {
                 // «функция эф от икс» — the filler introduces a named
                 // function and is not part of the expression.
-                let inner = self.parse_atom()?;
+                let inner = self.nested(|p| p.parse_atom())?;
                 Ok(inner)
             }
             Some(Tok::Sym(s)) => self.parse_symbol_atom(s, true),
@@ -565,7 +600,7 @@ impl<'a> Parser<'a> {
                 if !self.starts_atom() {
                     return Ok(Math::Symbol(Symbol::greek("δ", Case::Lower)));
                 }
-                let inner = self.parse_postfix()?;
+                let inner = self.nested(|p| p.parse_postfix())?;
                 let inner = match inner {
                     Math::Symbol(s) if s.alphabet == Alphabet::Latin && s.letter.len() == 1 => {
                         Math::Symbol(Symbol::latin(s.letter.chars().next().unwrap(), Case::Upper))
@@ -575,20 +610,20 @@ impl<'a> Parser<'a> {
                 Ok(Math::Delta(Box::new(inner)))
             }
             Some(Tok::VectorKw) => {
-                let inner = self.parse_postfix()?;
+                let inner = self.nested(|p| p.parse_postfix())?;
                 Ok(Math::Vector(Box::new(inner)))
             }
             Some(Tok::Fact) => {
-                let inner = self.parse_juxt()?;
+                let inner = self.nested(|p| p.parse_juxt())?;
                 Ok(Math::Factorial(Box::new(inner)))
             }
             Some(Tok::AbsKw) => {
-                let inner = self.parse_postfix()?;
+                let inner = self.nested(|p| p.parse_postfix())?;
                 Ok(Math::Abs(Box::new(inner)))
             }
-            Some(Tok::Function(kind)) => self.parse_function(*kind),
+            Some(&Tok::Function(kind)) => self.nested(move |p| p.parse_function(kind)),
             Some(Tok::LParen) => {
-                let inner = self.parse_eq()?;
+                let inner = self.nested(|p| p.parse_eq())?;
                 if !self.eat(|t| matches!(t, Tok::RParen)) {
                     self.warnings.push("unclosed parenthesis".into());
                 }
@@ -598,7 +633,7 @@ impl<'a> Parser<'a> {
                 })
             }
             Some(Tok::LBrack) => {
-                let inner = self.parse_eq()?;
+                let inner = self.nested(|p| p.parse_eq())?;
                 let _ = self.eat(|t| matches!(t, Tok::RBrack));
                 Ok(Math::Group {
                     kind: GroupKind::Bracket,
@@ -606,16 +641,16 @@ impl<'a> Parser<'a> {
                 })
             }
             Some(Tok::LBrace) => {
-                let inner = self.parse_eq()?;
+                let inner = self.nested(|p| p.parse_eq())?;
                 let _ = self.eat(|t| matches!(t, Tok::RBrace));
                 Ok(Math::Group {
                     kind: GroupKind::Brace,
                     inner: Box::new(inner),
                 })
             }
-            Some(Tok::FracStart) => self.parse_fraction(),
+            Some(Tok::FracStart) => self.nested(|p| p.parse_fraction()),
             Some(Tok::RootStart) => {
-                let rad = self.parse_add()?;
+                let rad = self.nested(|p| p.parse_add())?;
                 if !self.eat(|t| matches!(t, Tok::RootEnd)) {
                     self.warnings.push("unclosed root".into());
                 }
@@ -629,8 +664,8 @@ impl<'a> Parser<'a> {
                 // readings part company, and which one this parse takes is
                 // decided by `root_binding`, not here.
                 let rad = match self.root_binding {
-                    RootBinding::NextAtom => self.parse_postfix()?,
-                    RootBinding::RestOfTerm => self.parse_add()?,
+                    RootBinding::NextAtom => self.nested(|p| p.parse_postfix())?,
+                    RootBinding::RestOfTerm => self.nested(|p| p.parse_add())?,
                 };
                 if matches!(self.peek(), Some(Tok::Plus | Tok::Minus)) {
                     self.saw_open_root = true;
@@ -644,7 +679,9 @@ impl<'a> Parser<'a> {
                     radicand: Box::new(rad),
                 })
             }
-            Some(Tok::Derivative) => self.parse_derivative(DerivativeKind::Ordinary, None),
+            Some(Tok::Derivative) => {
+                self.nested(|p| p.parse_derivative(DerivativeKind::Ordinary, None))
+            }
             Some(Tok::Partial) => {
                 if !self.eat(|t| matches!(t, Tok::Derivative)) {
                     return Err(Error::Parse {
@@ -652,7 +689,7 @@ impl<'a> Parser<'a> {
                         reason: "«частная» without «производная»".into(),
                     });
                 }
-                self.parse_derivative(DerivativeKind::Partial, None)
+                self.nested(|p| p.parse_derivative(DerivativeKind::Partial, None))
             }
             Some(Tok::Ordinal(order)) => {
                 let order = *order;
@@ -667,9 +704,9 @@ impl<'a> Parser<'a> {
                         reason: "an ordinal here only names a derivative order".into(),
                     });
                 }
-                self.parse_derivative(kind, Some(order))
+                self.nested(|p| p.parse_derivative(kind, Some(order)))
             }
-            Some(Tok::Limit) => self.parse_limit(None),
+            Some(Tok::Limit) => self.nested(|p| p.parse_limit(None)),
             Some(Tok::LimitLeft) => {
                 if !self.eat(|t| matches!(t, Tok::Limit)) {
                     return Err(Error::Parse {
@@ -677,7 +714,7 @@ impl<'a> Parser<'a> {
                         reason: "«слева» without «предел»".into(),
                     });
                 }
-                self.parse_limit(Some(LimitDirection::FromLeft))
+                self.nested(|p| p.parse_limit(Some(LimitDirection::FromLeft)))
             }
             Some(Tok::LimitRight) => {
                 if !self.eat(|t| matches!(t, Tok::Limit)) {
@@ -686,11 +723,11 @@ impl<'a> Parser<'a> {
                         reason: "«справа» without «предел»".into(),
                     });
                 }
-                self.parse_limit(Some(LimitDirection::FromRight))
+                self.nested(|p| p.parse_limit(Some(LimitDirection::FromRight)))
             }
-            Some(Tok::Sum) => self.parse_nary(Nary::Sum),
-            Some(Tok::Product) => self.parse_nary(Nary::Product),
-            Some(Tok::Integral) => self.parse_integral(),
+            Some(Tok::Sum) => self.nested(|p| p.parse_nary(Nary::Sum)),
+            Some(Tok::Product) => self.nested(|p| p.parse_nary(Nary::Product)),
+            Some(Tok::Integral) => self.nested(|p| p.parse_integral()),
             Some(other) => Err(Error::Parse {
                 domain: "mathematics",
                 reason: format!("unexpected token {other:?}"),
@@ -1015,7 +1052,8 @@ impl<'a> Parser<'a> {
     /// target and not the start of the body.
     fn parse_limit_target(&mut self) -> Result<Math> {
         if self.eat(|t| matches!(t, Tok::Minus)) {
-            return Ok(Math::UnaryMinus(Box::new(self.parse_limit_target()?)));
+            let inner = self.nested(|p| p.parse_limit_target())?;
+            return Ok(Math::UnaryMinus(Box::new(inner)));
         }
         let _ = self.eat(|t| matches!(t, Tok::Plus));
         if !self.starts_atom() {
