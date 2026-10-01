@@ -1,0 +1,741 @@
+{
+  "protocol": "voice-v1",
+  "source_commit": "f6b6d8104643d6d074eb7bb34c92f90a95bde8cc",
+  "sources": [
+    "dev-seed-v2.jsonl",
+    "ambiguous-v1.jsonl",
+    "nomenclature-v1.jsonl"
+  ],
+  "quotas_per_domain_total": {
+    "chemistry": 32,
+    "mathematics": 24,
+    "physics": 12,
+    "plain": 12
+  },
+  "blocks": {
+    "I": [
+      {
+        "family_id": "amb-asr-carbonate-001",
+        "id": "amb-asr-carbonate-001-a",
+        "domain": "chemistry",
+        "action": "ast",
+        "human_transcript": "карбанат кальция",
+        "source": "ambiguous-v1.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "amb-asr-hydroxide-001",
+        "id": "amb-asr-hydroxide-001-a",
+        "domain": "chemistry",
+        "action": "ast",
+        "human_transcript": "гидраксид железа три",
+        "source": "ambiguous-v1.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "amb-domain-spelled-001",
+        "id": "amb-domain-spelled-001-a",
+        "domain": "chemistry",
+        "action": "ast",
+        "human_transcript": "аш два эс о четыре",
+        "source": "ambiguous-v1.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "amb-fix-hydroxide-001",
+        "id": "amb-fix-hydroxide-001-a",
+        "domain": "chemistry",
+        "action": "ast",
+        "human_transcript": "гидроксид железа два, нет, железа три",
+        "source": "ambiguous-v1.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "amb-fix-too-many-001",
+        "id": "amb-fix-too-many-001-a",
+        "domain": "chemistry",
+        "action": "ast",
+        "human_transcript": "гидроксид железа два, нет, железа три, нет, железа два, нет, железа три, нет, железа два",
+        "source": "ambiguous-v1.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "amb-frame-between-water-001",
+        "id": "amb-frame-between-water-001-a",
+        "domain": "chemistry",
+        "action": "ast",
+        "human_transcript": "реакция идёт между водородом и кислородом с образованием воды",
+        "source": "ambiguous-v1.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "amb-frame-decompose-001",
+        "id": "amb-frame-decompose-001-a",
+        "domain": "chemistry",
+        "action": "ast",
+        "human_transcript": "если нагреть карбонат кальция, он разлагается на оксид кальция и углекислый газ",
+        "source": "ambiguous-v1.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "amb-frame-result-water-001",
+        "id": "amb-frame-result-water-001-a",
+        "domain": "chemistry",
+        "action": "ast",
+        "human_transcript": "водород взаимодействует с кислородом, в результате получается вода",
+        "source": "ambiguous-v1.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "amb-order-filler-001",
+        "id": "amb-order-filler-001-a",
+        "domain": "chemistry",
+        "action": "ast",
+        "human_transcript": "ну значит карбонат кальция, вот, разлагается на оксид кальция и углекислый газ",
+        "source": "ambiguous-v1.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "amb-order-parenthetical-001",
+        "id": "amb-order-parenthetical-001-a",
+        "domain": "chemistry",
+        "action": "ast",
+        "human_transcript": "реакция, как мы вчера обсуждали, идёт между натрием и хлором с образованием хлорида натрия",
+        "source": "ambiguous-v1.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "chem-al2o3-001",
+        "id": "chem-al2o3-001-a",
+        "domain": "chemistry",
+        "action": "ast",
+        "human_transcript": "оксид алюминия",
+        "source": "dev-seed-v2.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "chem-ammonia-001",
+        "id": "chem-ammonia-001-a",
+        "domain": "chemistry",
+        "action": "ast",
+        "human_transcript": "аммиак",
+        "source": "dev-seed-v2.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "chem-co2-001",
+        "id": "chem-co2-001-a",
+        "domain": "chemistry",
+        "action": "ast",
+        "human_transcript": "углекислый газ",
+        "source": "dev-seed-v2.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "chem-cu-ion-001",
+        "id": "chem-cu-ion-001-a",
+        "domain": "chemistry",
+        "action": "ast",
+        "human_transcript": "ион меди два плюс",
+        "source": "dev-seed-v2.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "chem-feoh3-001",
+        "id": "chem-feoh3-001-a",
+        "domain": "chemistry",
+        "action": "ast",
+        "human_transcript": "гидроксид железа три",
+        "source": "dev-seed-v2.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "chem-hydrochloric-001",
+        "id": "chem-hydrochloric-001-a",
+        "domain": "chemistry",
+        "action": "ast",
+        "human_transcript": "соляная кислота",
+        "source": "dev-seed-v2.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "amb-div-bind-001",
+        "id": "amb-div-bind-001-a",
+        "domain": "mathematics",
+        "action": "ast",
+        "human_transcript": "один делить на икс плюс два",
+        "source": "ambiguous-v1.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "amb-fix-substitute-001",
+        "id": "amb-fix-substitute-001-a",
+        "domain": "mathematics",
+        "action": "ast",
+        "human_transcript": "не два икс, а три икс плюс один",
+        "source": "ambiguous-v1.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "amb-root-bind-001",
+        "id": "amb-root-bind-001-a",
+        "domain": "mathematics",
+        "action": "ast",
+        "human_transcript": "корень из икс плюс один",
+        "source": "ambiguous-v1.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "math-abs-001",
+        "id": "math-abs-001-a",
+        "domain": "mathematics",
+        "action": "ast",
+        "human_transcript": "модуль икс",
+        "source": "dev-seed-v2.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "math-apply-two-args",
+        "id": "math-apply-two-args-a",
+        "domain": "mathematics",
+        "action": "ast",
+        "human_transcript": "эф от икс запятая игрек",
+        "source": "nomenclature-v1.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "math-deriv-first-001",
+        "id": "math-deriv-first-001-a",
+        "domain": "mathematics",
+        "action": "ast",
+        "human_transcript": "производная эф по икс",
+        "source": "dev-seed-v2.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "math-deriv-third-001",
+        "id": "math-deriv-third-001-a",
+        "domain": "mathematics",
+        "action": "ast",
+        "human_transcript": "производная третьего порядка игрек по тэ",
+        "source": "dev-seed-v2.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "math-factorial-001",
+        "id": "math-factorial-001-a",
+        "domain": "mathematics",
+        "action": "ast",
+        "human_transcript": "факториал четырёх ка",
+        "source": "dev-seed-v2.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "math-fraction-word-001",
+        "id": "math-fraction-word-001-a",
+        "domain": "mathematics",
+        "action": "ast",
+        "human_transcript": "икс делённое на игрек",
+        "source": "dev-seed-v2.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "math-inequality-001",
+        "id": "math-inequality-001-a",
+        "domain": "mathematics",
+        "action": "ast",
+        "human_transcript": "икс больше или равно нулю",
+        "source": "dev-seed-v2.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "math-integral-indef-001",
+        "id": "math-integral-indef-001-a",
+        "domain": "mathematics",
+        "action": "ast",
+        "human_transcript": "интеграл эф дэ икс",
+        "source": "dev-seed-v2.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "math-limit-left-001",
+        "id": "math-limit-left-001-a",
+        "domain": "mathematics",
+        "action": "ast",
+        "human_transcript": "предел слева при икс стремящемся к нулю эф",
+        "source": "dev-seed-v2.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "amb-domain-delta-g-001",
+        "id": "amb-domain-delta-g-001-a",
+        "domain": "physics",
+        "action": "ast",
+        "human_transcript": "дельта же равно минус эн эф е",
+        "source": "ambiguous-v1.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "phys-compatible-lengths-001",
+        "id": "phys-compatible-lengths-001-a",
+        "domain": "physics",
+        "action": "ast",
+        "human_transcript": "три метра плюс четыре сантиметра",
+        "source": "dev-seed-v2.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "phys-deriv-velocity-001",
+        "id": "phys-deriv-velocity-001-a",
+        "domain": "physics",
+        "action": "ast",
+        "human_transcript": "производная десять метров по пять секунд",
+        "source": "dev-seed-v2.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "phys-g-001",
+        "id": "phys-g-001-a",
+        "domain": "physics",
+        "action": "ast",
+        "human_transcript": "девять целых восемьдесят одна метра на секунду в квадрате",
+        "source": "dev-seed-v2.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "phys-inverse-metre-001",
+        "id": "phys-inverse-metre-001-a",
+        "domain": "physics",
+        "action": "ast",
+        "human_transcript": "один метр в минус первой",
+        "source": "dev-seed-v2.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "phys-kelvin-001",
+        "id": "phys-kelvin-001-a",
+        "domain": "physics",
+        "action": "ast",
+        "human_transcript": "триста кельвинов",
+        "source": "dev-seed-v2.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "amb-asr-unrepairable-001",
+        "id": "amb-asr-unrepairable-001-a",
+        "domain": "plain",
+        "action": "raw",
+        "human_transcript": "гырдксд жлз тр",
+        "source": "ambiguous-v1.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "amb-neg-copper-prose-001",
+        "id": "amb-neg-copper-prose-001-a",
+        "domain": "plain",
+        "action": "raw",
+        "human_transcript": "медь, о которой я говорил, лежит в шкафу",
+        "source": "ambiguous-v1.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "amb-neg-degree-001",
+        "id": "amb-neg-degree-001-a",
+        "domain": "plain",
+        "action": "raw",
+        "human_transcript": "степень доверия к источнику",
+        "source": "ambiguous-v1.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "amb-neg-integral-001",
+        "id": "amb-neg-integral-001-a",
+        "domain": "plain",
+        "action": "raw",
+        "human_transcript": "интегральная оценка курса",
+        "source": "ambiguous-v1.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "amb-neg-not-correction-001",
+        "id": "amb-neg-not-correction-001-a",
+        "domain": "plain",
+        "action": "raw",
+        "human_transcript": "не всё так просто, а вот хлорид натрия мы уже обсудили",
+        "source": "ambiguous-v1.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "amb-neg-reaction-001",
+        "id": "amb-neg-reaction-001-a",
+        "domain": "plain",
+        "action": "raw",
+        "human_transcript": "реакция была бурной",
+        "source": "ambiguous-v1.jsonl",
+        "delivery": "scripted"
+      }
+    ],
+    "II": [
+      {
+        "family_id": "amb-asr-chloride-001",
+        "id": "amb-asr-chloride-001-a",
+        "domain": "chemistry",
+        "action": "ast",
+        "human_transcript": "хларид натрия",
+        "source": "ambiguous-v1.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "amb-asr-sulfuric-001",
+        "id": "amb-asr-sulfuric-001-a",
+        "domain": "chemistry",
+        "action": "ast",
+        "human_transcript": "сернея кислота",
+        "source": "ambiguous-v1.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "amb-fix-carbonate-001",
+        "id": "amb-fix-carbonate-001-a",
+        "domain": "chemistry",
+        "action": "ast",
+        "human_transcript": "карбонат натрия, нет, карбонат калия",
+        "source": "ambiguous-v1.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "amb-fix-oxide-001",
+        "id": "amb-fix-oxide-001-a",
+        "domain": "chemistry",
+        "action": "ast",
+        "human_transcript": "оксид меди один, точнее, меди два",
+        "source": "ambiguous-v1.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "amb-frame-between-nacl-001",
+        "id": "amb-frame-between-nacl-001-a",
+        "domain": "chemistry",
+        "action": "ast",
+        "human_transcript": "реакция идёт между натрием и хлором с образованием хлорида натрия",
+        "source": "ambiguous-v1.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "amb-frame-between-zn-001",
+        "id": "amb-frame-between-zn-001-a",
+        "domain": "chemistry",
+        "action": "ast",
+        "human_transcript": "реакция между цинком и соляной кислотой с образованием хлорида цинка и водорода",
+        "source": "ambiguous-v1.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "amb-frame-result-nacl-001",
+        "id": "amb-frame-result-nacl-001-a",
+        "domain": "chemistry",
+        "action": "ast",
+        "human_transcript": "натрий взаимодействует с хлором, в результате получается хлорид натрия",
+        "source": "ambiguous-v1.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "amb-frame-result-zn-001",
+        "id": "amb-frame-result-zn-001-a",
+        "domain": "chemistry",
+        "action": "ast",
+        "human_transcript": "цинк взаимодействует с соляной кислотой, в результате получается хлорид цинка и водород",
+        "source": "ambiguous-v1.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "amb-order-fronted-001",
+        "id": "amb-order-fronted-001-a",
+        "domain": "chemistry",
+        "action": "ast",
+        "human_transcript": "с образованием хлорида натрия идёт реакция между натрием и хлором",
+        "source": "ambiguous-v1.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "amb-stress-unicode-001",
+        "id": "amb-stress-unicode-001-a",
+        "domain": "chemistry",
+        "action": "ast",
+        "human_transcript": "гидроксид железа три — «ключевой» реагент",
+        "source": "ambiguous-v1.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "chem-alcl3-001",
+        "id": "chem-alcl3-001-a",
+        "domain": "chemistry",
+        "action": "ast",
+        "human_transcript": "хлорид алюминия",
+        "source": "dev-seed-v2.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "chem-caoh2-001",
+        "id": "chem-caoh2-001-a",
+        "domain": "chemistry",
+        "action": "ast",
+        "human_transcript": "гидроксид кальция",
+        "source": "dev-seed-v2.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "chem-coefficient-001",
+        "id": "chem-coefficient-001-a",
+        "domain": "chemistry",
+        "action": "ast",
+        "human_transcript": "два аш два о",
+        "source": "dev-seed-v2.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "chem-fe2o3-001",
+        "id": "chem-fe2o3-001-a",
+        "domain": "chemistry",
+        "action": "ast",
+        "human_transcript": "оксид железа три",
+        "source": "dev-seed-v2.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "chem-hydrate-001",
+        "id": "chem-hydrate-001-a",
+        "domain": "chemistry",
+        "action": "ast",
+        "human_transcript": "медный купорос",
+        "source": "dev-seed-v2.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "chem-k2so4-001",
+        "id": "chem-k2so4-001-a",
+        "domain": "chemistry",
+        "action": "ast",
+        "human_transcript": "сульфат калия",
+        "source": "dev-seed-v2.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "amb-fix-restate-math-001",
+        "id": "amb-fix-restate-math-001-a",
+        "domain": "mathematics",
+        "action": "ast",
+        "human_transcript": "два икс плюс один, нет, три икс плюс один",
+        "source": "ambiguous-v1.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "amb-log-bind-001",
+        "id": "amb-log-bind-001-a",
+        "domain": "mathematics",
+        "action": "ast",
+        "human_transcript": "логарифм икс плюс один",
+        "source": "ambiguous-v1.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "amb-sine-bind-001",
+        "id": "amb-sine-bind-001-a",
+        "domain": "mathematics",
+        "action": "ast",
+        "human_transcript": "синус икс плюс игрек",
+        "source": "ambiguous-v1.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "math-apply-family",
+        "id": "math-apply-family-juxt",
+        "domain": "mathematics",
+        "action": "ast",
+        "human_transcript": "эф икс",
+        "source": "nomenclature-v1.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "math-cube-001",
+        "id": "math-cube-001-a",
+        "domain": "mathematics",
+        "action": "ast",
+        "human_transcript": "икс в кубе",
+        "source": "dev-seed-v2.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "math-deriv-second-001",
+        "id": "math-deriv-second-001-a",
+        "domain": "mathematics",
+        "action": "ast",
+        "human_transcript": "вторая производная игрек по икс",
+        "source": "dev-seed-v2.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "math-exp-001",
+        "id": "math-exp-001-a",
+        "domain": "mathematics",
+        "action": "ast",
+        "human_transcript": "экспонента от икс",
+        "source": "dev-seed-v2.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "math-fraction-boundary-001",
+        "id": "math-fraction-boundary-001-a",
+        "domain": "mathematics",
+        "action": "ast",
+        "human_transcript": "начало дроби числитель икс знаменатель игрек конец дроби",
+        "source": "dev-seed-v2.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "math-greek-001",
+        "id": "math-greek-001-a",
+        "domain": "mathematics",
+        "action": "ast",
+        "human_transcript": "пи",
+        "source": "dev-seed-v2.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "math-integral-def-001",
+        "id": "math-integral-def-001-a",
+        "domain": "mathematics",
+        "action": "ast",
+        "human_transcript": "интеграл от нуля до единицы икс в квадрате по икс",
+        "source": "dev-seed-v2.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "math-limit-inf-001",
+        "id": "math-limit-inf-001-a",
+        "domain": "mathematics",
+        "action": "ast",
+        "human_transcript": "предел функции эф при тэ стремящемся к бесконечности",
+        "source": "dev-seed-v2.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "math-limit-right-001",
+        "id": "math-limit-right-001-a",
+        "domain": "mathematics",
+        "action": "ast",
+        "human_transcript": "предел справа при икс стремящемся к двум эф",
+        "source": "dev-seed-v2.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "phys-ampere-001",
+        "id": "phys-ampere-001-a",
+        "domain": "physics",
+        "action": "ast",
+        "human_transcript": "три ампера",
+        "source": "dev-seed-v2.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "phys-delta-g-001",
+        "id": "phys-delta-g-001-a",
+        "domain": "physics",
+        "action": "ast",
+        "human_transcript": "дельта же равно минус эн эф е",
+        "source": "dev-seed-v2.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "phys-dimensioned-exponent-001",
+        "id": "phys-dimensioned-exponent-001-a",
+        "domain": "physics",
+        "action": "ast",
+        "human_transcript": "два в степени три метра",
+        "source": "dev-seed-v2.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "phys-integral-work-001",
+        "id": "phys-integral-work-001-a",
+        "domain": "physics",
+        "action": "ast",
+        "human_transcript": "интеграл пять ньютонов по два метра",
+        "source": "dev-seed-v2.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "phys-joule-001",
+        "id": "phys-joule-001-a",
+        "domain": "physics",
+        "action": "ast",
+        "human_transcript": "десять джоулей",
+        "source": "dev-seed-v2.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "phys-lambda-001",
+        "id": "phys-lambda-001-a",
+        "domain": "physics",
+        "action": "ast",
+        "human_transcript": "лямбда равно шестьсот тридцать два нанометра",
+        "source": "dev-seed-v2.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "amb-neg-between-001",
+        "id": "amb-neg-between-001-a",
+        "domain": "plain",
+        "action": "raw",
+        "human_transcript": "разговор между коллегами закончился ничем",
+        "source": "ambiguous-v1.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "amb-neg-decompose-001",
+        "id": "amb-neg-decompose-001-a",
+        "domain": "plain",
+        "action": "raw",
+        "human_transcript": "команда разлагается на две группы",
+        "source": "ambiguous-v1.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "amb-neg-hydrogen-prose-001",
+        "id": "amb-neg-hydrogen-prose-001-a",
+        "domain": "plain",
+        "action": "raw",
+        "human_transcript": "водород у нас закончился",
+        "source": "ambiguous-v1.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "amb-neg-limit-001",
+        "id": "amb-neg-limit-001-a",
+        "domain": "plain",
+        "action": "raw",
+        "human_transcript": "предел терпения не резиновый",
+        "source": "ambiguous-v1.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "amb-neg-order-001",
+        "id": "amb-neg-order-001-a",
+        "domain": "plain",
+        "action": "raw",
+        "human_transcript": "порядок величины имеет значение",
+        "source": "ambiguous-v1.jsonl",
+        "delivery": "scripted"
+      },
+      {
+        "family_id": "amb-neg-result-001",
+        "id": "amb-neg-result-001-a",
+        "domain": "plain",
+        "action": "raw",
+        "human_transcript": "он взаимодействует с людьми, в результате получается неплохо",
+        "source": "ambiguous-v1.jsonl",
+        "delivery": "scripted"
+      }
+    ]
+  }
+}
