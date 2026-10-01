@@ -1,12 +1,12 @@
 {
-  "report_schema_version": 4,
+  "report_schema_version": 5,
   "canonical_schema_version": 1,
   "severity_schema_version": 1,
   "program": {
     "name": "sciwhisper-eval",
     "version": "0.1.1-rc1",
-    "git_commit": "f036eb62648c1ace871999afcc75b501b0bf029d",
-    "git_dirty": false
+    "git_commit": "f6b6d8104643d6d074eb7bb34c92f90a95bde8cc",
+    "git_dirty": true
   },
   "dataset": {
     "file": "nomenclature-v1.jsonl",
@@ -1000,6 +1000,50 @@
       "verdict": "порог нельзя выбрать по данным: ошибок среди отвеченного 0, нужно не менее 20. При таком числе ошибок любые два порога различаются в пределах шума, и «лучший» из них будет выбран случайно. Оценка приняла 1 различных значений — калибровать шкалу почти без размаха тоже нечем."
     }
   },
+  "candidate_lattice": {
+    "examples": 53,
+    "distinct_asts": {
+      "min": 0,
+      "median": 0,
+      "max": 1,
+      "mean": 0.49056603773584906,
+      "histogram": {
+        "0": 27,
+        "1": 26
+      }
+    },
+    "with_a_choice": {
+      "numerator": 0,
+      "denominator": 53,
+      "value": 0.0,
+      "ci95_low": 0.0,
+      "ci95_high": 0.06758198857654187,
+      "ci_method": "wilson",
+      "zero_count_upper95": 0.05495548846517784
+    },
+    "gold_not_first": {
+      "numerator": 0,
+      "denominator": 53,
+      "value": 0.0,
+      "ci95_low": 0.0,
+      "ci95_high": 0.06758198857654187,
+      "ci_method": "wilson",
+      "zero_count_upper95": 0.05495548846517784
+    },
+    "gold_absent": {
+      "numerator": 0,
+      "denominator": 53,
+      "value": 0.0,
+      "ci95_low": 0.0,
+      "ci95_high": 0.06758198857654187,
+      "ci_method": "wilson",
+      "zero_count_upper95": 0.05495548846517784
+    },
+    "edited_candidates": 0,
+    "candidates_by_origin": {},
+    "truncated_examples": 0,
+    "verdict": "логистический baseline обучать не на чем: примеров с выбором 0, но ни в одном золотой ответ не стоит ниже первого места. Ранжировщику нечего исправлять — оптимум уже достигается порядком генератора."
+  },
   "user_path": {
     "declared_expectations": 27,
     "evaluated_records": 53,
@@ -1029,10 +1073,11 @@
     "The confidence produced by sciwhisper-core is a deterministic parse level, not a calibrated probability. No metric here treats it as one.",
     "Oracle replacement deltas answer the product question and are not additive; component isolation answers the laboratory question and is a different quantity.",
     "An observed count of zero for a rare safety error is reported with its exact one-sided 95% upper bound, never as a proven zero.",
-    "The insert/abstain threshold is reported as a risk–coverage curve rather than defended. `no_worse_than_configured` lists only thresholds that give up nothing on coverage, accuracy and risk at once; a trade between them is the owner's decision."
+    "The insert/abstain threshold is reported as a risk–coverage curve rather than defended. `no_worse_than_configured` lists only thresholds that give up nothing on coverage, accuracy and risk at once; a trade between them is the owner's decision.",
+    "The candidate lattice offers readings; it never inserts one. Readings that exist only because the words were edited first are generated behind RAW, so a wider lattice cannot raise the false-rewrite rate on its own."
   ],
   "timing": {
-    "latency_us_p50": 1343,
-    "latency_us_p95": 4486
+    "latency_us_p50": 1190,
+    "latency_us_p95": 3631
   }
 }

@@ -5,8 +5,8 @@
   "program": {
     "name": "sciwhisper-eval",
     "version": "0.1.1-rc1",
-    "git_commit": "f69bd6e9bf14d332d3a723f08d2ac6a138e78403",
-    "git_dirty": false
+    "git_commit": "f6b6d8104643d6d074eb7bb34c92f90a95bde8cc",
+    "git_dirty": true
   },
   "dataset": {
     "file": "ambiguous-v1.jsonl",
@@ -1250,11 +1250,11 @@
     "declared_expectations": 3,
     "evaluated_records": 58,
     "mixed_exact_match": {
-      "numerator": 40,
+      "numerator": 39,
       "denominator": 58,
-      "value": 0.6896551724137931,
-      "ci95_low": 0.5619693557571829,
-      "ci95_high": 0.7937790437718092,
+      "value": 0.6724137931034483,
+      "ci95_low": 0.544240546784708,
+      "ci95_high": 0.7791670891507392,
       "ci_method": "wilson"
     },
     "false_scientific_rewrite_rate": {
@@ -1325,7 +1325,7 @@
       {
         "id": "amb-frame-decompose-001-a",
         "said": "если нагреть карбонат кальция, он разлагается на оксид кальция и углекислый газ",
-        "shown": "если нагреть CaCO₃, он разлагается на CaO и CO₂"
+        "shown": "если нагреть карбонат кальция, он разлагается на оксид кальция и углекислый газ"
       },
       {
         "id": "amb-neg-copper-prose-001-a",
@@ -1338,6 +1338,11 @@
         "shown": "водород у нас закончился"
       },
       {
+        "id": "amb-neg-not-correction-001-a",
+        "said": "не всё так просто, а вот хлорид натрия мы уже обсудили",
+        "shown": "не всё так просто, а вот хлорид натрия мы уже обсудили"
+      },
+      {
         "id": "amb-order-filler-001-a",
         "said": "ну значит карбонат кальция, вот, разлагается на оксид кальция и углекислый газ",
         "shown": "ну значит CaCO₃, вот, разлагается на CaO и CO₂"
@@ -1345,7 +1350,7 @@
       {
         "id": "amb-order-fronted-001-a",
         "said": "с образованием хлорида натрия идёт реакция между натрием и хлором",
-        "shown": "с образованием NaCl идёт реакция между Na и Cl₂"
+        "shown": "с образованием хлорида натрия идёт реакция между натрием и хлором"
       },
       {
         "id": "amb-order-parenthetical-001-a",
@@ -1355,7 +1360,7 @@
       {
         "id": "amb-stress-unicode-001-a",
         "said": "гидроксид железа три — «ключевой» реагент",
-        "shown": "Fe(OH)₃ — «ключевой» реагент"
+        "shown": "гидроксид железа три — «ключевой» реагент"
       }
     ]
   },
@@ -1826,7 +1831,7 @@
     "The candidate lattice offers readings; it never inserts one. Readings that exist only because the words were edited first are generated behind RAW, so a wider lattice cannot raise the false-rewrite rate on its own."
   ],
   "timing": {
-    "latency_us_p50": 2922,
-    "latency_us_p95": 8053
+    "latency_us_p50": 2587,
+    "latency_us_p95": 7112
   }
 }

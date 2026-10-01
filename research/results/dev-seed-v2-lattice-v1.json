@@ -5,8 +5,8 @@
   "program": {
     "name": "sciwhisper-eval",
     "version": "0.1.1-rc1",
-    "git_commit": "f69bd6e9bf14d332d3a723f08d2ac6a138e78403",
-    "git_dirty": false
+    "git_commit": "f6b6d8104643d6d074eb7bb34c92f90a95bde8cc",
+    "git_dirty": true
   },
   "dataset": {
     "file": "dev-seed-v2.jsonl",
@@ -226,23 +226,23 @@
       "p50": 2,
       "p95": 3,
       "max": 3,
-      "examples_with_more_than_one_candidate": 86,
-      "examples_with_more_than_one_ast_candidate": 14
+      "examples_with_more_than_one_candidate": 85,
+      "examples_with_more_than_one_ast_candidate": 13
     },
     "reranker_readiness": {
       "scientific_examples": 84,
-      "examples_with_at_least_two_distinct_ast_candidates": 14,
+      "examples_with_at_least_two_distinct_ast_candidates": 13,
       "examples_where_gold_is_present_but_not_first": 1,
       "ambiguous_by_split": {
         "dev_holdout": 3,
         "train": 4,
-        "validation": 7
+        "validation": 6
       },
       "required_ambiguous_examples": 50,
       "required_gold_not_first": 20,
       "required_per_split": 10,
       "verdict": "insufficient",
-      "note": "A logistic reranker is statistically meaningless on this corpus: 14 examples offer more than one distinct scientific AST and 1 have the right answer outside first place, against a pre-registered requirement of 50 and 20. Training here would only learn to tell a single AST from RAW."
+      "note": "A logistic reranker is statistically meaningless on this corpus: 13 examples offer more than one distinct scientific AST and 1 have the right answer outside first place, against a pre-registered requirement of 50 and 20. Training here would only learn to tell a single AST from RAW."
     }
   },
   "breakdown": {
@@ -1673,19 +1673,19 @@
       "min": 0,
       "median": 1,
       "max": 2,
-      "mean": 0.8849557522123894,
+      "mean": 0.8672566371681416,
       "histogram": {
-        "0": 27,
+        "0": 28,
         "1": 72,
-        "2": 14
+        "2": 13
       }
     },
     "with_a_choice": {
-      "numerator": 14,
+      "numerator": 13,
       "denominator": 113,
-      "value": 0.12389380530973451,
-      "ci95_low": 0.07525459876163175,
-      "ci95_high": 0.19726389888532325,
+      "value": 0.11504424778761062,
+      "ci95_low": 0.06847720774536285,
+      "ci95_high": 0.1869240780815205,
       "ci_method": "wilson"
     },
     "gold_not_first": {
@@ -1705,12 +1705,12 @@
       "ci_method": "wilson",
       "zero_count_upper95": 0.026162575993197268
     },
-    "edited_candidates": 14,
+    "edited_candidates": 12,
     "candidates_by_origin": {
       "forced_domain": 100,
       "grammar_alternative": 1,
-      "maximal_span": 85,
-      "mixed_document": 85,
+      "maximal_span": 84,
+      "mixed_document": 84,
       "raw": 113,
       "whole_utterance": 85
     },
@@ -1721,11 +1721,11 @@
     "declared_expectations": 1,
     "evaluated_records": 113,
     "mixed_exact_match": {
-      "numerator": 113,
+      "numerator": 112,
       "denominator": 113,
-      "value": 1.0,
-      "ci95_low": 0.967122467834048,
-      "ci95_high": 1.0,
+      "value": 0.9911504424778761,
+      "ci95_low": 0.9515691320824156,
+      "ci95_high": 0.9984361239315607,
       "ci_method": "wilson"
     },
     "false_scientific_rewrite_rate": {
@@ -1737,7 +1737,13 @@
       "ci_method": "wilson",
       "zero_count_upper95": 0.10146573557272476
     },
-    "rewritten": []
+    "rewritten": [
+      {
+        "id": "raw-acid-storage-001-a",
+        "said": "серная кислота хранится в лаборатории",
+        "shown": "серная кислота хранится в лаборатории"
+      }
+    ]
   },
   "errors": [
     {
@@ -1771,7 +1777,7 @@
     "The candidate lattice offers readings; it never inserts one. Readings that exist only because the words were edited first are generated behind RAW, so a wider lattice cannot raise the false-rewrite rate on its own."
   ],
   "timing": {
-    "latency_us_p50": 7128,
-    "latency_us_p95": 17232
+    "latency_us_p50": 5694,
+    "latency_us_p95": 12123
   }
 }

@@ -9,8 +9,8 @@
     "git_dirty": true
   },
   "dataset": {
-    "file": "dev-seed-v2.jsonl",
-    "sha256": "4a8bfa082134a8093d6bbf50afaa5181bf5ed25c56bd3b6a6db2b575611e6b24",
+    "file": "dev-seed-v3.jsonl",
+    "sha256": "590f0c3d17d998dd6f2df32ee07c56f01a8a2866f68953f289883b553779c88d",
     "dataset_schema_versions": [
       1
     ],
@@ -1709,32 +1709,26 @@
     "verdict": "данных для логистического baseline недостаточно: 1 примеров, где золотой ответ не первый, нужно не менее 50. Это предварительный порог протокола, не теорема об обобщении."
   },
   "user_path": {
-    "declared_expectations": 1,
+    "declared_expectations": 0,
     "evaluated_records": 113,
     "mixed_exact_match": {
-      "numerator": 112,
+      "numerator": 113,
       "denominator": 113,
-      "value": 0.9911504424778761,
-      "ci95_low": 0.9515691320824156,
-      "ci95_high": 0.9984361239315607,
+      "value": 1.0,
+      "ci95_low": 0.967122467834048,
+      "ci95_high": 1.0,
       "ci_method": "wilson"
     },
     "false_scientific_rewrite_rate": {
       "numerator": 0,
-      "denominator": 28,
+      "denominator": 29,
       "value": 0.0,
-      "ci95_low": 1.3877787807814457e-17,
-      "ci95_high": 0.12064330476584563,
+      "ci95_low": 0.0,
+      "ci95_high": 0.11696979849974075,
       "ci_method": "wilson",
-      "zero_count_upper95": 0.10146573557272476
+      "zero_count_upper95": 0.0981446276772957
     },
-    "rewritten": [
-      {
-        "id": "raw-acid-storage-001-a",
-        "said": "серная кислота хранится в лаборатории",
-        "shown": "серная кислота хранится в лаборатории"
-      }
-    ]
+    "rewritten": []
   },
   "errors": [
     {
@@ -1768,7 +1762,7 @@
     "The candidate lattice offers readings; it never inserts one. Readings that exist only because the words were edited first are generated behind RAW, so a wider lattice cannot raise the false-rewrite rate on its own."
   ],
   "timing": {
-    "latency_us_p50": 1215,
-    "latency_us_p95": 3178
+    "latency_us_p50": 1216,
+    "latency_us_p95": 3175
   }
 }

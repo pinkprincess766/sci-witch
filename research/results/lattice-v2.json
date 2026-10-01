@@ -9,8 +9,8 @@
     "git_dirty": true
   },
   "dataset": {
-    "file": "ambiguous-v1.jsonl",
-    "sha256": "29683beb85f7055633e1cc7ba8756fa95d1c5f2d2a6237b4c5c496a4af689e2e",
+    "file": "ambiguous-v2.jsonl",
+    "sha256": "d10f8d5aa11e55abf787c8ca01b4df19c01cb929ed034fbc7559849fb74684bc",
     "dataset_schema_versions": [
       1
     ],
@@ -22,14 +22,14 @@
       "validation": 16
     },
     "counts_by_domain": {
-      "chemistry": 28,
+      "chemistry": 27,
       "mathematics": 10,
       "physics": 1,
-      "plain": 19
+      "plain": 20
     },
     "counts_by_action": {
-      "ast": 39,
-      "raw": 19
+      "ast": 38,
+      "raw": 20
     },
     "counts_by_provenance": {
       "handcrafted_text": 58
@@ -74,36 +74,36 @@
   "metrics": {
     "examples": 58,
     "ast_exact_match": {
-      "numerator": 35,
+      "numerator": 36,
       "denominator": 58,
-      "value": 0.603448275862069,
-      "ci95_low": 0.47493215951001205,
-      "ci95_high": 0.7191124220512564,
+      "value": 0.6206896551724138,
+      "ci95_low": 0.492028071927689,
+      "ci95_high": 0.7343572732271242,
       "ci_method": "wilson"
     },
     "pre_insertion_end_to_end_exact_match": {
       "latex": {
-        "numerator": 34,
+        "numerator": 35,
         "denominator": 58,
-        "value": 0.5862068965517241,
-        "ci95_low": 0.45798408170855665,
-        "ci95_high": 0.7037197362591668,
+        "value": 0.603448275862069,
+        "ci95_low": 0.47493215951001205,
+        "ci95_high": 0.7191124220512564,
         "ci_method": "wilson"
       },
       "omml": {
+        "numerator": 35,
+        "denominator": 58,
+        "value": 0.603448275862069,
+        "ci95_low": 0.47493215951001205,
+        "ci95_high": 0.7191124220512564,
+        "ci_method": "wilson"
+      },
+      "unicode": {
         "numerator": 34,
         "denominator": 58,
         "value": 0.5862068965517241,
         "ci95_low": 0.45798408170855665,
         "ci95_high": 0.7037197362591668,
-        "ci_method": "wilson"
-      },
-      "unicode": {
-        "numerator": 33,
-        "denominator": 58,
-        "value": 0.5689655172413793,
-        "ci95_low": 0.44118104569962746,
-        "ci95_high": 0.6881820086745516,
         "ci_method": "wilson"
       }
     },
@@ -124,94 +124,94 @@
       "ci_method": "wilson"
     },
     "overall_exact_match": {
-      "numerator": 33,
+      "numerator": 34,
       "denominator": 58,
-      "value": 0.5689655172413793,
-      "ci95_low": 0.44118104569962746,
-      "ci95_high": 0.6881820086745516,
+      "value": 0.5862068965517241,
+      "ci95_low": 0.45798408170855665,
+      "ci95_high": 0.7037197362591668,
       "ci_method": "wilson"
     },
     "overall_exact_match_bootstrap": {
-      "numerator": 33,
+      "numerator": 34,
       "denominator": 58,
-      "value": 0.5689655172413793,
-      "ci95_low": 0.43103448275862066,
-      "ci95_high": 0.6896551724137931,
+      "value": 0.5862068965517241,
+      "ci95_low": 0.46551724137931033,
+      "ci95_high": 0.7068965517241379,
       "ci_method": "bootstrap"
     },
     "candidate_recall_at_k": {
       "1": {
-        "numerator": 35,
+        "numerator": 36,
         "denominator": 58,
-        "value": 0.603448275862069,
-        "ci95_low": 0.47493215951001205,
-        "ci95_high": 0.7191124220512564,
+        "value": 0.6206896551724138,
+        "ci95_low": 0.492028071927689,
+        "ci95_high": 0.7343572732271242,
         "ci_method": "wilson"
       },
       "16": {
-        "numerator": 53,
+        "numerator": 54,
         "denominator": 58,
-        "value": 0.9137931034482759,
-        "ci95_low": 0.8135637093712647,
-        "ci95_high": 0.962614616873809,
+        "value": 0.9310344827586207,
+        "ci95_low": 0.8356633368561964,
+        "ci95_high": 0.9728557529824217,
         "ci_method": "wilson"
       },
       "2": {
-        "numerator": 46,
+        "numerator": 47,
         "denominator": 58,
-        "value": 0.7931034482758621,
-        "ci95_low": 0.6723078207851659,
-        "ci95_high": 0.8774851603050945,
+        "value": 0.8103448275862069,
+        "ci95_low": 0.6914762612950077,
+        "ci95_high": 0.8906574833887974,
         "ci_method": "wilson"
       },
       "4": {
-        "numerator": 53,
+        "numerator": 54,
         "denominator": 58,
-        "value": 0.9137931034482759,
-        "ci95_low": 0.8135637093712647,
-        "ci95_high": 0.962614616873809,
+        "value": 0.9310344827586207,
+        "ci95_low": 0.8356633368561964,
+        "ci95_high": 0.9728557529824217,
         "ci_method": "wilson"
       },
       "8": {
-        "numerator": 53,
+        "numerator": 54,
         "denominator": 58,
-        "value": 0.9137931034482759,
-        "ci95_low": 0.8135637093712647,
-        "ci95_high": 0.962614616873809,
+        "value": 0.9310344827586207,
+        "ci95_low": 0.8356633368561964,
+        "ci95_high": 0.9728557529824217,
         "ci_method": "wilson"
       }
     },
     "routing_accuracy": {
       "numerator": 17,
-      "denominator": 39,
-      "value": 0.4358974358974359,
-      "ci95_low": 0.2930475387568963,
-      "ci95_high": 0.5902430835133052,
+      "denominator": 38,
+      "value": 0.4473684210526316,
+      "ci95_low": 0.3014640099805125,
+      "ci95_high": 0.6029370287800753,
       "ci_method": "wilson"
     },
     "raw_accuracy": {
-      "numerator": 19,
-      "denominator": 19,
+      "numerator": 20,
+      "denominator": 20,
       "value": 1.0,
-      "ci95_low": 0.8318207759473837,
+      "ci95_low": 0.8388748419471806,
       "ci95_high": 1.0,
       "ci_method": "wilson"
     },
     "false_scientific_rewrite_rate": {
       "numerator": 0,
-      "denominator": 19,
+      "denominator": 20,
       "value": 0.0,
       "ci95_low": 0.0,
-      "ci95_high": 0.16817922405261626,
+      "ci95_high": 0.16112515805281938,
       "ci_method": "wilson",
-      "zero_count_upper95": 0.14586850331224344
+      "zero_count_upper95": 0.13910834066826516
     },
     "false_abstention_rate": {
-      "numerator": 24,
-      "denominator": 39,
-      "value": 0.6153846153846154,
-      "ci95_low": 0.45899061456925083,
-      "ci95_high": 0.7510862653443866,
+      "numerator": 23,
+      "denominator": 38,
+      "value": 0.6052631578947368,
+      "ci95_low": 0.4471786799604255,
+      "ci95_high": 0.744019242518399,
       "ci_method": "wilson"
     },
     "ast_validity": {
@@ -230,7 +230,7 @@
       "examples_with_more_than_one_ast_candidate": 13
     },
     "reranker_readiness": {
-      "scientific_examples": 39,
+      "scientific_examples": 38,
       "examples_with_at_least_two_distinct_ast_candidates": 13,
       "examples_where_gold_is_present_but_not_first": 18,
       "ambiguous_by_split": {
@@ -248,10 +248,10 @@
     "by_domain": {
       "chemistry": {
         "numerator": 10,
-        "denominator": 28,
-        "value": 0.35714285714285715,
-        "ci95_low": 0.2070582950773768,
-        "ci95_high": 0.5416969348557219,
+        "denominator": 27,
+        "value": 0.37037037037037035,
+        "ci95_low": 0.21532512960965597,
+        "ci95_high": 0.5577076558789761,
         "ci_method": "wilson"
       },
       "mathematics": {
@@ -271,10 +271,10 @@
         "ci_method": "wilson"
       },
       "plain": {
-        "numerator": 19,
-        "denominator": 19,
+        "numerator": 20,
+        "denominator": 20,
         "value": 1.0,
-        "ci95_low": 0.8318207759473837,
+        "ci95_low": 0.8388748419471806,
         "ci95_high": 1.0,
         "ci_method": "wilson"
       }
@@ -562,11 +562,11 @@
         "ci_method": "wilson"
       },
       "stress": {
-        "numerator": 2,
+        "numerator": 3,
         "denominator": 3,
-        "value": 0.6666666666666666,
-        "ci95_low": 0.2076596008020477,
-        "ci95_high": 0.9385080552796037,
+        "value": 1.0,
+        "ci95_low": 0.4385029682449546,
+        "ci95_high": 1.0,
         "ci_method": "wilson"
       },
       "substitute": {
@@ -587,13 +587,12 @@
         "ci_method": "wilson"
       },
       "unicode": {
-        "numerator": 0,
+        "numerator": 1,
         "denominator": 1,
-        "value": 0.0,
-        "ci95_low": 0.0,
-        "ci95_high": 0.7934506856227626,
-        "ci_method": "wilson",
-        "zero_count_upper95": 0.95
+        "value": 1.0,
+        "ci95_low": 0.20654931437723745,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
       },
       "unrepairable": {
         "numerator": 1,
@@ -803,7 +802,7 @@
         1
       ],
       "amb-stress-unicode-001": [
-        0,
+        1,
         1
       ]
     }
@@ -811,7 +810,7 @@
   "error_decomposition": {
     "counts": {
       "ASR-first": 0,
-      "candidate-first": 5,
+      "candidate-first": 4,
       "dataset-invalid": 0,
       "decision-first": 2,
       "rank-first": 18,
@@ -820,14 +819,14 @@
     },
     "share_of_errors": {
       "ASR-first": 0.0,
-      "candidate-first": 0.2,
+      "candidate-first": 0.16666666666666666,
       "dataset-invalid": 0.0,
-      "decision-first": 0.08,
-      "rank-first": 0.72,
+      "decision-first": 0.08333333333333333,
+      "rank-first": 0.75,
       "render-first": 0.0,
       "router-first": 0.0
     },
-    "errors": 25,
+    "errors": 24,
     "examples": 58,
     "asr_first_applicable_examples": 0,
     "notes": [
@@ -838,11 +837,11 @@
     {
       "variant": "real",
       "overall_exact_match": {
-        "numerator": 33,
+        "numerator": 34,
         "denominator": 58,
-        "value": 0.5689655172413793,
-        "ci95_low": 0.44118104569962746,
-        "ci95_high": 0.6881820086745516,
+        "value": 0.5862068965517241,
+        "ci95_low": 0.45798408170855665,
+        "ci95_high": 0.7037197362591668,
         "ci_method": "wilson"
       },
       "delta_vs_real": 0.0,
@@ -851,11 +850,11 @@
     {
       "variant": "oracle_transcript",
       "overall_exact_match": {
-        "numerator": 33,
+        "numerator": 34,
         "denominator": 58,
-        "value": 0.5689655172413793,
-        "ci95_low": 0.44118104569962746,
-        "ci95_high": 0.6881820086745516,
+        "value": 0.5862068965517241,
+        "ci95_low": 0.45798408170855665,
+        "ci95_high": 0.7037197362591668,
         "ci_method": "wilson"
       },
       "delta_vs_real": 0.0,
@@ -864,24 +863,24 @@
     {
       "variant": "oracle_domain",
       "overall_exact_match": {
-        "numerator": 33,
+        "numerator": 34,
         "denominator": 58,
-        "value": 0.5689655172413793,
-        "ci95_low": 0.44118104569962746,
-        "ci95_high": 0.6881820086745516,
+        "value": 0.5862068965517241,
+        "ci95_low": 0.45798408170855665,
+        "ci95_high": 0.7037197362591668,
         "ci_method": "wilson"
       },
       "delta_vs_real": 0.0,
-      "applicable_examples": 39
+      "applicable_examples": 38
     },
     {
       "variant": "oracle_candidates",
       "overall_exact_match": {
-        "numerator": 33,
+        "numerator": 34,
         "denominator": 58,
-        "value": 0.5689655172413793,
-        "ci95_low": 0.44118104569962746,
-        "ci95_high": 0.6881820086745516,
+        "value": 0.5862068965517241,
+        "ci95_low": 0.45798408170855665,
+        "ci95_high": 0.7037197362591668,
         "ci_method": "wilson"
       },
       "delta_vs_real": 0.0,
@@ -890,53 +889,53 @@
     {
       "variant": "oracle_ranker",
       "overall_exact_match": {
-        "numerator": 51,
+        "numerator": 52,
         "denominator": 58,
-        "value": 0.8793103448275862,
-        "ci95_low": 0.7712064595403911,
-        "ci95_high": 0.9402903395175928,
+        "value": 0.896551724137931,
+        "ci95_low": 0.7921189700751577,
+        "ci95_high": 0.951718592576371,
         "ci_method": "wilson"
       },
-      "delta_vs_real": 0.31034482758620685,
+      "delta_vs_real": 0.31034482758620696,
       "applicable_examples": 58
     },
     {
       "variant": "oracle_decision",
       "overall_exact_match": {
-        "numerator": 35,
+        "numerator": 36,
         "denominator": 58,
-        "value": 0.603448275862069,
-        "ci95_low": 0.47493215951001205,
-        "ci95_high": 0.7191124220512564,
+        "value": 0.6206896551724138,
+        "ci95_low": 0.492028071927689,
+        "ci95_high": 0.7343572732271242,
         "ci_method": "wilson"
       },
-      "delta_vs_real": 0.03448275862068961,
+      "delta_vs_real": 0.034482758620689724,
       "applicable_examples": 58
     }
   ],
   "component_isolation": {
     "router_isolated_accuracy": {
       "numerator": 17,
-      "denominator": 39,
-      "value": 0.4358974358974359,
-      "ci95_low": 0.2930475387568963,
-      "ci95_high": 0.5902430835133052,
+      "denominator": 38,
+      "value": 0.4473684210526316,
+      "ci95_low": 0.3014640099805125,
+      "ci95_high": 0.6029370287800753,
       "ci_method": "wilson"
     },
     "candidate_isolated_recall_at_k": {
-      "numerator": 53,
+      "numerator": 54,
       "denominator": 58,
-      "value": 0.9137931034482759,
-      "ci95_low": 0.8135637093712647,
-      "ci95_high": 0.962614616873809,
+      "value": 0.9310344827586207,
+      "ci95_low": 0.8356633368561964,
+      "ci95_high": 0.9728557529824217,
       "ci_method": "wilson"
     },
     "rank_isolated_accuracy": {
-      "numerator": 35,
+      "numerator": 36,
       "denominator": 58,
-      "value": 0.603448275862069,
-      "ci95_low": 0.47493215951001205,
-      "ci95_high": 0.7191124220512564,
+      "value": 0.6206896551724138,
+      "ci95_low": 0.492028071927689,
+      "ci95_high": 0.7343572732271242,
       "ci_method": "wilson"
     },
     "decision_isolated_accuracy": {
@@ -950,10 +949,10 @@
     "note": "Isolated numbers are laboratory component quality, not a product improvement ceiling; they are not additive with the oracle replacement deltas."
   },
   "severity": {
-    "errors": 25,
+    "errors": 24,
     "count_by_severity": {
       "S0": 0,
-      "S1": 25,
+      "S1": 24,
       "S2": 0,
       "S3": 0,
       "S4": 0
@@ -970,7 +969,7 @@
   "ast_distance": {
     "distance_schema_version": 1,
     "comparable_errors": 1,
-    "incomparable_errors": 24,
+    "incomparable_errors": 23,
     "mean": 3.0,
     "median": 3.0,
     "max": 3.0
@@ -996,11 +995,11 @@
           "ci_method": "wilson"
         },
         "accuracy": {
-          "numerator": 35,
+          "numerator": 36,
           "denominator": 58,
-          "value": 0.603448275862069,
-          "ci95_low": 0.47493215951001205,
-          "ci95_high": 0.7191124220512564,
+          "value": 0.6206896551724138,
+          "ci95_low": 0.492028071927689,
+          "ci95_high": 0.7343572732271242,
           "ci_method": "wilson"
         }
       },
@@ -1023,11 +1022,11 @@
           "ci_method": "wilson"
         },
         "accuracy": {
-          "numerator": 35,
+          "numerator": 36,
           "denominator": 58,
-          "value": 0.603448275862069,
-          "ci95_low": 0.47493215951001205,
-          "ci95_high": 0.7191124220512564,
+          "value": 0.6206896551724138,
+          "ci95_low": 0.492028071927689,
+          "ci95_high": 0.7343572732271242,
           "ci_method": "wilson"
         }
       },
@@ -1050,11 +1049,11 @@
           "ci_method": "wilson"
         },
         "accuracy": {
-          "numerator": 35,
+          "numerator": 36,
           "denominator": 58,
-          "value": 0.603448275862069,
-          "ci95_low": 0.47493215951001205,
-          "ci95_high": 0.7191124220512564,
+          "value": 0.6206896551724138,
+          "ci95_low": 0.492028071927689,
+          "ci95_high": 0.7343572732271242,
           "ci_method": "wilson"
         }
       },
@@ -1077,11 +1076,11 @@
           "ci_method": "wilson"
         },
         "accuracy": {
-          "numerator": 33,
+          "numerator": 34,
           "denominator": 58,
-          "value": 0.5689655172413793,
-          "ci95_low": 0.44118104569962746,
-          "ci95_high": 0.6881820086745516,
+          "value": 0.5862068965517241,
+          "ci95_low": 0.45798408170855665,
+          "ci95_high": 0.7037197362591668,
           "ci_method": "wilson"
         }
       },
@@ -1104,11 +1103,11 @@
           "ci_method": "wilson"
         },
         "accuracy": {
-          "numerator": 33,
+          "numerator": 34,
           "denominator": 58,
-          "value": 0.5689655172413793,
-          "ci95_low": 0.44118104569962746,
-          "ci95_high": 0.6881820086745516,
+          "value": 0.5862068965517241,
+          "ci95_low": 0.45798408170855665,
+          "ci95_high": 0.7037197362591668,
           "ci_method": "wilson"
         }
       },
@@ -1131,11 +1130,11 @@
           "ci_method": "wilson"
         },
         "accuracy": {
-          "numerator": 33,
+          "numerator": 34,
           "denominator": 58,
-          "value": 0.5689655172413793,
-          "ci95_low": 0.44118104569962746,
-          "ci95_high": 0.6881820086745516,
+          "value": 0.5862068965517241,
+          "ci95_low": 0.45798408170855665,
+          "ci95_high": 0.7037197362591668,
           "ci_method": "wilson"
         }
       },
@@ -1151,11 +1150,11 @@
           "zero_count_upper95": 0.05033933833042015
         },
         "accuracy": {
-          "numerator": 19,
+          "numerator": 20,
           "denominator": 58,
-          "value": 0.3275862068965517,
-          "ci95_low": 0.22083291084926074,
-          "ci95_high": 0.455759453215292,
+          "value": 0.3448275862068966,
+          "ci95_low": 0.2356108933195017,
+          "ci95_high": 0.47332223433859577,
           "ci_method": "wilson"
         }
       }
@@ -1235,11 +1234,11 @@
       "ci_method": "wilson"
     },
     "gold_absent": {
-      "numerator": 5,
+      "numerator": 4,
       "denominator": 58,
-      "value": 0.08620689655172414,
-      "ci95_low": 0.037385383126191135,
-      "ci95_high": 0.18643629062873543,
+      "value": 0.06896551724137931,
+      "ci95_low": 0.027144247017578338,
+      "ci95_high": 0.1643366631438035,
       "ci_method": "wilson"
     },
     "edited_candidates": 31,
@@ -1259,24 +1258,24 @@
     "verdict": "данных для логистического baseline недостаточно: 18 примеров, где золотой ответ не первый, нужно не менее 50. Это предварительный порог протокола, не теорема об обобщении."
   },
   "user_path": {
-    "declared_expectations": 3,
+    "declared_expectations": 0,
     "evaluated_records": 58,
     "mixed_exact_match": {
-      "numerator": 39,
+      "numerator": 43,
       "denominator": 58,
-      "value": 0.6724137931034483,
-      "ci95_low": 0.544240546784708,
-      "ci95_high": 0.7791670891507392,
+      "value": 0.7413793103448276,
+      "ci95_low": 0.6162261423525959,
+      "ci95_high": 0.8365445479570304,
       "ci_method": "wilson"
     },
     "false_scientific_rewrite_rate": {
       "numerator": 0,
-      "denominator": 16,
+      "denominator": 20,
       "value": 0.0,
       "ci95_low": 0.0,
-      "ci95_high": 0.1936076805344365,
+      "ci95_high": 0.16112515805281938,
       "ci_method": "wilson",
-      "zero_count_upper95": 0.17074972298248092
+      "zero_count_upper95": 0.13910834066826516
     },
     "rewritten": [
       {
@@ -1340,21 +1339,6 @@
         "shown": "если нагреть карбонат кальция, он разлагается на оксид кальция и углекислый газ"
       },
       {
-        "id": "amb-neg-copper-prose-001-a",
-        "said": "медь, о которой я говорил, лежит в шкафу",
-        "shown": "медь, о которой я говорил, лежит в шкафу"
-      },
-      {
-        "id": "amb-neg-hydrogen-prose-001-a",
-        "said": "водород у нас закончился",
-        "shown": "водород у нас закончился"
-      },
-      {
-        "id": "amb-neg-not-correction-001-a",
-        "said": "не всё так просто, а вот хлорид натрия мы уже обсудили",
-        "shown": "не всё так просто, а вот хлорид натрия мы уже обсудили"
-      },
-      {
         "id": "amb-order-filler-001-a",
         "said": "ну значит карбонат кальция, вот, разлагается на оксид кальция и углекислый газ",
         "shown": "ну значит CaCO₃, вот, разлагается на CaO и CO₂"
@@ -1368,11 +1352,6 @@
         "id": "amb-order-parenthetical-001-a",
         "said": "реакция, как мы вчера обсуждали, идёт между натрием и хлором с образованием хлорида натрия",
         "shown": "реакция, как мы вчера обсуждали, идёт между Na + Cl₂ → NaCl"
-      },
-      {
-        "id": "amb-stress-unicode-001-a",
-        "said": "гидроксид железа три — «ключевой» реагент",
-        "shown": "гидроксид железа три — «ключевой» реагент"
       }
     ]
   },
@@ -1813,24 +1792,6 @@
       "requested_domain": "auto",
       "hypothesis_index": 0,
       "renderer_faithful_to_gold": true
-    },
-    {
-      "id": "amb-stress-unicode-001-a",
-      "domain": "chemistry",
-      "target_action": "ast",
-      "first_blocking": "candidate-first",
-      "severity": "S1",
-      "transcript": "гидроксид железа три — «ключевой» реагент",
-      "expected": "Fe(OH)₃",
-      "produced": "гидроксид железа три — «ключевой» реагент",
-      "candidates": 1,
-      "gold_rank": null,
-      "selected_key": "RAW",
-      "selected_source": "raw",
-      "selected_warnings": [],
-      "requested_domain": null,
-      "hypothesis_index": 0,
-      "renderer_faithful_to_gold": null
     }
   ],
   "notes": [
@@ -1843,7 +1804,7 @@
     "The candidate lattice offers readings; it never inserts one. Readings that exist only because the words were edited first are generated behind RAW, so a wider lattice cannot raise the false-rewrite rate on its own."
   ],
   "timing": {
-    "latency_us_p50": 12666,
-    "latency_us_p95": 36282
+    "latency_us_p50": 12538,
+    "latency_us_p95": 35827
   }
 }

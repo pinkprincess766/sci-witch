@@ -163,12 +163,16 @@ mod tests {
     /// A record that states what the application should show is scored
     /// against that, not against its own words. Collapsing it to `RAW` would
     /// mark a correct substitution wrong.
+    ///
+    /// The fixture is a mathematical construction because a substance name
+    /// inside prose is no longer substituted; what is under test here is the
+    /// scoring machinery, not which spans qualify.
     #[test]
     fn a_declared_document_is_scored_as_a_document() {
         let dataset = corpus(&[raw_record(
             "mention",
-            "сульфат меди был куплен вчера",
-            Some("CuSO₄ был куплен вчера"),
+            "корень из икс мы обсудили вчера",
+            Some("√x мы обсудили вчера"),
         )]);
         let report = evaluate(&all(&dataset));
         assert_eq!(report.declared_expectations, 1);
@@ -193,11 +197,26 @@ mod tests {
     /// The same sentence without a claim is a rewrite, and is named.
     #[test]
     fn an_unclaimed_substitution_is_counted_and_named() {
-        let dataset = corpus(&[raw_record("mention", "сульфат меди был куплен вчера", None)]);
+        let dataset = corpus(&[raw_record(
+            "mention",
+            "корень из икс мы обсудили вчера",
+            None,
+        )]);
         let report = evaluate(&all(&dataset));
         assert_eq!(report.false_scientific_rewrite_rate.numerator, 1);
         assert_eq!(report.rewritten.len(), 1);
-        assert_eq!(report.rewritten[0].shown, "CuSO₄ был куплен вчера");
+        assert_eq!(report.rewritten[0].shown, "√x мы обсудили вчера");
+    }
+
+    /// And the sentence the fixtures above used to be: a substance name
+    /// inside prose is not a rewrite any more because it is not a
+    /// substitution any more.
+    #[test]
+    fn a_substance_named_inside_prose_is_not_touched() {
+        let dataset = corpus(&[raw_record("mention", "сульфат меди был куплен вчера", None)]);
+        let report = evaluate(&all(&dataset));
+        assert_eq!(report.false_scientific_rewrite_rate.numerator, 0);
+        assert!(report.rewritten.is_empty());
     }
 
     /// A declared document that does not match is reported, so the metric

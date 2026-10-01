@@ -162,12 +162,16 @@ enum Command {
         #[arg(long)]
         date: String,
     },
-    /// Check a report against the admission gates and refuse a release that
+    /// Check reports against the admission gates and refuse a release that
     /// the measurements do not support.
+    ///
+    /// A profile with a `benchmark` (the compiler) needs one `--report` per
+    /// pinned corpus and judges them as one pooled sample. A profile without
+    /// one (the voice application) takes exactly one report.
     Gate {
-        #[arg(long)]
-        report: PathBuf,
-        #[arg(long, default_value = "research/schema/release-gates-v1.json")]
+        #[arg(long, required = true)]
+        report: Vec<PathBuf>,
+        #[arg(long, default_value = "research/schema/compiler-gates-v2.json")]
         gates: PathBuf,
         /// The sealed frozen test. Without it, every gate that requires one
         /// is reported as not measurable — which blocks, rather than passes.
@@ -392,7 +396,10 @@ fn run() -> Result<ExitCode, String> {
             };
             let gate_file: gate::GateFile = serde_json::from_value(read(&gates)?)
                 .map_err(|error| format!("{}: {error}", gates.display()))?;
-            let report_json = read(&report)?;
+            let reports = report
+                .iter()
+                .map(|path| read(path))
+                .collect::<Result<Vec<_>, _>>()?;
             let seal = match &seal {
                 Some(path) => Some(
                     serde_json::from_value::<gate::FrozenSeal>(read(path)?)
@@ -400,19 +407,41 @@ fn run() -> Result<ExitCode, String> {
                 ),
                 None => None,
             };
-            let outcome = gate::evaluate(&gate_file, &report_json, seal.as_ref())?;
+            let outcome = if gate_file.benchmark.is_some() {
+                if seal.is_some() {
+                    return Err(format!(
+                        "профиль {} закрепляет корпуса в самом файле ворот; --seal к нему не относится",
+                        gate_file.profile
+                    ));
+                }
+                gate::evaluate_benchmark(&gate_file, &reports)?
+            } else {
+                let [single] = reports.as_slice() else {
+                    return Err(format!(
+                        "профиль {} судит ровно один отчёт, передано {}",
+                        gate_file.profile,
+                        reports.len()
+                    ));
+                };
+                gate::evaluate(&gate_file, single, seal.as_ref())?
+            };
             if json {
                 println!(
                     "{}",
                     serde_json::to_string_pretty(&outcome).map_err(|e| e.to_string())?
                 );
             } else {
-                match &seal {
-                    Some(seal) => println!(
+                match (&gate_file.benchmark, &seal) {
+                    (Some(benchmark), _) => println!(
+                        "benchmark: {} корпусов, закреплены по SHA-256 в {}",
+                        benchmark.corpora.len(),
+                        display(&gates)
+                    ),
+                    (None, Some(seal)) => println!(
                         "frozen test: {} (запечатан {} для {})",
                         seal.file, seal.sealed_at, seal.sealed_for
                     ),
-                    None => println!("frozen test: не запечатан"),
+                    (None, None) => println!("frozen test: не запечатан"),
                 }
                 print!("{outcome}");
                 // A blocked gate prints why it exists. Somebody reading a

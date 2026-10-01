@@ -284,17 +284,15 @@ fn ordinary_speech_is_treated_the_same_however_it_is_written() {
 /// |---|---|---|
 /// | «серная кислота хранится в лаборатории» | words kept | «H₂SO₄ хранится в лаборатории» |
 ///
-/// That matters because `false_scientific_rewrite_rate` is a headline safety
-/// number and a 0.5 release gate. Measured on `interpret` it is 0/28;
-/// measured on the path that ships it is 1/28 — if the corpus's intent for
-/// that record is taken at face value, and its `substance-mentioned` tag
-/// says it should be.
+/// That divergence is **closed**. A substance name inside ordinary prose is
+/// mentioned rather than dictated, so the application no longer substitutes
+/// it, and the two decoders now agree about every ordinary sentence in the
+/// corpus. `false_scientific_rewrite_rate` means the same thing on both
+/// sides again, which is what the release gate assumes.
 ///
-/// Which behaviour is right is a product decision, not one this test can
-/// make: `NATURAL_DICTATION_RU.md` asks `MixedText` to replace proven spans
-/// inside prose, and this is exactly that feature working. The test does not
-/// take a side. It pins the divergence at the single record it is, so that
-/// it cannot grow quietly while a gate reports zero.
+/// The pin stays, at zero. It was worth having: this test is what proved the
+/// divergence was exactly one record rather than a class, and it is what
+/// will notice if one comes back.
 #[test]
 fn the_lab_and_the_application_agree_about_all_but_one_record() {
     let corpus = corpus();
@@ -323,9 +321,7 @@ fn the_lab_and_the_application_agree_about_all_but_one_record() {
     assert_eq!(ordinary, 29, "the corpus changed size; re-check this pin");
     assert_eq!(
         rewritten,
-        vec![
-            "raw-acid-storage-001-a: \"серная кислота хранится в лаборатории\" → \"H₂SO₄ хранится в лаборатории\"".to_string()
-        ],
+        Vec::<String>::new(),
         "the two decoders now disagree about a different set of sentences than when this was \
          measured. Either the application changed, or the lab did, and the safety metric no \
          longer means what the release gate thinks it means."

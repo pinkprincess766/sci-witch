@@ -9,8 +9,8 @@
     "git_dirty": true
   },
   "dataset": {
-    "file": "ambiguous-v1.jsonl",
-    "sha256": "29683beb85f7055633e1cc7ba8756fa95d1c5f2d2a6237b4c5c496a4af689e2e",
+    "file": "ambiguous-v2.jsonl",
+    "sha256": "d10f8d5aa11e55abf787c8ca01b4df19c01cb929ed034fbc7559849fb74684bc",
     "dataset_schema_versions": [
       1
     ],
@@ -22,14 +22,14 @@
       "validation": 16
     },
     "counts_by_domain": {
-      "chemistry": 28,
+      "chemistry": 27,
       "mathematics": 10,
       "physics": 1,
-      "plain": 19
+      "plain": 20
     },
     "counts_by_action": {
-      "ast": 39,
-      "raw": 19
+      "ast": 38,
+      "raw": 20
     },
     "counts_by_provenance": {
       "handcrafted_text": 58
@@ -46,7 +46,7 @@
       16
     ],
     "auto_insert_threshold": 0.9,
-    "domain_policy": "lattice_v1",
+    "domain_policy": "auto",
     "primary_renderer": "unicode",
     "bootstrap_seed": 20260904,
     "bootstrap_resamples": 2000,
@@ -74,36 +74,36 @@
   "metrics": {
     "examples": 58,
     "ast_exact_match": {
-      "numerator": 35,
+      "numerator": 36,
       "denominator": 58,
-      "value": 0.603448275862069,
-      "ci95_low": 0.47493215951001205,
-      "ci95_high": 0.7191124220512564,
+      "value": 0.6206896551724138,
+      "ci95_low": 0.492028071927689,
+      "ci95_high": 0.7343572732271242,
       "ci_method": "wilson"
     },
     "pre_insertion_end_to_end_exact_match": {
       "latex": {
-        "numerator": 34,
+        "numerator": 35,
         "denominator": 58,
-        "value": 0.5862068965517241,
-        "ci95_low": 0.45798408170855665,
-        "ci95_high": 0.7037197362591668,
+        "value": 0.603448275862069,
+        "ci95_low": 0.47493215951001205,
+        "ci95_high": 0.7191124220512564,
         "ci_method": "wilson"
       },
       "omml": {
+        "numerator": 35,
+        "denominator": 58,
+        "value": 0.603448275862069,
+        "ci95_low": 0.47493215951001205,
+        "ci95_high": 0.7191124220512564,
+        "ci_method": "wilson"
+      },
+      "unicode": {
         "numerator": 34,
         "denominator": 58,
         "value": 0.5862068965517241,
         "ci95_low": 0.45798408170855665,
         "ci95_high": 0.7037197362591668,
-        "ci_method": "wilson"
-      },
-      "unicode": {
-        "numerator": 33,
-        "denominator": 58,
-        "value": 0.5689655172413793,
-        "ci95_low": 0.44118104569962746,
-        "ci95_high": 0.6881820086745516,
         "ci_method": "wilson"
       }
     },
@@ -124,94 +124,94 @@
       "ci_method": "wilson"
     },
     "overall_exact_match": {
-      "numerator": 33,
+      "numerator": 34,
       "denominator": 58,
-      "value": 0.5689655172413793,
-      "ci95_low": 0.44118104569962746,
-      "ci95_high": 0.6881820086745516,
+      "value": 0.5862068965517241,
+      "ci95_low": 0.45798408170855665,
+      "ci95_high": 0.7037197362591668,
       "ci_method": "wilson"
     },
     "overall_exact_match_bootstrap": {
-      "numerator": 33,
+      "numerator": 34,
       "denominator": 58,
-      "value": 0.5689655172413793,
-      "ci95_low": 0.43103448275862066,
-      "ci95_high": 0.6896551724137931,
+      "value": 0.5862068965517241,
+      "ci95_low": 0.46551724137931033,
+      "ci95_high": 0.7068965517241379,
       "ci_method": "bootstrap"
     },
     "candidate_recall_at_k": {
       "1": {
-        "numerator": 35,
+        "numerator": 36,
         "denominator": 58,
-        "value": 0.603448275862069,
-        "ci95_low": 0.47493215951001205,
-        "ci95_high": 0.7191124220512564,
+        "value": 0.6206896551724138,
+        "ci95_low": 0.492028071927689,
+        "ci95_high": 0.7343572732271242,
         "ci_method": "wilson"
       },
       "16": {
-        "numerator": 53,
+        "numerator": 36,
         "denominator": 58,
-        "value": 0.9137931034482759,
-        "ci95_low": 0.8135637093712647,
-        "ci95_high": 0.962614616873809,
+        "value": 0.6206896551724138,
+        "ci95_low": 0.492028071927689,
+        "ci95_high": 0.7343572732271242,
         "ci_method": "wilson"
       },
       "2": {
-        "numerator": 46,
+        "numerator": 36,
         "denominator": 58,
-        "value": 0.7931034482758621,
-        "ci95_low": 0.6723078207851659,
-        "ci95_high": 0.8774851603050945,
+        "value": 0.6206896551724138,
+        "ci95_low": 0.492028071927689,
+        "ci95_high": 0.7343572732271242,
         "ci_method": "wilson"
       },
       "4": {
-        "numerator": 53,
+        "numerator": 36,
         "denominator": 58,
-        "value": 0.9137931034482759,
-        "ci95_low": 0.8135637093712647,
-        "ci95_high": 0.962614616873809,
+        "value": 0.6206896551724138,
+        "ci95_low": 0.492028071927689,
+        "ci95_high": 0.7343572732271242,
         "ci_method": "wilson"
       },
       "8": {
-        "numerator": 53,
+        "numerator": 36,
         "denominator": 58,
-        "value": 0.9137931034482759,
-        "ci95_low": 0.8135637093712647,
-        "ci95_high": 0.962614616873809,
+        "value": 0.6206896551724138,
+        "ci95_low": 0.492028071927689,
+        "ci95_high": 0.7343572732271242,
         "ci_method": "wilson"
       }
     },
     "routing_accuracy": {
       "numerator": 17,
-      "denominator": 39,
-      "value": 0.4358974358974359,
-      "ci95_low": 0.2930475387568963,
-      "ci95_high": 0.5902430835133052,
+      "denominator": 38,
+      "value": 0.4473684210526316,
+      "ci95_low": 0.3014640099805125,
+      "ci95_high": 0.6029370287800753,
       "ci_method": "wilson"
     },
     "raw_accuracy": {
-      "numerator": 19,
-      "denominator": 19,
+      "numerator": 20,
+      "denominator": 20,
       "value": 1.0,
-      "ci95_low": 0.8318207759473837,
+      "ci95_low": 0.8388748419471806,
       "ci95_high": 1.0,
       "ci_method": "wilson"
     },
     "false_scientific_rewrite_rate": {
       "numerator": 0,
-      "denominator": 19,
+      "denominator": 20,
       "value": 0.0,
       "ci95_low": 0.0,
-      "ci95_high": 0.16817922405261626,
+      "ci95_high": 0.16112515805281938,
       "ci_method": "wilson",
-      "zero_count_upper95": 0.14586850331224344
+      "zero_count_upper95": 0.13910834066826516
     },
     "false_abstention_rate": {
-      "numerator": 24,
-      "denominator": 39,
-      "value": 0.6153846153846154,
-      "ci95_low": 0.45899061456925083,
-      "ci95_high": 0.7510862653443866,
+      "numerator": 23,
+      "denominator": 38,
+      "value": 0.6052631578947368,
+      "ci95_low": 0.4471786799604255,
+      "ci95_high": 0.744019242518399,
       "ci_method": "wilson"
     },
     "ast_validity": {
@@ -223,35 +223,34 @@
       "ci_method": "wilson"
     },
     "candidates": {
-      "p50": 2,
-      "p95": 3,
-      "max": 4,
-      "examples_with_more_than_one_candidate": 36,
-      "examples_with_more_than_one_ast_candidate": 13
+      "p50": 1,
+      "p95": 2,
+      "max": 3,
+      "examples_with_more_than_one_candidate": 17,
+      "examples_with_more_than_one_ast_candidate": 2
     },
     "reranker_readiness": {
-      "scientific_examples": 39,
-      "examples_with_at_least_two_distinct_ast_candidates": 13,
-      "examples_where_gold_is_present_but_not_first": 18,
+      "scientific_examples": 38,
+      "examples_with_at_least_two_distinct_ast_candidates": 2,
+      "examples_where_gold_is_present_but_not_first": 0,
       "ambiguous_by_split": {
-        "train": 7,
-        "validation": 6
+        "train": 2
       },
       "required_ambiguous_examples": 50,
       "required_gold_not_first": 20,
       "required_per_split": 10,
       "verdict": "insufficient",
-      "note": "A logistic reranker is statistically meaningless on this corpus: 13 examples offer more than one distinct scientific AST and 18 have the right answer outside first place, against a pre-registered requirement of 50 and 20. Training here would only learn to tell a single AST from RAW."
+      "note": "A logistic reranker is statistically meaningless on this corpus: 2 examples offer more than one distinct scientific AST and 0 have the right answer outside first place, against a pre-registered requirement of 50 and 20. Training here would only learn to tell a single AST from RAW."
     }
   },
   "breakdown": {
     "by_domain": {
       "chemistry": {
         "numerator": 10,
-        "denominator": 28,
-        "value": 0.35714285714285715,
-        "ci95_low": 0.2070582950773768,
-        "ci95_high": 0.5416969348557219,
+        "denominator": 27,
+        "value": 0.37037037037037035,
+        "ci95_low": 0.21532512960965597,
+        "ci95_high": 0.5577076558789761,
         "ci_method": "wilson"
       },
       "mathematics": {
@@ -271,10 +270,10 @@
         "ci_method": "wilson"
       },
       "plain": {
-        "numerator": 19,
-        "denominator": 19,
+        "numerator": 20,
+        "denominator": 20,
         "value": 1.0,
-        "ci95_low": 0.8318207759473837,
+        "ci95_low": 0.8388748419471806,
         "ci95_high": 1.0,
         "ci_method": "wilson"
       }
@@ -562,11 +561,11 @@
         "ci_method": "wilson"
       },
       "stress": {
-        "numerator": 2,
+        "numerator": 3,
         "denominator": 3,
-        "value": 0.6666666666666666,
-        "ci95_low": 0.2076596008020477,
-        "ci95_high": 0.9385080552796037,
+        "value": 1.0,
+        "ci95_low": 0.4385029682449546,
+        "ci95_high": 1.0,
         "ci_method": "wilson"
       },
       "substitute": {
@@ -587,13 +586,12 @@
         "ci_method": "wilson"
       },
       "unicode": {
-        "numerator": 0,
+        "numerator": 1,
         "denominator": 1,
-        "value": 0.0,
-        "ci95_low": 0.0,
-        "ci95_high": 0.7934506856227626,
-        "ci_method": "wilson",
-        "zero_count_upper95": 0.95
+        "value": 1.0,
+        "ci95_low": 0.20654931437723745,
+        "ci95_high": 1.0,
+        "ci_method": "wilson"
       },
       "unrepairable": {
         "numerator": 1,
@@ -803,7 +801,7 @@
         1
       ],
       "amb-stress-unicode-001": [
-        0,
+        1,
         1
       ]
     }
@@ -811,23 +809,23 @@
   "error_decomposition": {
     "counts": {
       "ASR-first": 0,
-      "candidate-first": 5,
+      "candidate-first": 22,
       "dataset-invalid": 0,
       "decision-first": 2,
-      "rank-first": 18,
+      "rank-first": 0,
       "render-first": 0,
       "router-first": 0
     },
     "share_of_errors": {
       "ASR-first": 0.0,
-      "candidate-first": 0.2,
+      "candidate-first": 0.9166666666666666,
       "dataset-invalid": 0.0,
-      "decision-first": 0.08,
-      "rank-first": 0.72,
+      "decision-first": 0.08333333333333333,
+      "rank-first": 0.0,
       "render-first": 0.0,
       "router-first": 0.0
     },
-    "errors": 25,
+    "errors": 24,
     "examples": 58,
     "asr_first_applicable_examples": 0,
     "notes": [
@@ -838,11 +836,11 @@
     {
       "variant": "real",
       "overall_exact_match": {
-        "numerator": 33,
+        "numerator": 34,
         "denominator": 58,
-        "value": 0.5689655172413793,
-        "ci95_low": 0.44118104569962746,
-        "ci95_high": 0.6881820086745516,
+        "value": 0.5862068965517241,
+        "ci95_low": 0.45798408170855665,
+        "ci95_high": 0.7037197362591668,
         "ci_method": "wilson"
       },
       "delta_vs_real": 0.0,
@@ -851,11 +849,11 @@
     {
       "variant": "oracle_transcript",
       "overall_exact_match": {
-        "numerator": 33,
+        "numerator": 34,
         "denominator": 58,
-        "value": 0.5689655172413793,
-        "ci95_low": 0.44118104569962746,
-        "ci95_high": 0.6881820086745516,
+        "value": 0.5862068965517241,
+        "ci95_low": 0.45798408170855665,
+        "ci95_high": 0.7037197362591668,
         "ci_method": "wilson"
       },
       "delta_vs_real": 0.0,
@@ -864,24 +862,24 @@
     {
       "variant": "oracle_domain",
       "overall_exact_match": {
-        "numerator": 33,
+        "numerator": 34,
         "denominator": 58,
-        "value": 0.5689655172413793,
-        "ci95_low": 0.44118104569962746,
-        "ci95_high": 0.6881820086745516,
+        "value": 0.5862068965517241,
+        "ci95_low": 0.45798408170855665,
+        "ci95_high": 0.7037197362591668,
         "ci_method": "wilson"
       },
       "delta_vs_real": 0.0,
-      "applicable_examples": 39
+      "applicable_examples": 38
     },
     {
       "variant": "oracle_candidates",
       "overall_exact_match": {
-        "numerator": 33,
+        "numerator": 34,
         "denominator": 58,
-        "value": 0.5689655172413793,
-        "ci95_low": 0.44118104569962746,
-        "ci95_high": 0.6881820086745516,
+        "value": 0.5862068965517241,
+        "ci95_low": 0.45798408170855665,
+        "ci95_high": 0.7037197362591668,
         "ci_method": "wilson"
       },
       "delta_vs_real": 0.0,
@@ -890,53 +888,53 @@
     {
       "variant": "oracle_ranker",
       "overall_exact_match": {
-        "numerator": 51,
+        "numerator": 34,
         "denominator": 58,
-        "value": 0.8793103448275862,
-        "ci95_low": 0.7712064595403911,
-        "ci95_high": 0.9402903395175928,
+        "value": 0.5862068965517241,
+        "ci95_low": 0.45798408170855665,
+        "ci95_high": 0.7037197362591668,
         "ci_method": "wilson"
       },
-      "delta_vs_real": 0.31034482758620685,
+      "delta_vs_real": 0.0,
       "applicable_examples": 58
     },
     {
       "variant": "oracle_decision",
       "overall_exact_match": {
-        "numerator": 35,
+        "numerator": 36,
         "denominator": 58,
-        "value": 0.603448275862069,
-        "ci95_low": 0.47493215951001205,
-        "ci95_high": 0.7191124220512564,
+        "value": 0.6206896551724138,
+        "ci95_low": 0.492028071927689,
+        "ci95_high": 0.7343572732271242,
         "ci_method": "wilson"
       },
-      "delta_vs_real": 0.03448275862068961,
+      "delta_vs_real": 0.034482758620689724,
       "applicable_examples": 58
     }
   ],
   "component_isolation": {
     "router_isolated_accuracy": {
       "numerator": 17,
-      "denominator": 39,
-      "value": 0.4358974358974359,
-      "ci95_low": 0.2930475387568963,
-      "ci95_high": 0.5902430835133052,
+      "denominator": 38,
+      "value": 0.4473684210526316,
+      "ci95_low": 0.3014640099805125,
+      "ci95_high": 0.6029370287800753,
       "ci_method": "wilson"
     },
     "candidate_isolated_recall_at_k": {
-      "numerator": 53,
+      "numerator": 36,
       "denominator": 58,
-      "value": 0.9137931034482759,
-      "ci95_low": 0.8135637093712647,
-      "ci95_high": 0.962614616873809,
+      "value": 0.6206896551724138,
+      "ci95_low": 0.492028071927689,
+      "ci95_high": 0.7343572732271242,
       "ci_method": "wilson"
     },
     "rank_isolated_accuracy": {
-      "numerator": 35,
+      "numerator": 36,
       "denominator": 58,
-      "value": 0.603448275862069,
-      "ci95_low": 0.47493215951001205,
-      "ci95_high": 0.7191124220512564,
+      "value": 0.6206896551724138,
+      "ci95_low": 0.492028071927689,
+      "ci95_high": 0.7343572732271242,
       "ci_method": "wilson"
     },
     "decision_isolated_accuracy": {
@@ -950,10 +948,10 @@
     "note": "Isolated numbers are laboratory component quality, not a product improvement ceiling; they are not additive with the oracle replacement deltas."
   },
   "severity": {
-    "errors": 25,
+    "errors": 24,
     "count_by_severity": {
       "S0": 0,
-      "S1": 25,
+      "S1": 24,
       "S2": 0,
       "S3": 0,
       "S4": 0
@@ -970,7 +968,7 @@
   "ast_distance": {
     "distance_schema_version": 1,
     "comparable_errors": 1,
-    "incomparable_errors": 24,
+    "incomparable_errors": 23,
     "mean": 3.0,
     "median": 3.0,
     "max": 3.0
@@ -996,11 +994,11 @@
           "ci_method": "wilson"
         },
         "accuracy": {
-          "numerator": 35,
+          "numerator": 36,
           "denominator": 58,
-          "value": 0.603448275862069,
-          "ci95_low": 0.47493215951001205,
-          "ci95_high": 0.7191124220512564,
+          "value": 0.6206896551724138,
+          "ci95_low": 0.492028071927689,
+          "ci95_high": 0.7343572732271242,
           "ci_method": "wilson"
         }
       },
@@ -1023,11 +1021,11 @@
           "ci_method": "wilson"
         },
         "accuracy": {
-          "numerator": 35,
+          "numerator": 36,
           "denominator": 58,
-          "value": 0.603448275862069,
-          "ci95_low": 0.47493215951001205,
-          "ci95_high": 0.7191124220512564,
+          "value": 0.6206896551724138,
+          "ci95_low": 0.492028071927689,
+          "ci95_high": 0.7343572732271242,
           "ci_method": "wilson"
         }
       },
@@ -1050,11 +1048,11 @@
           "ci_method": "wilson"
         },
         "accuracy": {
-          "numerator": 35,
+          "numerator": 36,
           "denominator": 58,
-          "value": 0.603448275862069,
-          "ci95_low": 0.47493215951001205,
-          "ci95_high": 0.7191124220512564,
+          "value": 0.6206896551724138,
+          "ci95_low": 0.492028071927689,
+          "ci95_high": 0.7343572732271242,
           "ci_method": "wilson"
         }
       },
@@ -1077,11 +1075,11 @@
           "ci_method": "wilson"
         },
         "accuracy": {
-          "numerator": 33,
+          "numerator": 34,
           "denominator": 58,
-          "value": 0.5689655172413793,
-          "ci95_low": 0.44118104569962746,
-          "ci95_high": 0.6881820086745516,
+          "value": 0.5862068965517241,
+          "ci95_low": 0.45798408170855665,
+          "ci95_high": 0.7037197362591668,
           "ci_method": "wilson"
         }
       },
@@ -1104,11 +1102,11 @@
           "ci_method": "wilson"
         },
         "accuracy": {
-          "numerator": 33,
+          "numerator": 34,
           "denominator": 58,
-          "value": 0.5689655172413793,
-          "ci95_low": 0.44118104569962746,
-          "ci95_high": 0.6881820086745516,
+          "value": 0.5862068965517241,
+          "ci95_low": 0.45798408170855665,
+          "ci95_high": 0.7037197362591668,
           "ci_method": "wilson"
         }
       },
@@ -1131,11 +1129,11 @@
           "ci_method": "wilson"
         },
         "accuracy": {
-          "numerator": 33,
+          "numerator": 34,
           "denominator": 58,
-          "value": 0.5689655172413793,
-          "ci95_low": 0.44118104569962746,
-          "ci95_high": 0.6881820086745516,
+          "value": 0.5862068965517241,
+          "ci95_low": 0.45798408170855665,
+          "ci95_high": 0.7037197362591668,
           "ci_method": "wilson"
         }
       },
@@ -1151,11 +1149,11 @@
           "zero_count_upper95": 0.05033933833042015
         },
         "accuracy": {
-          "numerator": 19,
+          "numerator": 20,
           "denominator": 58,
-          "value": 0.3275862068965517,
-          "ci95_low": 0.22083291084926074,
-          "ci95_high": 0.455759453215292,
+          "value": 0.3448275862068966,
+          "ci95_low": 0.2356108933195017,
+          "ci95_high": 0.47332223433859577,
           "ci_method": "wilson"
         }
       }
@@ -1208,75 +1206,64 @@
     "examples": 58,
     "distinct_asts": {
       "min": 0,
-      "median": 1,
-      "max": 3,
-      "mean": 0.8620689655172413,
+      "median": 0,
+      "max": 2,
+      "mean": 0.3275862068965517,
       "histogram": {
-        "0": 22,
-        "1": 23,
-        "2": 12,
-        "3": 1
+        "0": 41,
+        "1": 15,
+        "2": 2
       }
     },
     "with_a_choice": {
-      "numerator": 13,
+      "numerator": 2,
       "denominator": 58,
-      "value": 0.22413793103448276,
-      "ci95_low": 0.1359366061140974,
-      "ci95_high": 0.3466111763891869,
+      "value": 0.034482758620689655,
+      "ci95_low": 0.009507928331165413,
+      "ci95_high": 0.11729145464312694,
       "ci_method": "wilson"
     },
     "gold_not_first": {
-      "numerator": 18,
+      "numerator": 0,
       "denominator": 58,
-      "value": 0.3103448275862069,
-      "ci95_low": 0.2062209562281909,
-      "ci95_high": 0.4380306442428171,
-      "ci_method": "wilson"
+      "value": 0.0,
+      "ci95_low": 0.0,
+      "ci95_high": 0.062117855787202914,
+      "ci_method": "wilson",
+      "zero_count_upper95": 0.05033933833042015
     },
     "gold_absent": {
-      "numerator": 5,
+      "numerator": 22,
       "denominator": 58,
-      "value": 0.08620689655172414,
-      "ci95_low": 0.037385383126191135,
-      "ci95_high": 0.18643629062873543,
+      "value": 0.3793103448275862,
+      "ci95_low": 0.2656427267728758,
+      "ci95_high": 0.5079719280723111,
       "ci_method": "wilson"
     },
-    "edited_candidates": 31,
-    "candidates_by_origin": {
-      "bridge_words_dropped": 2,
-      "forced_domain": 22,
-      "grammar_alternative": 2,
-      "maximal_span": 32,
-      "mixed_document": 32,
-      "product_clause_rotated": 1,
-      "raw": 58,
-      "self_correction": 8,
-      "vowel_repair": 2,
-      "whole_utterance": 17
-    },
-    "truncated_examples": 1,
-    "verdict": "данных для логистического baseline недостаточно: 18 примеров, где золотой ответ не первый, нужно не менее 50. Это предварительный порог протокола, не теорема об обобщении."
+    "edited_candidates": 0,
+    "candidates_by_origin": {},
+    "truncated_examples": 0,
+    "verdict": "логистический baseline обучать не на чем: примеров с выбором 2, но ни в одном золотой ответ не стоит ниже первого места. Ранжировщику нечего исправлять — оптимум уже достигается порядком генератора."
   },
   "user_path": {
-    "declared_expectations": 3,
+    "declared_expectations": 0,
     "evaluated_records": 58,
     "mixed_exact_match": {
-      "numerator": 39,
+      "numerator": 43,
       "denominator": 58,
-      "value": 0.6724137931034483,
-      "ci95_low": 0.544240546784708,
-      "ci95_high": 0.7791670891507392,
+      "value": 0.7413793103448276,
+      "ci95_low": 0.6162261423525959,
+      "ci95_high": 0.8365445479570304,
       "ci_method": "wilson"
     },
     "false_scientific_rewrite_rate": {
       "numerator": 0,
-      "denominator": 16,
+      "denominator": 20,
       "value": 0.0,
       "ci95_low": 0.0,
-      "ci95_high": 0.1936076805344365,
+      "ci95_high": 0.16112515805281938,
       "ci_method": "wilson",
-      "zero_count_upper95": 0.17074972298248092
+      "zero_count_upper95": 0.13910834066826516
     },
     "rewritten": [
       {
@@ -1340,21 +1327,6 @@
         "shown": "если нагреть карбонат кальция, он разлагается на оксид кальция и углекислый газ"
       },
       {
-        "id": "amb-neg-copper-prose-001-a",
-        "said": "медь, о которой я говорил, лежит в шкафу",
-        "shown": "медь, о которой я говорил, лежит в шкафу"
-      },
-      {
-        "id": "amb-neg-hydrogen-prose-001-a",
-        "said": "водород у нас закончился",
-        "shown": "водород у нас закончился"
-      },
-      {
-        "id": "amb-neg-not-correction-001-a",
-        "said": "не всё так просто, а вот хлорид натрия мы уже обсудили",
-        "shown": "не всё так просто, а вот хлорид натрия мы уже обсудили"
-      },
-      {
         "id": "amb-order-filler-001-a",
         "said": "ну значит карбонат кальция, вот, разлагается на оксид кальция и углекислый газ",
         "shown": "ну значит CaCO₃, вот, разлагается на CaO и CO₂"
@@ -1368,11 +1340,6 @@
         "id": "amb-order-parenthetical-001-a",
         "said": "реакция, как мы вчера обсуждали, идёт между натрием и хлором с образованием хлорида натрия",
         "shown": "реакция, как мы вчера обсуждали, идёт между Na + Cl₂ → NaCl"
-      },
-      {
-        "id": "amb-stress-unicode-001-a",
-        "said": "гидроксид железа три — «ключевой» реагент",
-        "shown": "гидроксид железа три — «ключевой» реагент"
       }
     ]
   },
@@ -1381,13 +1348,13 @@
       "id": "amb-asr-carbonate-001-a",
       "domain": "chemistry",
       "target_action": "ast",
-      "first_blocking": "rank-first",
+      "first_blocking": "candidate-first",
       "severity": "S1",
       "transcript": "карбанат кальция",
       "expected": "CaCO₃",
       "produced": "карбанат кальция",
-      "candidates": 2,
-      "gold_rank": 2,
+      "candidates": 1,
+      "gold_rank": null,
       "selected_key": "RAW",
       "selected_source": "raw",
       "selected_warnings": [],
@@ -1399,13 +1366,13 @@
       "id": "amb-asr-chloride-001-a",
       "domain": "chemistry",
       "target_action": "ast",
-      "first_blocking": "rank-first",
+      "first_blocking": "candidate-first",
       "severity": "S1",
       "transcript": "хларид натрия",
       "expected": "NaCl",
       "produced": "хларид натрия",
-      "candidates": 2,
-      "gold_rank": 2,
+      "candidates": 1,
+      "gold_rank": null,
       "selected_key": "RAW",
       "selected_source": "raw",
       "selected_warnings": [],
@@ -1444,7 +1411,7 @@
       "candidates": 2,
       "gold_rank": null,
       "selected_key": "AST:{\"Math\":{\"Binary\":{\"left\":{\"Binary\":{\"left\":{\"Number\":\"1\"},\"op\":\"Div\",\"right\":{\"Symbol\":{\"alphabet\":\"Latin\",\"case\":\"Lower\",\"letter\":\"x\"}}}},\"op\":\"Add\",\"right\":{\"Number\":\"2\"}}}}",
-      "selected_source": "lattice",
+      "selected_source": "primary_parse",
       "selected_warnings": [],
       "requested_domain": "auto",
       "hypothesis_index": 0,
@@ -1454,13 +1421,13 @@
       "id": "amb-fix-carbonate-001-a",
       "domain": "chemistry",
       "target_action": "ast",
-      "first_blocking": "rank-first",
+      "first_blocking": "candidate-first",
       "severity": "S1",
       "transcript": "карбонат натрия, нет, карбонат калия",
       "expected": "K₂CO₃",
       "produced": "карбонат натрия, нет, карбонат калия",
-      "candidates": 2,
-      "gold_rank": 2,
+      "candidates": 1,
+      "gold_rank": null,
       "selected_key": "RAW",
       "selected_source": "raw",
       "selected_warnings": [],
@@ -1472,13 +1439,13 @@
       "id": "amb-fix-hydroxide-001-a",
       "domain": "chemistry",
       "target_action": "ast",
-      "first_blocking": "rank-first",
+      "first_blocking": "candidate-first",
       "severity": "S1",
       "transcript": "гидроксид железа два, нет, железа три",
       "expected": "Fe(OH)₃",
       "produced": "гидроксид железа два, нет, железа три",
-      "candidates": 2,
-      "gold_rank": 2,
+      "candidates": 1,
+      "gold_rank": null,
       "selected_key": "RAW",
       "selected_source": "raw",
       "selected_warnings": [],
@@ -1490,13 +1457,13 @@
       "id": "amb-fix-hydroxide-001-b",
       "domain": "chemistry",
       "target_action": "ast",
-      "first_blocking": "rank-first",
+      "first_blocking": "candidate-first",
       "severity": "S1",
       "transcript": "гидроксид железа три, точнее железа два",
       "expected": "Fe(OH)₂",
       "produced": "гидроксид железа три, точнее железа два",
-      "candidates": 2,
-      "gold_rank": 2,
+      "candidates": 1,
+      "gold_rank": null,
       "selected_key": "RAW",
       "selected_source": "raw",
       "selected_warnings": [],
@@ -1508,13 +1475,13 @@
       "id": "amb-fix-oxide-001-a",
       "domain": "chemistry",
       "target_action": "ast",
-      "first_blocking": "rank-first",
+      "first_blocking": "candidate-first",
       "severity": "S1",
       "transcript": "оксид меди один, точнее, меди два",
       "expected": "CuO",
       "produced": "оксид меди один, точнее, меди два",
-      "candidates": 2,
-      "gold_rank": 2,
+      "candidates": 1,
+      "gold_rank": null,
       "selected_key": "RAW",
       "selected_source": "raw",
       "selected_warnings": [],
@@ -1526,13 +1493,13 @@
       "id": "amb-fix-oxide-001-b",
       "domain": "chemistry",
       "target_action": "ast",
-      "first_blocking": "rank-first",
+      "first_blocking": "candidate-first",
       "severity": "S1",
       "transcript": "оксид меди два, нет, меди один",
       "expected": "Cu₂O",
       "produced": "оксид меди два, нет, меди один",
-      "candidates": 2,
-      "gold_rank": 2,
+      "candidates": 1,
+      "gold_rank": null,
       "selected_key": "RAW",
       "selected_source": "raw",
       "selected_warnings": [],
@@ -1544,13 +1511,13 @@
       "id": "amb-fix-restate-math-001-a",
       "domain": "mathematics",
       "target_action": "ast",
-      "first_blocking": "rank-first",
+      "first_blocking": "candidate-first",
       "severity": "S1",
       "transcript": "два икс плюс один, нет, три икс плюс один",
       "expected": "3x + 1",
       "produced": "два икс плюс один, нет, три икс плюс один",
-      "candidates": 3,
-      "gold_rank": 3,
+      "candidates": 1,
+      "gold_rank": null,
       "selected_key": "RAW",
       "selected_source": "raw",
       "selected_warnings": [],
@@ -1562,13 +1529,13 @@
       "id": "amb-fix-restate-math-001-b",
       "domain": "mathematics",
       "target_action": "ast",
-      "first_blocking": "rank-first",
+      "first_blocking": "candidate-first",
       "severity": "S1",
       "transcript": "икс в квадрате, нет, икс в кубе",
       "expected": "x³",
       "produced": "икс в квадрате, нет, икс в кубе",
-      "candidates": 2,
-      "gold_rank": 2,
+      "candidates": 1,
+      "gold_rank": null,
       "selected_key": "RAW",
       "selected_source": "raw",
       "selected_warnings": [],
@@ -1585,7 +1552,7 @@
       "transcript": "не два икс, а три икс плюс один",
       "expected": "3x + 1",
       "produced": "не два икс, а три икс плюс один",
-      "candidates": 3,
+      "candidates": 1,
       "gold_rank": null,
       "selected_key": "RAW",
       "selected_source": "raw",
@@ -1616,13 +1583,13 @@
       "id": "amb-fix-too-many-001-a",
       "domain": "chemistry",
       "target_action": "ast",
-      "first_blocking": "rank-first",
+      "first_blocking": "candidate-first",
       "severity": "S1",
       "transcript": "гидроксид железа два, нет, железа три, нет, железа два, нет, железа три, нет, железа два",
       "expected": "Fe(OH)₂",
       "produced": "гидроксид железа два, нет, железа три, нет, железа два, нет, железа три, нет, железа два",
-      "candidates": 2,
-      "gold_rank": 2,
+      "candidates": 1,
+      "gold_rank": null,
       "selected_key": "RAW",
       "selected_source": "raw",
       "selected_warnings": [],
@@ -1634,13 +1601,13 @@
       "id": "amb-frame-between-nacl-001-a",
       "domain": "chemistry",
       "target_action": "ast",
-      "first_blocking": "rank-first",
+      "first_blocking": "candidate-first",
       "severity": "S1",
       "transcript": "реакция идёт между натрием и хлором с образованием хлорида натрия",
       "expected": "Na + Cl₂ → NaCl",
       "produced": "реакция идёт между натрием и хлором с образованием хлорида натрия",
-      "candidates": 3,
-      "gold_rank": 3,
+      "candidates": 1,
+      "gold_rank": null,
       "selected_key": "RAW",
       "selected_source": "raw",
       "selected_warnings": [],
@@ -1652,13 +1619,13 @@
       "id": "amb-frame-between-nacl-001-b",
       "domain": "chemistry",
       "target_action": "ast",
-      "first_blocking": "rank-first",
+      "first_blocking": "candidate-first",
       "severity": "S1",
       "transcript": "реакция между натрием и хлором с образованием хлорида натрия",
       "expected": "Na + Cl₂ → NaCl",
       "produced": "реакция между натрием и хлором с образованием хлорида натрия",
-      "candidates": 3,
-      "gold_rank": 3,
+      "candidates": 1,
+      "gold_rank": null,
       "selected_key": "RAW",
       "selected_source": "raw",
       "selected_warnings": [],
@@ -1670,13 +1637,13 @@
       "id": "amb-frame-between-water-001-a",
       "domain": "chemistry",
       "target_action": "ast",
-      "first_blocking": "rank-first",
+      "first_blocking": "candidate-first",
       "severity": "S1",
       "transcript": "реакция идёт между водородом и кислородом с образованием воды",
       "expected": "H₂ + O₂ → H₂O",
       "produced": "реакция идёт между водородом и кислородом с образованием воды",
-      "candidates": 3,
-      "gold_rank": 3,
+      "candidates": 1,
+      "gold_rank": null,
       "selected_key": "RAW",
       "selected_source": "raw",
       "selected_warnings": [],
@@ -1688,13 +1655,13 @@
       "id": "amb-frame-between-zn-001-a",
       "domain": "chemistry",
       "target_action": "ast",
-      "first_blocking": "rank-first",
+      "first_blocking": "candidate-first",
       "severity": "S1",
       "transcript": "реакция между цинком и соляной кислотой с образованием хлорида цинка и водорода",
       "expected": "Zn + HCl → ZnCl₂ + H₂",
       "produced": "реакция между цинком и соляной кислотой с образованием хлорида цинка и водорода",
-      "candidates": 3,
-      "gold_rank": 3,
+      "candidates": 1,
+      "gold_rank": null,
       "selected_key": "RAW",
       "selected_source": "raw",
       "selected_warnings": [],
@@ -1706,13 +1673,13 @@
       "id": "amb-frame-decompose-001-a",
       "domain": "chemistry",
       "target_action": "ast",
-      "first_blocking": "rank-first",
+      "first_blocking": "candidate-first",
       "severity": "S1",
       "transcript": "если нагреть карбонат кальция, он разлагается на оксид кальция и углекислый газ",
       "expected": "CaCO₃ → CaO + CO₂",
       "produced": "если нагреть карбонат кальция, он разлагается на оксид кальция и углекислый газ",
-      "candidates": 2,
-      "gold_rank": 2,
+      "candidates": 1,
+      "gold_rank": null,
       "selected_key": "RAW",
       "selected_source": "raw",
       "selected_warnings": [],
@@ -1724,13 +1691,13 @@
       "id": "amb-order-filler-001-a",
       "domain": "chemistry",
       "target_action": "ast",
-      "first_blocking": "rank-first",
+      "first_blocking": "candidate-first",
       "severity": "S1",
       "transcript": "ну значит карбонат кальция, вот, разлагается на оксид кальция и углекислый газ",
       "expected": "CaCO₃ → CaO + CO₂",
       "produced": "ну значит карбонат кальция, вот, разлагается на оксид кальция и углекислый газ",
-      "candidates": 4,
-      "gold_rank": 4,
+      "candidates": 1,
+      "gold_rank": null,
       "selected_key": "RAW",
       "selected_source": "raw",
       "selected_warnings": [],
@@ -1742,13 +1709,13 @@
       "id": "amb-order-fronted-001-a",
       "domain": "chemistry",
       "target_action": "ast",
-      "first_blocking": "rank-first",
+      "first_blocking": "candidate-first",
       "severity": "S1",
       "transcript": "с образованием хлорида натрия идёт реакция между натрием и хлором",
       "expected": "Na + Cl₂ → NaCl",
       "produced": "с образованием хлорида натрия идёт реакция между натрием и хлором",
-      "candidates": 2,
-      "gold_rank": 2,
+      "candidates": 1,
+      "gold_rank": null,
       "selected_key": "RAW",
       "selected_source": "raw",
       "selected_warnings": [],
@@ -1760,13 +1727,13 @@
       "id": "amb-order-parenthetical-001-a",
       "domain": "chemistry",
       "target_action": "ast",
-      "first_blocking": "rank-first",
+      "first_blocking": "candidate-first",
       "severity": "S1",
       "transcript": "реакция, как мы вчера обсуждали, идёт между натрием и хлором с образованием хлорида натрия",
       "expected": "Na + Cl₂ → NaCl",
       "produced": "реакция, как мы вчера обсуждали, идёт между натрием и хлором с образованием хлорида натрия",
-      "candidates": 3,
-      "gold_rank": 3,
+      "candidates": 1,
+      "gold_rank": null,
       "selected_key": "RAW",
       "selected_source": "raw",
       "selected_warnings": [],
@@ -1786,7 +1753,7 @@
       "candidates": 3,
       "gold_rank": 1,
       "selected_key": "AST:{\"Math\":{\"Binary\":{\"left\":{\"Root\":{\"index\":null,\"radicand\":{\"Symbol\":{\"alphabet\":\"Latin\",\"case\":\"Lower\",\"letter\":\"x\"}}}},\"op\":\"Add\",\"right\":{\"Number\":\"1\"}}}}",
-      "selected_source": "lattice",
+      "selected_source": "primary_parse",
       "selected_warnings": [
         "math"
       ],
@@ -1806,31 +1773,13 @@
       "candidates": 3,
       "gold_rank": 1,
       "selected_key": "AST:{\"Math\":{\"Binary\":{\"left\":{\"Binary\":{\"left\":{\"Root\":{\"index\":null,\"radicand\":{\"Symbol\":{\"alphabet\":\"Latin\",\"case\":\"Lower\",\"letter\":\"x\"}}}},\"op\":\"Add\",\"right\":{\"Number\":\"1\"}}},\"op\":\"Eq\",\"right\":{\"Number\":\"2\"}}}}",
-      "selected_source": "lattice",
+      "selected_source": "primary_parse",
       "selected_warnings": [
         "math"
       ],
       "requested_domain": "auto",
       "hypothesis_index": 0,
       "renderer_faithful_to_gold": true
-    },
-    {
-      "id": "amb-stress-unicode-001-a",
-      "domain": "chemistry",
-      "target_action": "ast",
-      "first_blocking": "candidate-first",
-      "severity": "S1",
-      "transcript": "гидроксид железа три — «ключевой» реагент",
-      "expected": "Fe(OH)₃",
-      "produced": "гидроксид железа три — «ключевой» реагент",
-      "candidates": 1,
-      "gold_rank": null,
-      "selected_key": "RAW",
-      "selected_source": "raw",
-      "selected_warnings": [],
-      "requested_domain": null,
-      "hypothesis_index": 0,
-      "renderer_faithful_to_gold": null
     }
   ],
   "notes": [
@@ -1843,7 +1792,7 @@
     "The candidate lattice offers readings; it never inserts one. Readings that exist only because the words were edited first are generated behind RAW, so a wider lattice cannot raise the false-rewrite rate on its own."
   ],
   "timing": {
-    "latency_us_p50": 12666,
-    "latency_us_p95": 36282
+    "latency_us_p50": 2580,
+    "latency_us_p95": 7088
   }
 }
