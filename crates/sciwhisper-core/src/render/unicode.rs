@@ -130,7 +130,7 @@ fn math(m: &Math) -> String {
         Math::Juxt(xs) => {
             let mut s = String::new();
             for (i, x) in xs.iter().enumerate() {
-                if i > 0 && matches!(x, Math::Unit(_)) {
+                if i > 0 && (matches!(x, Math::Unit(_)) || super::ends_with_unit(&xs[i - 1])) {
                     s.push(' ');
                 }
                 s.push_str(&math_tight(x));

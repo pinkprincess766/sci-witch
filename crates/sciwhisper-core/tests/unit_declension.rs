@@ -67,6 +67,22 @@ const UNITS: &[Government] = &[
     unit("мс", "миллисекунда", "миллисекунды", "миллисекунд"),
     unit("кГц", "килогерц", "килогерца", "килогерц"),
     unit("МГц", "мегагерц", "мегагерца", "мегагерц"),
+    unit("г", "грамм", "грамма", "граммов"),
+    unit("мг", "миллиграмм", "миллиграмма", "миллиграммов"),
+    unit("мкг", "микрограмм", "микрограмма", "микрограммов"),
+    unit("л", "литр", "литра", "литров"),
+    unit("мл", "миллилитр", "миллилитра", "миллилитров"),
+    unit("мкл", "микролитр", "микролитра", "микролитров"),
+    unit("ч", "час", "часа", "часов"),
+    unit("мин", "минута", "минуты", "минут"),
+    // Only the Celsius degree is a unit; a bare «градус» is not (see
+    // `units_extra.rs`). Whisper writes «Цельсия» with a capital letter.
+    unit(
+        "°C",
+        "градус Цельсия",
+        "градуса Цельсия",
+        "градусов Цельсия",
+    ),
 ];
 
 fn compile(spoken: &str) -> String {
@@ -112,6 +128,9 @@ fn the_feminine_numeral_reaches_the_same_unit() {
     assert_eq!(compile("одна секунда"), "1 с");
     assert_eq!(compile("две секунды"), "2 с");
     assert_eq!(compile("одна кандела"), "1 кд");
+    assert_eq!(compile("одна минута"), "1 мин");
+    assert_eq!(compile("две минуты"), "2 мин");
+    assert_eq!(compile("одну минуту"), "1 мин");
 }
 
 /// The table above is the contract. A unit added to `units.yaml` without a

@@ -93,6 +93,54 @@ derived:
     gender: m
     dimension: T^-1
     spoken: [герц, герца, герцы]
+  # Units outside the SI coherent set that a chemist says every day. They
+  # have no `scale_exponent` of their own where the ratio to the SI unit is
+  # not a power of ten (an hour is 3600 s, a litre is 10⁻³ m³): the field
+  # is a decimal exponent by contract, and a wrong one would make
+  # `units::equivalent` print a wrong number.
+  - symbol: г
+    forms: {one: грамм, few: грамма, many: граммов}
+    gender: m
+    base: кг
+    scale_exponent: -3
+    dimension: M
+    spoken: [грамм, грамма, граммов, граммы]
+  - symbol: л
+    forms: {one: литр, few: литра, many: литров}
+    gender: m
+    dimension: L^3
+    spoken: [литр, литра, литров, литры]
+  # «часы» (a clock) is deliberately absent: no numeral takes it, and it is
+  # an ordinary noun that would otherwise count as scientific evidence.
+  - symbol: ч
+    forms: {one: час, few: часа, many: часов}
+    gender: m
+    dimension: T
+    spoken: [час, часа, часов]
+  - symbol: мин
+    forms: {one: минута, few: минуты, many: минут}
+    gender: f
+    dimension: T
+    spoken: [минута, минуты, минут, минуту]
+  # Only the Celsius degree is a unit here. A bare «градус» is an angle in
+  # «синус тридцати градусов» and a temperature in «минус пять градусов»,
+  # and the two have different dimensions (1 and Θ), so guessing either one
+  # would put a false claim into the document (a temperature nobody said,
+  # or a false dimension warning on an angle). The bare word stays words.
+  # «по Цельсию» is the same unit spoken the other common way.
+  - symbol: °C
+    forms: {one: градус Цельсия, few: градуса Цельсия, many: градусов Цельсия}
+    gender: m
+    dimension: Θ
+    spoken:
+      - градус цельсия
+      - градуса цельсия
+      - градусов цельсия
+      - градусы цельсия
+      - градус по цельсию
+      - градуса по цельсию
+      - градусов по цельсию
+      - градусы по цельсию
 prefixes:
   - prefix: н
     spoken: [нано]
@@ -165,6 +213,34 @@ composed:
     base: Гц
     scale_exponent: 6
     dimension: T^-1
+  - spoken: [миллиграмм, миллиграмма, миллиграммов, миллиграммы]
+    symbol: мг
+    forms: {one: миллиграмм, few: миллиграмма, many: миллиграммов}
+    gender: m
+    base: кг
+    scale_exponent: -6
+    dimension: M
+  - spoken: [микрограмм, микрограмма, микрограммов, микрограммы]
+    symbol: мкг
+    forms: {one: микрограмм, few: микрограмма, many: микрограммов}
+    gender: m
+    base: кг
+    scale_exponent: -9
+    dimension: M
+  - spoken: [миллилитр, миллилитра, миллилитров, миллилитры]
+    symbol: мл
+    forms: {one: миллилитр, few: миллилитра, many: миллилитров}
+    gender: m
+    base: л
+    scale_exponent: -3
+    dimension: L^3
+  - spoken: [микролитр, микролитра, микролитров, микролитры]
+    symbol: мкл
+    forms: {one: микролитр, few: микролитра, many: микролитров}
+    gender: m
+    base: л
+    scale_exponent: -6
+    dimension: L^3
 operators:
   per: [на, в]
   times: [умножить]

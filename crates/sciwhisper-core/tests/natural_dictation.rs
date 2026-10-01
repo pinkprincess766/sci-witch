@@ -307,10 +307,14 @@ const MIXED_AND_OOD: [Case; 30] = [
     // a correction marker with nothing to correct
     case("не два а три", M, "не два а три"),
     // and the mixed sentences that do carry one proven span
+    // A substance named once inside an ordinary sentence is being mentioned,
+    // not dictated, and is left as words. The three enumeration cases below
+    // are the other side of that rule: a list of names is the thing being
+    // said, not a sentence that happens to contain one.
     case(
         "Сегодня рассмотрим перманганат калия, а затем продолжим опыт.",
         M,
-        "Сегодня рассмотрим KMnO₄, а затем продолжим опыт.",
+        "Сегодня рассмотрим перманганат калия, а затем продолжим опыт.",
     ),
     case("Например, калий марганец о четыре.", M, "Например, KMnO₄."),
     case(
@@ -406,19 +410,22 @@ fn the_headline_examples_render_in_every_format_from_one_structure() {
 
 #[test]
 fn a_mixed_sentence_renders_as_prose_plus_structure_in_every_format() {
+    // A mathematical construction rather than a substance name: a name
+    // mentioned in prose is no longer substituted, and this test is about the
+    // three renderers agreeing on a mixed document.
     let (unicode, latex, omml) = all_formats(
-        "Сегодня рассмотрим перманганат калия, а затем продолжим опыт.",
+        "Сегодня рассмотрим корень из икс, а затем продолжим опыт.",
         M,
     );
-    assert_eq!(unicode, "Сегодня рассмотрим KMnO₄, а затем продолжим опыт.");
+    assert_eq!(unicode, "Сегодня рассмотрим √x, а затем продолжим опыт.");
     assert_eq!(
         latex,
-        "Сегодня рассмотрим \\ce{KMnO4}, а затем продолжим опыт."
+        "Сегодня рассмотрим \\sqrt{x}, а затем продолжим опыт."
     );
     // The prose survives in OMML too; the Word layer is what falls back to a
     // plain string, and that decision lives in the pipeline, not here.
     assert!(omml.contains("Сегодня рассмотрим"), "{omml}");
-    assert!(omml.contains("<m:sSub>"), "{omml}");
+    assert!(omml.contains("<m:rad>"), "{omml}");
 }
 
 #[test]

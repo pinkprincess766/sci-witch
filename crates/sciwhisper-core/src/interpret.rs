@@ -111,18 +111,6 @@ pub fn interpret(text: &str, opts: InterpretOptions) -> InterpretationResult {
     }
 }
 
-pub fn format_text(text: &str, domain: Domain, renderer: Renderer) -> InterpretationResult {
-    let r = interpret(
-        text,
-        InterpretOptions {
-            domain,
-            allow_shortcuts: true,
-        },
-    );
-    let _ = renderer;
-    r
-}
-
 pub fn render_result(r: &InterpretationResult, renderer: Renderer) -> String {
     if r.confidence <= 0.0 {
         return r.raw_transcript.clone();

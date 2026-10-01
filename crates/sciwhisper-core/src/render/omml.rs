@@ -181,7 +181,16 @@ fn math(m: &Math) -> String {
             };
             format!("{}{}{}", math(left), run(op_s), math(right))
         }
-        Math::Juxt(xs) => xs.iter().map(math).collect::<Vec<_>>().join(""),
+        Math::Juxt(xs) => {
+            let mut s = String::new();
+            for (i, x) in xs.iter().enumerate() {
+                if i > 0 && super::ends_with_unit(&xs[i - 1]) {
+                    s.push_str(&run(" "));
+                }
+                s.push_str(&math(x));
+            }
+            s
+        }
         Math::Fraction { num, den } => frac(&math(num), &math(den)),
         Math::Power { base, exp } => format!(
             "<m:sSup><m:e>{}</m:e><m:sup>{}</m:sup></m:sSup>",

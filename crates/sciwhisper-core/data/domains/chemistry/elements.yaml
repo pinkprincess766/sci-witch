@@ -31,7 +31,7 @@ elements:
   - symbol: C
     z: 6
     names: [углерод, углерода]
-    spelled_names: [цэ, carbon]
+    spelled_names: [цэ, це, carbon]
     default_oxidation: 4
     oxidations: [2, 4, -4]
   - symbol: N
@@ -95,6 +95,7 @@ elements:
   - symbol: K
     z: 19
     names: [калий, калия, калием]
+    spelled_names: [ка]
     default_oxidation: 1
   - symbol: Ca
     z: 20

@@ -249,8 +249,33 @@ mod tests {
         );
     }
 
+    /// A construction dictated inside a sentence is inserted with the prose
+    /// around it kept.
+    ///
+    /// The fixture used to be «пример гидроксида железа три в тексте». A
+    /// substance *name* inside prose is no longer substituted — it is
+    /// mentioned, not dictated — so this now uses a construction, which is
+    /// what the test was always about: the insertion layer carrying a mixed
+    /// document rather than falling back to the whole transcript.
     #[test]
     fn inline_formula_is_inserted_with_surrounding_prose() {
+        let result = compile_transcript(
+            Transcript {
+                text: "пример корень из икс в тексте".into(),
+                language: Some("ru".into()),
+                segments: vec![],
+                no_speech: false,
+            },
+            Domain::Auto,
+        );
+        assert_eq!(
+            payload_for_mode(&result, OutputMode::Unicode),
+            "пример √x в тексте"
+        );
+    }
+
+    #[test]
+    fn a_substance_named_inside_prose_is_inserted_as_words() {
         let result = compile_transcript(
             Transcript {
                 text: "пример гидроксида железа три в тексте".into(),
@@ -262,7 +287,7 @@ mod tests {
         );
         assert_eq!(
             payload_for_mode(&result, OutputMode::Unicode),
-            "пример Fe(OH)₃ в тексте"
+            "пример гидроксида железа три в тексте"
         );
     }
 

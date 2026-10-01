@@ -10,6 +10,7 @@ use crate::ast::{
 use crate::error::{Error, Result};
 use crate::lexicon::Lexicon;
 use crate::numbers::NumberLex;
+use crate::parser::chemistry::FUNCTION_WORD_LETTERS;
 
 const OPERATORS_YAML: &str = include_str!("../../data/domains/mathematics/operators.yaml");
 const SUPPORTED_OPERATOR_SCHEMA: u32 = 1;
@@ -18,6 +19,12 @@ const SUPPORTED_OPERATOR_SCHEMA: u32 = 1;
 enum Tok {
     Num(String),
     Sym(Symbol),
+    /// A letter that was spoken as a bare Russian function word: «а», «и»,
+    /// «в», «о», … (`chemistry::FUNCTION_WORD_LETTERS`). It is a symbol
+    /// everywhere a symbol is expected, but it has not proven that it is a
+    /// letter at all when it merely follows a finished operand — see
+    /// [`Parser::may_join_juxtaposition`].
+    WeakSym(Symbol),
     Unit(String),
     Plus,
     Minus,
@@ -313,9 +320,18 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_juxt(&mut self) -> Result<Math> {
+        // A weak letter followed by a bare number is not a product anybody
+        // dictates: «и два» came out as `i2` and, being mathematics, beat
+        // the iodine I₂ that chemistry read. Nobody says «и два» for `2i`, and
+        // a subscript is said with «индекс». So the number does not join, the
+        // term is the letter alone, and the leftover number fails the parse.
+        let weak_first = matches!(self.peek(), Some(Tok::WeakSym(_)));
         let first = self.parse_postfix()?;
         let mut items = vec![first];
-        while self.starts_atom() {
+        while self.starts_atom() && self.may_join_juxtaposition(&items) {
+            if weak_first && items.len() == 1 && matches!(self.peek(), Some(Tok::Num(_))) {
+                break;
+            }
             items.push(self.parse_postfix()?);
         }
         if items.len() == 1 {
@@ -323,6 +339,41 @@ impl<'a> Parser<'a> {
         } else {
             Ok(Math::Juxt(items))
         }
+    }
+
+    /// Whether the next atom may be glued onto `items` as another factor.
+    ///
+    /// Every single-letter Russian conjunction, preposition and particle also
+    /// names a Latin letter, so «икс и игрек» tokenises as `x i y` and used to
+    /// render as `xiy`; «три метра и четыре метра» as `3 мi4 м`. Nobody
+    /// dictates a product with the imaginary unit by saying «и» between two
+    /// operands, and everybody says «и» to join them. So a bare function-word
+    /// letter does not extend a juxtaposition when an operand follows it: the
+    /// term ends in front of the letter. The leftover word then either stops
+    /// the parse (the phrase stays words) or splits the utterance into
+    /// separate spans with the conjunction left as an ordinary word.
+    ///
+    /// With no operand after it the word is not *between* two operands, and
+    /// two shapes still prove a letter: a bare number before it («два **а**
+    /// плюс три бэ», «два **а** в квадрате» — a coefficient) and a bare letter
+    /// before it («эф равно эм **а**», «пэ равно эм **в**» — a product of
+    /// quantities). After anything else — a quantity with a unit, a function,
+    /// a power — the word is refused as well, because nothing says it is more
+    /// than a conjunction whose second half was cut off.
+    ///
+    /// «три и четыре» and «два а икс» are refused on purpose: the price of
+    /// declining a doubtful product is a phrase left as words, the price of
+    /// accepting it is notation nobody dictated.
+    ///
+    /// A letter that is the *first* factor («а плюс бэ», «и в степени два»),
+    /// carries a modifier («и латинская») or is a spoken name that is not a
+    /// Russian word («икс», «игрек») never reaches this check as a weak one.
+    fn may_join_juxtaposition(&self, items: &[Math]) -> bool {
+        if !matches!(self.peek(), Some(Tok::WeakSym(_))) {
+            return true;
+        }
+        matches!(items.last(), Some(Math::Number(_) | Math::Symbol(_)))
+            && !Self::atom_token_is_supported(self.toks.get(self.i + 1))
     }
 
     fn starts_atom(&self) -> bool {
@@ -355,6 +406,7 @@ impl<'a> Parser<'a> {
             Some(
                 Tok::Num(_)
                     | Tok::Sym(_)
+                    | Tok::WeakSym(_)
                     | Tok::Unit(_)
                     | Tok::LParen
                     | Tok::LBrack
@@ -443,6 +495,44 @@ impl<'a> Parser<'a> {
         Ok(inner)
     }
 
+    /// A spoken letter, optionally with the integer that is its index.
+    ///
+    /// Lives here rather than in [`Self::parse_postfix`]: after `parse_atom`
+    /// both `Tok::Sym` and `Tok::WeakSym` are a `Math::Symbol`, and a weak
+    /// letter must not take a following number — «и два» is chemistry I₂,
+    /// «а два» is words. The explicit «индекс» path in `parse_postfix` still
+    /// builds the same [`Math::Subscript`] tree, so «икс два» and «икс индекс
+    /// два» agree.
+    ///
+    /// A school decimal is not an index: «икс два целых пять десятых»
+    /// tokenises as `Num("2,5")` and is left for juxtaposition. Nobody
+    /// dictates `x₂` that way, and treating the integer part as a subscript
+    /// would silently drop the fraction.
+    fn parse_symbol_atom(&mut self, s: &Symbol, allow_implicit_subscript: bool) -> Result<Math> {
+        let name = Math::Symbol(s.clone());
+        // «эф от икс» — a function the speaker named, applied. The
+        // `от` here cannot be anything else: the constructions that
+        // use it for bounds (integral, sum, product) are introduced
+        // by their own token, never by a bare symbol.
+        if matches!(self.peek(), Some(Tok::From)) {
+            return self.parse_application(name);
+        }
+        if !allow_implicit_subscript {
+            return Ok(name);
+        }
+        if let Some(Tok::Num(n)) = self.peek() {
+            if is_bare_integer(n) {
+                let n = n.clone();
+                self.bump();
+                return Ok(Math::Subscript {
+                    base: Box::new(name),
+                    sub: Box::new(Math::Number(n)),
+                });
+            }
+        }
+        Ok(name)
+    }
+
     fn parse_atom(&mut self) -> Result<Math> {
         self.skip_commas();
         match self.bump() {
@@ -460,17 +550,8 @@ impl<'a> Parser<'a> {
                 let inner = self.parse_atom()?;
                 Ok(inner)
             }
-            Some(Tok::Sym(s)) => {
-                let name = Math::Symbol(s.clone());
-                // «эф от икс» — a function the speaker named, applied. The
-                // `от` here cannot be anything else: the constructions that
-                // use it for bounds (integral, sum, product) are introduced
-                // by their own token, never by a bare symbol.
-                if matches!(self.peek(), Some(Tok::From)) {
-                    return self.parse_application(name);
-                }
-                Ok(name)
-            }
+            Some(Tok::Sym(s)) => self.parse_symbol_atom(s, true),
+            Some(Tok::WeakSym(s)) => self.parse_symbol_atom(s, false),
             Some(Tok::Inf) => Ok(Math::Infinity),
             Some(Tok::Ellipsis) => Ok(Math::Ellipsis),
             Some(Tok::Delta) => {
@@ -979,6 +1060,11 @@ impl<'a> Parser<'a> {
     }
 }
 
+/// A `Tok::Num` with no decimal comma or sign: `2`, `21`, not `2,5`.
+fn is_bare_integer(n: &str) -> bool {
+    !n.is_empty() && n.chars().all(|c| c.is_ascii_digit())
+}
+
 enum Nary {
     Sum,
     Product,
@@ -1076,8 +1162,17 @@ fn tokenize(words: &[String], lex: &Lexicon, nums: &NumberLex, mode: MathMode) -
             continue;
         }
         if let Some((sym, n)) = consume_symbol(words, i, lex, mode) {
+            // Only a bare word counts as weak: «и латинская» has said which
+            // letter it means, and the modifier is the evidence.
+            let weak = n == 1
+                && sym.alphabet == Alphabet::Latin
+                && FUNCTION_WORD_LETTERS.contains(&words[i].as_str());
             i += n;
-            out.push(Tok::Sym(sym));
+            out.push(if weak {
+                Tok::WeakSym(sym)
+            } else {
+                Tok::Sym(sym)
+            });
             continue;
         }
         if mode == MathMode::Physics {

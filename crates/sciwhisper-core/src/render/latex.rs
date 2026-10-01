@@ -133,7 +133,16 @@ fn math(m: &Math) -> String {
             };
             format!("{}{}{}", math(left), op_s, math(right))
         }
-        Math::Juxt(xs) => xs.iter().map(math_tight).collect::<Vec<_>>().join(""),
+        Math::Juxt(xs) => {
+            let mut s = String::new();
+            for (i, x) in xs.iter().enumerate() {
+                if i > 0 && super::ends_with_unit(&xs[i - 1]) {
+                    s.push_str("\\,");
+                }
+                s.push_str(&math_tight(x));
+            }
+            s
+        }
         Math::Fraction { num, den } => format!("\\frac{{{}}}{{{}}}", math(num), math(den)),
         Math::Power { base, exp } => {
             format!("{}^{{{}}}", math_maybe_group(base), math(exp))
@@ -312,6 +321,20 @@ fn construct_body(body: &Math) -> String {
     }
 }
 
+/// One unit symbol, upright.
+///
+/// Every symbol goes into `\mathrm{…}` except one that starts with the degree
+/// sign. `°` is a text symbol: pdfLaTeX has no definition for it in math mode,
+/// so `\mathrm{°C}` does not compile there. The portable spelling is the
+/// superscript circle followed by the letter, `{}^{\circ}\mathrm{C}`; the
+/// empty group keeps the superscript from attaching to the number before it.
+fn unit_symbol(symbol: &str) -> String {
+    match symbol.strip_prefix('°') {
+        Some(rest) => format!("{{}}^{{\\circ}}\\mathrm{{{rest}}}"),
+        None => format!("\\mathrm{{{symbol}}}"),
+    }
+}
+
 fn unit(u: &UnitExpr) -> String {
     let mut s = String::new();
     for (i, f) in u.factors.iter().enumerate() {
@@ -324,7 +347,7 @@ fn unit(u: &UnitExpr) -> String {
         } else if f.divide {
             s.push('/');
         }
-        s.push_str(&format!("\\mathrm{{{}}}", f.symbol));
+        s.push_str(&unit_symbol(&f.symbol));
         if f.power != 1 {
             s.push_str(&format!("^{{{}}}", f.power));
         }

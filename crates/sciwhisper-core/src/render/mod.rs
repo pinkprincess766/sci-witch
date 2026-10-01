@@ -35,3 +35,15 @@ pub(crate) fn derivative_operand_needs_group(operand: &Math) -> bool {
             | Math::Ellipsis
     )
 }
+
+/// Whether a factor of a juxtaposition ends with a unit, so that the next
+/// factor starts a new quantity. Shared by all three renderers: «два часа
+/// тридцать минут» is `2 ч 30 мин`, and without the break the second number
+/// ran into the first unit as `2 ч30 мин` in every format.
+pub(crate) fn ends_with_unit(m: &Math) -> bool {
+    match m {
+        Math::Unit(_) => true,
+        Math::Juxt(xs) => xs.last().is_some_and(ends_with_unit),
+        _ => false,
+    }
+}

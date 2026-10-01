@@ -21,7 +21,7 @@ use std::sync::OnceLock;
 
 use serde::{Deserialize, Serialize};
 
-use crate::ast::{Domain, Node, Warning};
+use crate::ast::{Chemical, Domain, Math, Node, Warning};
 use crate::interpret::{interpret, InterpretOptions};
 
 const DICTATION_YAML: &str = include_str!("../data/domains/common/dictation.yaml");
@@ -39,6 +39,25 @@ pub const MAX_PARSE_ATTEMPTS: usize = 4096;
 /// Corrections accepted for one span. A person restating a value four times
 /// is no longer correcting; the transcript is kept instead.
 pub const MAX_CORRECTIONS: usize = 4;
+
+/// Names needed in **one sentence** before it can be read as a dictated list
+/// rather than as prose that mentions something.
+///
+/// The count is only half the test; the other half is how much of that
+/// sentence the names cover, and it has to be a majority.
+///
+/// Counting alone does not work: «Примеры: павликова кислота, уксусная
+/// кислота, ацетон и глицерин» and «Натрий и калий мы держим отдельно, медь
+/// и цинк можно рядом, а кислоты вообще в другом шкафу» both name four
+/// substances. The first is six words of eight and is the thing being said;
+/// the second is four words of sixteen and is a sentence about a cupboard.
+///
+/// Measuring across the whole utterance does not work either: «Попытка
+/// записи: пермангнат калия или же уксусная кислота, павликовая кислота. А
+/// может быть, этиловый…» is a list followed by an unfinished afterthought,
+/// and the second sentence diluted the first below the majority. A list is a
+/// property of the sentence it is said in.
+pub const MIN_ENUMERATION_SPANS: usize = 2;
 
 /// Rewriting a stretch *inside* a sentence is held to the stricter bar: a
 /// parse that the grammar itself called ambiguous stays as words.
@@ -681,6 +700,25 @@ fn is_math_cue(tokens: &[Token], index: usize) -> bool {
 /// happens to be a substance. «гидроксид» and «интеграл» are commands to write
 /// notation; «медь» and «вода» are ordinary Russian nouns that also name
 /// substances, and they need more evidence before a sentence is rewritten.
+/// Whether a one-word span is strong enough to rewrite inside a sentence.
+///
+/// Every word here names a *construction that needs an operand*: «интеграл»,
+/// «корень», «производная», «предел». A bare one of them does not parse at
+/// all, so the flag costs nothing — «предел терпения» stays prose because the
+/// span fails, not because the cue was weak.
+///
+/// «дельта» used to be on this list and was the one entry that broke the
+/// pattern, because it parses on its own into a bare Greek symbol. That made
+/// «Дельта между планом и фактом оказалась заметной» come back as «δ между
+/// планом и фактом», and «Дельта реки за лето обмелела» as «δ реки». Every
+/// other Greek letter name that is also a Russian word — «эта», «пи»,
+/// «альфа», «ро», «сигма» — was saved by not being here, which is to say by
+/// accident rather than by rule.
+///
+/// Removing it costs nothing that can be dictated: `Δ` applied to something
+/// is always more than one word («дельта же», «дельта аш»), so the span is
+/// strong by length, and «дельта» alone is a whole utterance, which never
+/// consults this function.
 fn is_strong_cue(word: &str) -> bool {
     const NOMENCLATURE: [&str; 14] = [
         "гидроксид",
@@ -728,9 +766,164 @@ fn is_strong_cue(word: &str) -> bool {
             | "частная"
             | "частную"
             | "предел"
-            | "дельта"
             | "ион"
     )
+}
+
+/// Whether any one sentence of the utterance is a dictated list of names.
+///
+/// See [`MIN_ENUMERATION_SPANS`]. The unit is the sentence, because that is
+/// what a list is said in; the shell («ну запиши…») is not counted, since it
+/// introduces the list rather than belonging to it.
+///
+/// Each span carries whether it is a bare quantity ([`is_bare_quantity`]),
+/// and **a bare quantity never counts towards a list**. The enumeration rule
+/// exists for lists of names: «Примеры: павликова кислота, уксусная кислота,
+/// ацетон и глицерин». Two amounts in a sentence are not that. «Налили три
+/// литра, потом ещё два литра» covers four words of six and used to come back
+/// as «налили 3 л, потом ещё 2 л»; «налей два литра воды» was a quantity
+/// beside a substance and came back as «налей 2 лH₂O». Both are prose, and
+/// the owner's decision is that an amount inside a sentence stays words. A
+/// quantity is still dictation when it is the whole utterance, follows a
+/// framing, is corrected mid-way or sits inside an expression — none of which
+/// goes through this test.
+fn holds_an_enumeration(
+    utterance: &Utterance,
+    shell_words: usize,
+    span_words: &[(usize, usize, bool)],
+) -> bool {
+    if span_words.len() < MIN_ENUMERATION_SPANS {
+        return false;
+    }
+    // Sentence number of every word, in one pass over the tokens. The first
+    // version recounted the boundaries before each word from scratch, inside
+    // a loop over sentences: sentences × words × tokens. Bounded by
+    // MAX_UTTERANCE_WORDS it was never slow in absolute terms — a 390-word,
+    // 130-sentence dictation spends its time in the span search, not here —
+    // but a cubic loop is not the right shape for a check this simple.
+    let mut sentence_of_word = Vec::with_capacity(utterance.words.len());
+    let mut sentence = 0usize;
+    let mut next_word = 0usize;
+    for (index, token) in utterance.tokens.iter().enumerate() {
+        if token.kind == TokenKind::Boundary {
+            sentence += 1;
+        } else if utterance.word_token.get(next_word) == Some(&index) {
+            sentence_of_word.push(sentence);
+            next_word += 1;
+        }
+    }
+    let sentences = sentence + 1;
+    let mut total = vec![0usize; sentences];
+    for word in shell_words..utterance.words.len() {
+        total[sentence_of_word[word]] += 1;
+    }
+    let mut names = vec![0usize; sentences];
+    let mut covered = vec![0usize; sentences];
+    for &(start, end, quantity) in span_words {
+        if quantity {
+            continue;
+        }
+        let here = sentence_of_word[start];
+        names[here] += 1;
+        covered[here] += end - start;
+    }
+    (0..sentences)
+        .any(|here| names[here] >= MIN_ENUMERATION_SPANS && covered[here] * 2 > total[here])
+}
+
+/// Whether this reading is a substance name and nothing more.
+///
+/// A coefficient, a charge or a state marker all mean the speaker said
+/// something *about* the substance, which is dictation. A bare species is
+/// just the name, and a name is the thing this rule will not substitute
+/// inside a sentence.
+fn is_bare_substance(node: &Node) -> bool {
+    matches!(
+        node,
+        Node::Chemical(Chemical::Species(species))
+            if species.coefficient == 1
+                && species.charge.is_none()
+                && species.marker.is_none()
+    )
+}
+
+/// Whether this reading is an amount and nothing more: a number with a unit,
+/// or several of them in a row («два часа тридцать минут»).
+///
+/// The same policy as [`is_bare_substance`], for the same reason. «На каждый
+/// моль хлора расходуется один моль водорода» is a sentence of a report that
+/// mentions amounts; it came back as «на 1 моль … 1 моль водорода». In «нужно
+/// два моля кислорода, для второй стадии — три» only the first amount had a
+/// unit, so the sentence came back half in digits and half in words. Both
+/// shapes were found in the owner's coursework (private, paraphrased here),
+/// the first text in this project not written to test the parser.
+///
+/// An amount *is* dictated when it is the whole utterance («два моля»), when
+/// it follows a framing («запиши два моля»), when it was corrected while being
+/// said, or when it is part of something larger — «три метра плюс четыре
+/// секунды» is a `Binary`, not a bare amount, and keeps its strength. It does
+/// **not** stand in an enumeration: amounts in a row are prose, see
+/// [`holds_an_enumeration`].
+fn is_bare_quantity(node: &Node) -> bool {
+    let Node::Math(Math::Juxt(parts)) = node else {
+        return false;
+    };
+    // «два часа тридцать минут» is a *compound* amount: the parser nests one
+    // `number unit` pair per quantity, so the whole thing is a chain of pairs.
+    // Read as a single pair only, it was "not bare", which made it strong
+    // enough to rewrite inside a sentence («встреча длилась два часа тридцать
+    // минут» came back as «встреча длилась 2 ч30 мин»). The chain is walked
+    // with an explicit stack, so a deep nesting costs memory, not the call
+    // stack, and the work is bounded by the size of the AST.
+    let mut flat: Vec<&Math> = Vec::new();
+    let mut pending: Vec<&Math> = parts.iter().rev().collect();
+    while let Some(part) = pending.pop() {
+        match part {
+            Math::Juxt(inner) => pending.extend(inner.iter().rev()),
+            other => flat.push(other),
+        }
+    }
+    if flat.len() < 2 || !flat.len().is_multiple_of(2) {
+        return false;
+    }
+    flat.chunks(2).all(|pair| {
+        matches!(pair[1], Math::Unit(_))
+            && match pair[0] {
+                Math::Number(_) => true,
+                Math::UnaryMinus(inner) => matches!(inner.as_ref(), Math::Number(_)),
+                _ => false,
+            }
+    })
+}
+
+/// Whether one word, on its own, is evidence that a phrase is science.
+///
+/// Used by [`crate::nbest`] to decide whether a recognizer's alternative is
+/// *repairing* science that was already heard or *creating* it. The bar is
+/// deliberately a content word: an element, a salt or acid name, an ion
+/// marker, the first word of a known substance, a material class, a
+/// mathematical construction or a unit.
+///
+/// A bare number is not evidence. «два года» is two years; that «два вода»
+/// also parses is exactly the accident this word is here to refuse. Nor is a
+/// Latin letter name or an ordinal: `is_math_cue` accepts those because it
+/// only decides where to *try* a parse, which is a much cheaper question.
+pub(crate) fn is_scientific_anchor(word: &str) -> bool {
+    if is_number_word(word) {
+        return false;
+    }
+    let token = Token {
+        kind: TokenKind::Word,
+        start: 0,
+        end: word.len(),
+        text: word.to_string(),
+    };
+    if is_chemistry_cue(std::slice::from_ref(&token), 0) || is_strong_cue(word) {
+        return true;
+    }
+    crate::lexicon::Lexicon::builtin()
+        .longest_unit(&[word.to_string()], 0)
+        .is_some()
 }
 
 fn is_number_word(word: &str) -> bool {
@@ -775,7 +968,6 @@ struct Reading {
 /// summation with no variable, no bounds and no body, and an operator with
 /// nothing under it is not what the speaker dictated.
 fn is_contentful(node: &Node) -> bool {
-    use crate::ast::Math;
     let Node::Math(math) = node else {
         return true;
     };
@@ -1198,6 +1390,8 @@ pub fn interpret_utterance(text: &str, options: UtteranceOptions) -> UtteranceRe
     let mut segments: Vec<Segment> = Vec::new();
     let mut spans: Vec<ScienceSpan> = Vec::new();
     let mut strengths: Vec<bool> = Vec::new();
+    // Word range of each accepted span, for the enumeration test below.
+    let mut span_words: Vec<(usize, usize, bool)> = Vec::new();
     let mut drops: Vec<(usize, usize)> = Vec::new();
     let mut ambiguous = false;
 
@@ -1355,12 +1549,35 @@ pub fn interpret_utterance(text: &str, options: UtteranceOptions) -> UtteranceRe
         result.rejected.extend(outcome.rejected);
         ambiguous |= outcome.ambiguous;
 
-        // How much evidence this span has. A single ordinary noun in the
-        // middle of a sentence is weak: «Сегодня вода холодная» must stay
-        // prose. Anything longer than a word, a nomenclature or construction
-        // keyword, a dictation shell, or a one-word utterance is strong.
-        let strong = found.end_word - word > 1
-            || is_strong_cue(&utterance.words[word])
+        // How much evidence this span has that it was *dictated* rather than
+        // *mentioned*.
+        //
+        // A bare substance name is never enough on its own, however many
+        // words it takes to say and whatever nomenclature keyword it starts
+        // with. That is the policy: «серная кислота хранится в лаборатории»
+        // is a sentence about a bottle, not a dictated formula, and so are
+        // «углекислый газ в помещении надо контролировать» and «медный
+        // купорос мы заказали». Before this rule the answer depended on
+        // whether the name happened to be one word or two, which was an
+        // accident of the length clause rather than a decision.
+        //
+        // Everything else keeps the strength it had. An equation, an ion
+        // with a charge, a species with a coefficient, a state marker and
+        // every mathematical construction are things nobody says by
+        // accident, so «корень из икс» inside a sentence still compiles.
+        //
+        // A correction the speaker made while saying it is its own evidence:
+        // «гидроксид железа два, нет, железа три» is somebody dictating and
+        // fixing a value mid-sentence, which is not something you do about a
+        // substance you are merely mentioning.
+        //
+        // An amount — a number with a unit and nothing else — follows the
+        // same policy: see [`is_bare_quantity`].
+        let quantity = is_bare_quantity(&found.reading.node);
+        let bare = is_bare_substance(&found.reading.node) || quantity;
+        let dictated_shape = !bare || !corrections.is_empty();
+        let strong = (dictated_shape
+            && (found.end_word - word > 1 || is_strong_cue(&utterance.words[word])))
             || (saw_framing && word == shell_words)
             || (word <= shell_words && found.end_word == utterance.words.len());
         strengths.push(strong);
@@ -1387,13 +1604,21 @@ pub fn interpret_utterance(text: &str, options: UtteranceOptions) -> UtteranceRe
             confidence: reading.confidence,
             corrections,
         });
+        span_words.push((word, found.end_word, quantity));
         word = found.end_word;
     }
 
     // A weak span stands only in company: «Примеры: … , ацетон и глицерин» is
     // a list of chemistry and the bare names belong to it, while a lone
     // ordinary noun in an ordinary sentence does not.
-    if !strengths.iter().any(|strong| *strong) {
+    //
+    // Company is either something strong beside it, or enough names covering
+    // enough of the utterance that the utterance *is* the list — see
+    // [`MIN_ENUMERATION_SPANS`]. Without the second clause a dictated list of
+    // four substances would be thrown away whole, because no single name in
+    // it is strong any more.
+    let enumerated = holds_an_enumeration(&utterance, shell_words, &span_words);
+    if !enumerated && !strengths.iter().any(|strong| *strong) {
         for (span, strong) in spans.iter().zip(strengths.iter()) {
             if !strong {
                 result.rejected.push(RejectedSpan {
@@ -1755,8 +1980,15 @@ fn substitute(
 fn assemble(text: &str, spans: &[ScienceSpan], drops: &[(usize, usize)]) -> Node {
     let mut children: Vec<Node> = Vec::new();
     let mut cursor = 0usize;
-    for span in spans {
+    for (index, span) in spans.iter().enumerate() {
+        let before = children.len();
         push_prose(&mut children, text, cursor, span.start, drops);
+        // Two spans side by side are separated by the space that was said
+        // between them. `push_prose` drops blank prose, so without this
+        // «запиши два моля серной кислоты» came back as «2 мольH₂SO₄».
+        if index > 0 && children.len() == before && cursor < span.start {
+            children.push(Node::Text(" ".into()));
+        }
         children.push(span.node.clone());
         cursor = span.end;
     }
@@ -1852,11 +2084,14 @@ mod tests {
 
     #[test]
     fn segments_carry_the_byte_ranges_of_the_original_text() {
-        let text = "Сегодня рассмотрим перманганат калия, а затем продолжим опыт.";
+        // A mathematical construction rather than a substance name: a name
+        // mentioned in prose is no longer substituted, and this test is about
+        // byte ranges, not about that rule.
+        let text = "Сегодня рассмотрим корень из икс, а затем продолжим опыт.";
         let result = read(text, UtteranceMode::MixedText);
         let span = result.spans.first().expect("one span");
-        assert_eq!(&text[span.start..span.end], "перманганат калия");
-        assert_eq!(span.source_text, "перманганат калия");
+        assert_eq!(&text[span.start..span.end], "корень из икс");
+        assert_eq!(span.source_text, "корень из икс");
         // Every segment must slice the original text exactly, so a span can
         // always be put back where it came from.
         for segment in &result.segments {

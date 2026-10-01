@@ -7,8 +7,8 @@ use std::path::PathBuf;
 use clap::{Parser, Subcommand};
 use sciwhisper_asr::{from_audio, from_microphone, PipelineOptions, PipelineResult};
 use sciwhisper_core::{
-    interpret, interpret_utterance, render, render_result, Domain, InterpretOptions, Renderer,
-    UtteranceMode, UtteranceOptions,
+    choose_hypothesis, interpret, interpret_utterance, render, render_result, Domain,
+    InterpretOptions, Renderer, UtteranceMode, UtteranceOptions,
 };
 use sciwhisper_shell::config::Config;
 
@@ -27,6 +27,15 @@ struct Cli {
 enum Command {
     /// Collect, resume and export a local voice session with explicit consent.
     CollectVoice(collect_voice::Args),
+    /// Choose one hypothesis from a text n-best list, then compile it.
+    ///
+    /// The first argument is the recognizer's top hypothesis. A later one
+    /// replaces it only when it is a small edit away and the only one the
+    /// grammar can read as a whole utterance.
+    Nbest {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        hypotheses: Vec<String>,
+    },
     /// Compile already-transcribed speech (bypass Whisper).
     Format {
         #[arg(long, default_value = "auto")]
@@ -162,6 +171,7 @@ fn run(cli: Cli) -> Result<(), String> {
     match cli.command {
         Some(Command::CollectVoice(args)) => collect_voice::run(args),
         None => sciwhisper_shell::run().map_err(|e| e.to_string()),
+        Some(Command::Nbest { hypotheses }) => run_nbest(&hypotheses),
         Some(Command::Format {
             domain,
             mode,
@@ -693,6 +703,41 @@ fn print_warnings(warnings: &[sciwhisper_core::ast::Warning]) {
     for warning in warnings {
         eprintln!("warning[{}]: {}", warning.code, warning.message);
     }
+}
+
+fn run_nbest(hypotheses: &[String]) -> Result<(), String> {
+    if hypotheses.is_empty() {
+        return Err("nbest needs at least one hypothesis".into());
+    }
+    let refs: Vec<&str> = hypotheses.iter().map(String::as_str).collect();
+    let choice = choose_hypothesis(&refs);
+    let text = hypotheses
+        .get(choice.index)
+        .map(String::as_str)
+        .unwrap_or("");
+    let reason = match choice.reason {
+        sciwhisper_core::ChoiceReason::Empty => "empty",
+        sciwhisper_core::ChoiceReason::TopAlreadyParsed => "top_already_parsed",
+        sciwhisper_core::ChoiceReason::NearHypothesisParsed => "near_hypothesis_parsed",
+        sciwhisper_core::ChoiceReason::NothingNearParsed => "nothing_near_parsed",
+        sciwhisper_core::ChoiceReason::NearHypothesesDisagree => "near_hypotheses_disagree",
+        sciwhisper_core::ChoiceReason::NoScientificAnchor => "no_scientific_anchor",
+    };
+    println!("hypothesis {}: {text}", choice.index);
+    println!("reason: {reason}");
+    let result = interpret(
+        text,
+        InterpretOptions {
+            domain: Domain::Auto,
+            allow_shortcuts: true,
+        },
+    );
+    println!("{}", render_result(&result, Renderer::Unicode));
+    print_warnings(&result.warnings);
+    if result.confidence <= 0.0 {
+        return Err("could not parse input; raw transcript preserved".into());
+    }
+    Ok(())
 }
 
 fn run_format(

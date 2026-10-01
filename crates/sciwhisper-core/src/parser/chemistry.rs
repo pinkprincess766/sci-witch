@@ -324,6 +324,7 @@ fn parse_species_inner(
 
     let mut words = words.to_vec();
     let mut coefficient = 1u32;
+    let mut had_coefficient = false;
     if let Some((n, used)) = nums.consume_int(&words, 0) {
         if used < words.len() && n > 0 {
             if n > MAX_ATOM_COUNT {
@@ -333,6 +334,7 @@ fn parse_species_inner(
                 });
             }
             coefficient = n;
+            had_coefficient = true;
             words = words[used..].to_vec();
         }
     }
@@ -393,7 +395,7 @@ fn parse_species_inner(
         s.marker = marker;
         return Ok((s, SpeciesEvidence::default()));
     }
-    if let Some(mut s) = try_spelled(&words, lex, nums) {
+    if let Some(mut s) = try_spelled(&words, lex, nums, had_coefficient) {
         s.coefficient = coefficient;
         s.marker = marker;
         return Ok((s, SpeciesEvidence::default()));
@@ -634,7 +636,15 @@ fn try_systematic(words: &[String], lex: &Lexicon, nums: &NumberLex) -> Option<S
     Some(Species::new(formula))
 }
 
-fn try_spelled(words: &[String], lex: &Lexicon, nums: &NumberLex) -> Option<Species> {
+/// `after_number` is whether the caller took a coefficient off the front of
+/// `words`: «два и три» reaches this function as «и три» with the «два»
+/// already gone, and the conjunction rule in [`spelled_context`] has to know.
+fn try_spelled(
+    words: &[String],
+    lex: &Lexicon,
+    nums: &NumberLex,
+    after_number: bool,
+) -> Option<Species> {
     let mut parts: Vec<Part> = Vec::new();
     let mut i = 0;
     let mut saw_element = false;
@@ -646,7 +656,7 @@ fn try_spelled(words: &[String], lex: &Lexicon, nums: &NumberLex) -> Option<Spec
             i += used;
             continue;
         }
-        if let Some((el, used_el)) = chemistry_element_at(lex, words, i, nums) {
+        if let Some((el, used_el)) = chemistry_element_at(lex, words, i, nums, after_number) {
             i += used_el;
             let mut count = 1u32;
             if i < words.len() {
@@ -690,7 +700,20 @@ fn try_spelled(words: &[String], lex: &Lexicon, nums: &NumberLex) -> Option<Spec
 /// oxygen, uranium, potassium, boron and vanadium out of thin air:
 /// «натрий и калий стоят рядом» came out as `NaIK`, and «медь, о которой я
 /// говорил» came out as `CuO` — a different substance, at full confidence.
-const FUNCTION_WORD_LETTERS: [&str; 11] = ["а", "б", "в", "ж", "же", "и", "к", "о", "с", "у", "я"];
+///
+/// The mathematics parser reads the same list (`parser::math`): the same
+/// words are letter names there, and «икс и игрек» must not become `xiy`.
+pub(crate) const FUNCTION_WORD_LETTERS: [&str; 11] =
+    ["а", "б", "в", "ж", "же", "и", "к", "о", "с", "у", "я"];
+
+/// The function-word letters that are conjunctions.
+///
+/// A conjunction *between two numbers* — «два и три», «пять а шесть» — is
+/// followed by a number without that number being a subscript, so there it
+/// does not vouch for an element (see [`spelled_context`]). Prepositions do
+/// not have the problem in the nominative: «о два» is not something a person
+/// says about something.
+const CONJUNCTION_LETTERS: [&str; 2] = ["а", "и"];
 
 /// Whether `word` could only have been said while spelling a formula.
 ///
@@ -711,7 +734,9 @@ fn spelling_evidence(lex: &Lexicon, word: &str) -> bool {
 /// Russian grammar:
 ///
 /// * the letter carries a subscript — «марганец **о два**» is MnO₂, and no
-///   preposition is followed by a bare number;
+///   preposition is followed by a bare number. A *conjunction* between two
+///   numbers is, so «и три» in «два и три» proves nothing and is not iodine
+///   with a subscript;
 /// * or the same chunk holds a word from the spelled register — «**аш** два
 ///   о» and «**купрум** о» can only be spellings.
 ///
@@ -719,11 +744,56 @@ fn spelling_evidence(lex: &Lexicon, word: &str) -> bool {
 /// the whole point. The cost is that a bare «о» with no subscript and no
 /// spelled neighbour is no longer oxygen; that is not notation anybody
 /// dictates, and the lattice still offers the reading as a candidate.
-fn spelled_context(lex: &Lexicon, words: &[String], i: usize, nums: &NumberLex) -> bool {
+fn spelled_context(
+    lex: &Lexicon,
+    words: &[String],
+    i: usize,
+    nums: &NumberLex,
+    after_number: bool,
+) -> bool {
     if nums.consume_int(words, i + 1).is_some() {
-        return true;
+        if !CONJUNCTION_LETTERS.contains(&words[i].as_str())
+            || !follows_a_number(words, i, nums, after_number)
+        {
+            return true;
+        }
+        // A conjunction between two numbers proves nothing: «два **и три**»
+        // is a sentence, not iodine with a subscript. «и два» at the start
+        // of a chunk is still the formula it always was (and «и два о пять»
+        // never reaches this point). After a number the conjunction is
+        // vouched for only by a *second* letter that carries a subscript of
+        // its own and is not a conjunction — «два и три **о пять**» — since
+        // no sentence has a conjunction, a number and then a preposition with
+        // another number after it. The evidence has to come from another
+        // word (a conjunction may not vouch for a conjunction), and «в» does
+        // not count: «в два раза» is a number after a preposition, said
+        // constantly, and «три и пять в два раза» must not become iodine and
+        // vanadium.
+        return words.iter().enumerate().any(|(index, word)| {
+            index != i
+                && FUNCTION_WORD_LETTERS.contains(&word.as_str())
+                && !CONJUNCTION_LETTERS.contains(&word.as_str())
+                && word != "в"
+                && nums.consume_int(words, index + 1).is_some()
+        }) || spelled_neighbour(lex, words, i);
     }
-    // The word itself is excluded: «о» may not vouch for «о».
+    spelled_neighbour(lex, words, i)
+}
+
+/// Whether the word right before `i` is a number word. At the front of the
+/// chunk the answer is what the caller knows: `after_number` says a
+/// coefficient was taken off.
+fn follows_a_number(words: &[String], i: usize, nums: &NumberLex, after_number: bool) -> bool {
+    if i == 0 {
+        return after_number;
+    }
+    nums.consume_int(words, i - 1)
+        .is_some_and(|(_, used)| used == 1)
+}
+
+/// Whether any word other than the one at `i` could only be part of a
+/// spelling. The word itself is excluded: «о» may not vouch for «о».
+fn spelled_neighbour(lex: &Lexicon, words: &[String], i: usize) -> bool {
     words
         .iter()
         .enumerate()
@@ -735,15 +805,16 @@ fn chemistry_element_at<'a>(
     words: &[String],
     i: usize,
     nums: &NumberLex,
+    after_number: bool,
 ) -> Option<(&'a Element, usize)> {
     if i + 1 < words.len() {
         let pair = match (words[i].as_str(), words[i + 1].as_str()) {
             ("эн", "а") => Some("Na"),
-            ("цэ", "а") => Some("Ca"),
-            ("цэ", "эль") => Some("Cl"),
+            ("цэ", "а") | ("це", "а") => Some("Ca"),
+            ("цэ", "эль") | ("це", "эль") => Some("Cl"),
             ("эм", "гэ") | ("эм", "г") => Some("Mg"),
             ("а", "эль") => Some("Al"),
-            ("цэ", "у") => Some("Cu"),
+            ("цэ", "у") | ("це", "у") => Some("Cu"),
             ("зет", "эн") => Some("Zn"),
             ("эф", "е") => Some("Fe"),
             ("эм", "эн") => Some("Mn"),
@@ -755,7 +826,7 @@ fn chemistry_element_at<'a>(
             }
         }
     }
-    chemistry_element(lex, words, i, nums).map(|el| (el, 1))
+    chemistry_element(lex, words, i, nums, after_number).map(|el| (el, 1))
 }
 
 fn chemistry_element<'a>(
@@ -763,13 +834,15 @@ fn chemistry_element<'a>(
     words: &[String],
     i: usize,
     nums: &NumberLex,
+    after_number: bool,
 ) -> Option<&'a Element> {
     let word = words[i].as_str();
     // The guard comes first because the collision lives in two tables at
     // once: «о» is a spoken Latin letter *and* `elements.yaml` lists it
     // among oxygen's own names, so checking only the letter table left
     // «медь о которой я говорил» reading as CuO.
-    if FUNCTION_WORD_LETTERS.contains(&word) && !spelled_context(lex, words, i, nums) {
+    if FUNCTION_WORD_LETTERS.contains(&word) && !spelled_context(lex, words, i, nums, after_number)
+    {
         return None;
     }
     if let Some(el) = lex.element(word) {

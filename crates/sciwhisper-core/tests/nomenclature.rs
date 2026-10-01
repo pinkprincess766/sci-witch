@@ -324,39 +324,46 @@ fn a_chemical_word_in_prose_does_not_make_the_sentence_a_formula() {
     }
 }
 
-/// **A known substance name inside prose is replaced, by design.**
+/// **A known substance name inside prose is left alone.**
 ///
-/// `MixedText` — the default mode, and the one the application ships with —
-/// keeps the sentence and substitutes the spans it can prove. So «сульфат
-/// меди был куплен вчера» becomes «CuSO₄ был куплен вчера»: the prose
-/// survives, the substance name does not.
+/// This test used to assert the opposite, and said so: «сульфат меди был
+/// куплен вчера» became «CuSO₄ был куплен вчера», and the comment recorded
+/// that whether that was right was a product question the test could not
+/// settle. It has been settled: a substance name inside prose is being
+/// *mentioned*, not dictated, and is not substituted.
 ///
-/// Whether that is right is a product question, not one this test can
-/// settle. `NATURAL_DICTATION_RU.md` asked for exactly this behaviour; a
-/// corpus record tagged `substance-mentioned` asks for the opposite, and the
-/// evaluation harness measures a code path where the question does not
-/// arise. The same tension is recorded in
-/// `crates/sciwhisper-eval/src/stability.rs`.
+/// The old behaviour was never a decision anyway. It depended on whether the
+/// name happened to be one word or two — «Вода в помещении надо
+/// контролировать» came back untouched while «Углекислый газ в помещении
+/// надо контролировать» became «CO₂ в помещении…» — because the strength
+/// rule counted words. `research/data/prose-negatives-v1.jsonl` is what made
+/// that visible.
 ///
-/// What is asserted here is what the system does promise and what this task
-/// required: nothing is invented, and the sentence around the name is
-/// untouched.
+/// Dictation still works, and this test pins both sides: the name alone is a
+/// formula, the name inside a sentence is words.
 #[test]
-fn a_substance_name_in_prose_is_substituted_but_nothing_is_invented() {
-    let cases = [
-        ("сульфат меди был куплен вчера", "CuSO₄ был куплен вчера"),
-        (
-            "феррит цинка был получен вчера",
-            "ZnFe₂O₄ был получен вчера",
-        ),
-    ];
-    for (said, expected) in cases {
-        let out = spoken(said);
-        assert_eq!(out, expected, "{said}");
-        // Every ordinary word survives; only the name became a formula.
-        for word in said.split_whitespace().skip(2) {
-            assert!(out.contains(word), "{said:?} lost {word:?} → {out:?}");
-        }
+fn a_substance_name_in_prose_is_left_alone() {
+    for said in [
+        "сульфат меди был куплен вчера",
+        "феррит цинка был получен вчера",
+        "углекислый газ в помещении надо контролировать",
+        "медный купорос мы заказали",
+    ] {
+        assert_eq!(spoken(said), said, "{said:?} was rewritten");
+    }
+}
+
+#[test]
+fn the_same_name_dictated_on_its_own_is_still_a_formula() {
+    // The policy is about a name *inside a sentence*. Said on its own it is
+    // the whole utterance, which is what dictating a formula looks like.
+    for (said, expected) in [
+        ("сульфат меди", "CuSO₄"),
+        ("феррит цинка", "ZnFe₂O₄"),
+        ("углекислый газ", "CO₂"),
+        ("медный купорос", "CuSO₄·5H₂O"),
+    ] {
+        assert_eq!(spoken(said), expected, "{said:?}");
     }
 }
 

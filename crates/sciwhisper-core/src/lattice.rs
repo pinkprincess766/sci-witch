@@ -1440,13 +1440,23 @@ mod tests {
 
     #[test]
     fn unicode_punctuation_does_not_break_the_span() {
-        let lattice = lattice("гидроксид железа три — «ключевой» реагент");
-        assert!(shows(&lattice, "Fe(OH)₃"), "{:?}", lattice.candidates);
+        // A mathematical construction, not a substance name: a name mentioned
+        // in prose is no longer substituted, and what this test is about is
+        // dashes and guillemets not moving a byte range.
+        let text = "корень из икс — «ключевой» множитель";
+        let lattice = lattice(text);
+        assert!(shows(&lattice, "√x"), "{:?}", lattice.candidates);
         for candidate in &lattice.candidates {
             // A span that is not on a character boundary would slice to "".
             assert!(
-                candidate.span.end <= "гидроксид железа три — «ключевой» реагент".len(),
+                candidate.span.end <= text.len(),
                 "span out of range: {:?}",
+                candidate.span
+            );
+            assert!(
+                text.is_char_boundary(candidate.span.start)
+                    && text.is_char_boundary(candidate.span.end),
+                "span cuts a character: {:?}",
                 candidate.span
             );
         }
