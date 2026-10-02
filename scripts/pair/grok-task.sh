@@ -47,10 +47,14 @@
 #   PAIR_MAX_ROUNDS (3)   rounds per task, counting the first
 #   SCIWITCH_PAIR_HOME    where runs live (default: $TMPDIR/sciwitch-pair)
 #   GROK_BIN              the grok executable (default: ~/.grok/bin/grok)
+#   PAIR_ROUND_TIMEOUT    seconds one round may run before grok is stopped (3600)
 
 set -euo pipefail
 
 GROK="${GROK_BIN:-$HOME/.grok/bin/grok}"
+ROUND_TIMEOUT="${PAIR_ROUND_TIMEOUT:-3600}"
+GROK_PID=""
+WATCHDOG_PID=""
 MAX_TURNS="${PAIR_MAX_TURNS:-80}"
 MAX_ROUNDS="${PAIR_MAX_ROUNDS:-3}"
 PAIR_HOME="${SCIWITCH_PAIR_HOME:-${TMPDIR:-/tmp}/sciwitch-pair}"
@@ -94,7 +98,24 @@ DENY=(
 # A round stopped with Ctrl-C leaves its worktree behind. It is marked, so
 # `list` shows it and nobody mistakes it for a finished round; the first one
 # found this way had been reported as "nothing ran" when a worktree existed.
+#
+# grok runs in the background and the round waits for it: bash runs a trap
+# only between commands, so a grok in the foreground that hangs (it did, when
+# its usage limit ran out) kept Ctrl-C from doing anything until it returned.
+# `wait` is interrupted by the signal at once, and the trap stops grok first.
+stop_grok() {
+    if [ -n "$WATCHDOG_PID" ]; then
+        pkill -TERM -P "$WATCHDOG_PID" 2>/dev/null || true
+        kill -TERM "$WATCHDOG_PID" 2>/dev/null || true
+    fi
+    if [ -n "$GROK_PID" ]; then
+        pkill -TERM -P "$GROK_PID" 2>/dev/null || true
+        kill -TERM "$GROK_PID" 2>/dev/null || true
+    fi
+}
+
 on_interrupt() {
+    stop_grok
     printf 'interrupted\n' >"$1/interrupted"
     printf '\ngrok-task: запуск %s прерван; копия осталась. Убрать: %s clean %s\n' \
         "$(basename "$1")" "$0" "$(basename "$1")" >&2
@@ -184,8 +205,23 @@ run_round() {
     before="$(main_state)"
     (
         cd "$run/worktree"
-        "$GROK" "${args[@]}"
-    ) >"$run/round-$round.json" 2>"$run/round-$round.err" || rc=$?
+        exec "$GROK" "${args[@]}"
+    ) >"$run/round-$round.json" 2>"$run/round-$round.err" &
+    GROK_PID=$!
+    # A round that outlives ROUND_TIMEOUT is stopped and reported like any
+    # failed round; the watchdog is a plain sleep, killed when grok finishes.
+    (
+        sleep "$ROUND_TIMEOUT"
+        printf 'timeout after %ss\n' "$ROUND_TIMEOUT" >>"$run/round-$round.err"
+        kill -TERM "$GROK_PID" 2>/dev/null
+    ) >/dev/null 2>&1 &
+    WATCHDOG_PID=$!
+    wait "$GROK_PID" || rc=$?
+    pkill -TERM -P "$WATCHDOG_PID" 2>/dev/null || true
+    kill "$WATCHDOG_PID" 2>/dev/null || true
+    wait "$WATCHDOG_PID" 2>/dev/null || true
+    GROK_PID=""
+    WATCHDOG_PID=""
     printf '%s\n' "$round" >"$run/round"
 
     tree_of "$run/worktree" "$run/after.idx" >"$run/after-$round.tree"
