@@ -233,8 +233,16 @@ fn check_tree(repo_root: &Path) -> (Vec<String>, usize, usize) {
         let (broken, n) = check_file(repo_root, file);
         checked += n;
         for destination in broken {
-            let shown = file.strip_prefix(repo_root).unwrap_or(file);
-            problems.push(format!("{}: ({destination})", shown.display()));
+            // Always with `/`: the report reads the same on every platform,
+            // and Windows' `\` made the expected text differ there.
+            let shown = file
+                .strip_prefix(repo_root)
+                .unwrap_or(file)
+                .components()
+                .map(|part| part.as_os_str().to_string_lossy().into_owned())
+                .collect::<Vec<_>>()
+                .join("/");
+            problems.push(format!("{shown}: ({destination})"));
         }
     }
     (problems, files.len(), checked)
