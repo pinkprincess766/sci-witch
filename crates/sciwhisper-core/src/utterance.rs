@@ -776,8 +776,9 @@ fn is_strong_cue(word: &str) -> bool {
 /// what a list is said in; the shell («ну запиши…») is not counted, since it
 /// introduces the list rather than belonging to it.
 ///
-/// Each span carries whether it is a bare quantity ([`is_bare_quantity`]),
-/// and **a bare quantity never counts towards a list**. The enumeration rule
+/// Each span carries whether it is an amount — a bare quantity
+/// ([`is_bare_quantity`]) or a counted substance ([`is_counted_substance`]) —
+/// and **an amount never counts towards a list**. The enumeration rule
 /// exists for lists of names: «Примеры: павликова кислота, уксусная кислота,
 /// ацетон и глицерин». Two amounts in a sentence are not that. «Налили три
 /// литра, потом ещё два литра» covers four words of six and used to come back
@@ -787,6 +788,11 @@ fn is_strong_cue(word: &str) -> bool {
 /// quantity is still dictation when it is the whole utterance, follows a
 /// framing, is corrected mid-way or sits inside an expression — none of which
 /// goes through this test.
+///
+/// A substance with a count in front of it is the same thing for the same
+/// reason. «Принесли два йода и бром» is three words of five, and with the
+/// counted «два йода» left out of the tally it has one name, not two, so it is
+/// no list: it is a sentence about what was brought.
 fn holds_an_enumeration(
     utterance: &Utterance,
     shell_words: usize,
@@ -819,8 +825,8 @@ fn holds_an_enumeration(
     }
     let mut names = vec![0usize; sentences];
     let mut covered = vec![0usize; sentences];
-    for &(start, end, quantity) in span_words {
-        if quantity {
+    for &(start, end, amount) in span_words {
+        if amount {
             continue;
         }
         let here = sentence_of_word[start];
@@ -842,6 +848,35 @@ fn is_bare_substance(node: &Node) -> bool {
         node,
         Node::Chemical(Chemical::Species(species))
             if species.coefficient == 1
+                && species.charge.is_none()
+                && species.marker.is_none()
+    )
+}
+
+/// Whether this reading is a substance with a count in front of it and
+/// nothing else: «два йода», «три натрия», «два натрий хлор».
+///
+/// [`is_bare_substance`] asks for a coefficient of one, so a counted name used
+/// to be taken for something dictated: it grew into a rewrite on its own, and
+/// a rewrite is strong enough to pull the weak names beside it along. «Принесли
+/// два йода и бром» came back as «Принесли 2I₂ и Br₂», «Купили два хлора и три
+/// ведра» as «Купили 2ClI₃ ведра».
+///
+/// A count in front of a name inside a sentence is an amount, and the owner's
+/// decision for amounts is that they stay words: this is the same policy as
+/// [`is_bare_quantity`], and it is held to the same limits. The count is
+/// dictation when it is the whole utterance («два йода»), follows a framing
+/// («запиши два йода»), is corrected mid-way, or is part of something larger —
+/// an equation («два натрий плюс хлор два равно два натрий хлор») is not a
+/// `Species`, and a charge or a state marker still says that the speaker is
+/// writing, not counting. It does **not** stand in an enumeration either, see
+/// [`holds_an_enumeration`]; the price is that «Примеры: два йода, бром и
+/// хлор» is a list whose counted name does not vote, which is the safe side.
+fn is_counted_substance(node: &Node) -> bool {
+    matches!(
+        node,
+        Node::Chemical(Chemical::Species(species))
+            if species.coefficient != 1
                 && species.charge.is_none()
                 && species.marker.is_none()
     )
@@ -1573,8 +1608,12 @@ pub fn interpret_utterance(text: &str, options: UtteranceOptions) -> UtteranceRe
         //
         // An amount — a number with a unit and nothing else — follows the
         // same policy: see [`is_bare_quantity`].
-        let quantity = is_bare_quantity(&found.reading.node);
-        let bare = is_bare_substance(&found.reading.node) || quantity;
+        //
+        // So does a substance with a count in front of it, see
+        // [`is_counted_substance`].
+        let amount =
+            is_bare_quantity(&found.reading.node) || is_counted_substance(&found.reading.node);
+        let bare = is_bare_substance(&found.reading.node) || amount;
         let dictated_shape = !bare || !corrections.is_empty();
         let strong = (dictated_shape
             && (found.end_word - word > 1 || is_strong_cue(&utterance.words[word])))
@@ -1604,7 +1643,7 @@ pub fn interpret_utterance(text: &str, options: UtteranceOptions) -> UtteranceRe
             confidence: reading.confidence,
             corrections,
         });
-        span_words.push((word, found.end_word, quantity));
+        span_words.push((word, found.end_word, amount));
         word = found.end_word;
     }
 

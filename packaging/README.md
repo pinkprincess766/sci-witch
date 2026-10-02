@@ -24,6 +24,10 @@ sci-witch-Windows-x64-<версия>/
   docs/user/ docs/development/ docs/images/
 ```
 
+В архиве `SECURITY.md` и `CONTRIBUTING.md` лежат в корне, а `docs/development/` плоский; в
+репозитории те же файлы находятся в `.github/` и в `docs/compiler/`, `docs/research/`
+(см. шаги «Assemble application archive» в `.github/workflows/release.yml`).
+
 Обязательный состав задан один раз в [`windows/BUNDLE_CONTENTS.json`](windows/BUNDLE_CONTENTS.json).
 Его проверяют оба конца: release workflow — на собранном архиве до публикации,
 и тест `the_bundle_manifest_describes_a_layout_the_application_accepts` — на том,

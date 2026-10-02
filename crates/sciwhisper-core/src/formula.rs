@@ -3,6 +3,7 @@
 
 use crate::ast::{Formula, Part, Species, StateMarker};
 use crate::error::{Error, Result};
+use crate::parser::math::MAX_PARSE_DEPTH;
 
 pub fn parse_species_str(input: &str) -> Result<Species> {
     let s = input.trim();
@@ -41,7 +42,7 @@ pub fn parse_formula_str(input: &str) -> Result<Formula> {
         return Err(Error::InvalidFormula(input.into()));
     }
     let chars: Vec<char> = s.chars().collect();
-    let (formula, pos) = parse_seq(&chars, 0, false)?;
+    let (formula, pos) = parse_seq(&chars, 0, 0)?;
     if pos != chars.len() {
         return Err(Error::InvalidFormula(input.into()));
     }
@@ -99,7 +100,14 @@ fn parse_charge(s: &str) -> Result<Option<i32>> {
     Ok(Some(sign * n))
 }
 
-fn parse_seq(chars: &[char], mut i: usize, in_group: bool) -> Result<(Formula, usize)> {
+/// One sequence of atoms and groups; `depth` is how many groups enclose it.
+///
+/// Each `(` recurses, so nesting is bounded by the same
+/// [`MAX_PARSE_DEPTH`] as spoken mathematics: `formula` is a public module,
+/// and a string of opening brackets used to recurse until the stack ran out.
+/// No real formula comes near it: nothing in the lexicon nests deeper than one.
+fn parse_seq(chars: &[char], mut i: usize, depth: usize) -> Result<(Formula, usize)> {
+    let in_group = depth > 0;
     let mut parts: Vec<Part> = Vec::new();
     while i < chars.len() {
         let c = chars[i];
@@ -110,8 +118,13 @@ fn parse_seq(chars: &[char], mut i: usize, in_group: bool) -> Result<(Formula, u
             break;
         }
         if c == '(' {
+            if depth >= MAX_PARSE_DEPTH {
+                return Err(Error::InvalidFormula(format!(
+                    "groups nested deeper than {MAX_PARSE_DEPTH}"
+                )));
+            }
             i += 1;
-            let (inner, ni) = parse_seq(chars, i, true)?;
+            let (inner, ni) = parse_seq(chars, i, depth + 1)?;
             i = ni;
             if i >= chars.len() || chars[i] != ')' {
                 return Err(Error::InvalidFormula("unclosed group".into()));

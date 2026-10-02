@@ -21,7 +21,7 @@
       "sha256": "ae85e4a935d7a567bd102fe55afc16bb595bdb618e11b2fc7591bc08120411bb",
       "license": "MIT",
       "license_url": "https://github.com/openai/whisper/blob/main/LICENSE",
-      "rationale": "Preliminary choice, not yet benchmarked on Windows: the smallest Whisper size that still looked usable for Russian scientific dictation in text-level checks, at a download of about 181 MiB. Whether it runs near real time on a mid-range Windows laptop CPU without a discrete GPU is an open question until the measurement in docs/development/RELEASE_CHECKLIST.md is done."
+      "rationale": "Preliminary choice, not yet benchmarked on Windows: the smallest Whisper size that still looked usable for Russian scientific dictation in text-level checks, at a download of about 181 MiB. Whether it runs near real time on a mid-range Windows laptop CPU without a discrete GPU is an open question until the measurement in docs/process/RELEASE_CHECKLIST.md is done."
     }
   ],
   "notes": [

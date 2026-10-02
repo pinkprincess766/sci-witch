@@ -6,7 +6,7 @@
 ## Раскладка
 
 ```
-corpus/voice/
+research/voice-samples/
   README.md              ← этот файл
   manifest.yaml          ← метаданные клипов
   synthetic/             ← TTS-семена для отладки конвейера, НЕ замена носителей
@@ -23,7 +23,7 @@ corpus/voice/
 Прогон:
 
 ```bash
-cargo run -p sciwhisper-cli -- corpus corpus/voice/synthetic --domain chemistry
+cargo run -p sciwhisper-cli -- corpus research/voice-samples/synthetic --domain chemistry
 ```
 
 Реальные записи кладите в `speakers/<id>/` и дописывайте `manifest.yaml`.

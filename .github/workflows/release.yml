@@ -41,8 +41,8 @@ jobs:
           cp README.md LICENSE NOTICE DATA_LICENSE.md CHANGELOG.md "$root/"
           cp docs/user/TESTING_RU.md docs/user/PRIVACY_RU.md \
             docs/user/KNOWN_LIMITATIONS_RU.md "$root/docs/user/"
-          cp docs/development/GRAMMAR_RU.md docs/development/ARCHITECTURE_RU.md \
-            docs/development/MATHEMATICS_RU.md docs/development/ML_RESEARCH_RU.md \
+          cp docs/compiler/GRAMMAR_RU.md docs/compiler/ARCHITECTURE_RU.md \
+            docs/compiler/MATHEMATICS_RU.md docs/research/ML_RESEARCH_RU.md \
             "$root/docs/development/"
           cp docs/images/si-witch-recording.gif "$root/docs/images/"
           ditto -c -k --sequesterRsrc --keepParent "$root" \
@@ -166,10 +166,10 @@ jobs:
           Copy-Item packaging/windows/SciWhisper.cmd, packaging/windows/SciWhisper-App.ps1 $root
           Copy-Item packaging/windows/SciWhisper-Settings.cmd, packaging/windows/SciWhisper-Settings.ps1 $root
           Copy-Item packaging/windows/SciWhisper-Test.cmd, packaging/windows/README-WINDOWS.txt $root
-          Copy-Item assets/branding/SciWhisper-wink-broom-sand-v1.ico "$root/SciWhisper.ico"
-          Copy-Item README.md, LICENSE, NOTICE, DATA_LICENSE.md, CHANGELOG.md, SECURITY.md, CONTRIBUTING.md $root
+          Copy-Item packaging/branding/SciWhisper-wink-broom-sand-v1.ico "$root/SciWhisper.ico"
+          Copy-Item README.md, LICENSE, NOTICE, DATA_LICENSE.md, CHANGELOG.md, .github/SECURITY.md, .github/CONTRIBUTING.md $root
           Copy-Item docs/user/TESTING_RU.md, docs/user/PRIVACY_RU.md, docs/user/KNOWN_LIMITATIONS_RU.md, docs/user/WINDOWS_ACCEPTANCE_RU.md "$root/docs/user"
-          Copy-Item docs/development/GRAMMAR_RU.md, docs/development/ARCHITECTURE_RU.md, docs/development/MATHEMATICS_RU.md, docs/development/ML_RESEARCH_RU.md, docs/development/NATURAL_DICTATION_RU.md "$root/docs/development"
+          Copy-Item docs/compiler/GRAMMAR_RU.md, docs/compiler/ARCHITECTURE_RU.md, docs/compiler/MATHEMATICS_RU.md, docs/research/ML_RESEARCH_RU.md, docs/compiler/NATURAL_DICTATION_RU.md "$root/docs/development"
           Copy-Item docs/images/si-witch-windows-settings-mockup.png, docs/images/si-witch-recording.gif "$root/docs/images"
 
       # The archive is checked against the same list the application's own tests

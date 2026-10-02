@@ -57,7 +57,7 @@ research/
 ```
 
 Практическое руководство —
-[`docs/development/ML_LAB_RU.md`](../docs/development/ML_LAB_RU.md).
+[`docs/research/ML_LAB_RU.md`](../docs/research/ML_LAB_RU.md).
 Карта литературы: названия смежных областей, математическая постановка и где
 искать работы — [`LITERATURE_MAP_RU.md`](LITERATURE_MAP_RU.md).
 Формальная грамматика устной математической и химической речи (EBNF, FIRST и

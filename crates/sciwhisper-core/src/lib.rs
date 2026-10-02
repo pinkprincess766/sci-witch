@@ -3,7 +3,7 @@
 //! # What is stable
 //!
 //! This crate is the compiler, and its contract is
-//! `docs/development/COMPILER_CONTRACT_RU.md`. Two tiers, stated here because
+//! `docs/compiler/COMPILER_CONTRACT_RU.md`. Two tiers, stated here because
 //! Rust's visibility cannot say it on its own — every `pub mod` below is
 //! reachable from outside:
 //!
@@ -13,8 +13,9 @@
 //!   pinned by `tests/public_surface.rs`, and the serialized shape of the
 //!   AST by every gold answer in `research/data`.
 //! * **Internal**: everything else — the parser, the lexicon, normalization,
-//!   number reading, the nomenclature helpers. They are `pub` because the
-//!   workspace's own crates use them, and they change without notice.
+//!   number reading, the nomenclature helpers, the research API. They are
+//!   `pub` because the workspace's own crates use them, and they change
+//!   without notice.
 
 pub mod ast;
 pub mod balance;
@@ -31,6 +32,7 @@ pub mod numbers;
 pub mod organic;
 pub mod parser;
 pub mod render;
+pub mod research;
 pub mod units;
 pub mod utterance;
 pub mod validate;

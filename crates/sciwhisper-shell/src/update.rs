@@ -5,7 +5,7 @@
 //! never touches the running installation and never launches anything.
 //! Replacing a running build needs a separate helper process on Windows
 //! (the OS locks a running `.exe`), which is deliberately out of scope here
-//! — see `docs/development/AUTO_UPDATE_RU.md`.
+//! — see `docs/process/AUTO_UPDATE_RU.md`.
 //!
 //! What the SHA-256 check does and does not prove: it establishes
 //! **integrity** of the archive relative to the manifest that named it —

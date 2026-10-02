@@ -2,13 +2,20 @@
 
 Для владельца проекта: что искать, где и зачем. Это не обзор литературы, а
 маршрут к нему. Дополняет таблицу учебников в разделе «Этап 5» плана
-[`docs/development/sci-witch-plan.md`](../docs/development/sci-witch-plan.md):
+[`docs/research/sci-witch-plan.md`](../docs/research/sci-witch-plan.md):
 там — книги, чтобы понимать математику; здесь — статьи и области, чтобы
 понять, где проект стоит среди чужих работ.
 
 Все названные работы автор карты считает существующими, но **каждую
 проверьте по первоисточнику**, прежде чем цитировать. Там, где уверенности
 нет, дан поисковый запрос, а не ссылка.
+
+**Проверка 01.10.2026.** Владелец проекта сверил разделы 4A–4H с
+первоисточниками (85 работ и ресурсов; у 82 выходные данные сверены, у 1
+частично, 2 не проверены); выдуманных работ нет. Документ проверки лежит у
+владельца, вне репозитория. Ниже внесены его поправки (год рецензируемой
+публикации вместо препринта, авторы) и самые важные находки; пометка
+«(не открывали)» значит, что первоисточник при проверке открыть не удалось.
 
 ## 1. Как называется то, что вы делаете
 
@@ -84,24 +91,30 @@
 
 Самая близкая к sci-witch область. Отсюда же — готовые приёмы для грамматик.
 
-- Sproat R., Jaitly N. *RNN Approaches to Text Normalization: A Challenge.* arXiv, 2016. Вместе с ним — соревнование Google по нормализации текста на Kaggle (2017), в том числе **для русского языка**.
+- Sproat R., Jaitly N. *RNN Approaches to Text Normalization: A Challenge.* arXiv, 2016; рецензируемая версия — *An RNN Model of Text Normalization*, Interspeech 2017, doi:10.21437/Interspeech.2017-35. Вместе с ним — соревнование Google по нормализации текста на Kaggle (2017), в том числе **для русского языка**.
 - Zhang H., Sproat R. и соавт. *Neural Models of Text Normalization for Speech Applications.* Computational Linguistics, 2019.
 - Gorman K., Sproat R. *Finite-State Text Processing.* 2021 (книга; WFST-грамматики, библиотека Pynini).
-- Запрос: `NeMo inverse text normalization` — работа группы NVIDIA о переходе ITN из грамматик в продакшн (проверьте авторов и год).
+- Zhang Y., Bakhturina E., Gorman K., Ginsburg B. *NeMo Inverse Text Normalization: From Development to Production.* Interspeech 2021, doi:10.21437/Interspeech.2021-1571 (arXiv:2104.05055). Не путать с короткой демо-статьёй той же конференции «NeMo (Inverse) Text Normalization…» без Gorman. **В репозитории NeMo есть русская ITN**; в проверке владельца она переводит «двадцать градусов цельсия» → «20 °C», но оставляет без изменений «пять миллилитров» и разговорные десятичные — естественная база для сравнения на количествах.
+- Bakhturina E., Zhang Y., Ginsburg B. *Shallow Fusion of WFST and Language Model for Text Normalization.* Interspeech 2022 — грамматика выдаёт все допустимые варианты, языковая модель выбирает. Ближайшая к sci-witch архитектура (решётка кандидатов + ранжировщик + порог).
+- Antonova A., Bakhturina E., Ginsburg B. *Thutmose Tagger.* Interspeech 2022 — нейросетевая ITN как разметка, с русским тестом; базовая линия для сравнения с грамматикой.
 - Запросы: `inverse text normalization`, `spoken form written form`, `WFST text normalization`, `обратная нормализация текста`, `нормализация текста для синтеза речи`.
 
 ### B. Устная математика и химия (предметная область)
 
 Здесь работ мало, и это хорошая новость: ниша не занята.
 
-- Запросы: `speech to LaTeX`, `spoken mathematics recognition`, `mathematical speech recognition`, `voice input mathematics accessibility`. За 2024–2025 годы должны найтись работы и датасеты по speech-to-LaTeX — начните с них и идите по ссылкам.
-- Обратное направление — **математика → речь** для экранных дикторов: правила MathSpeak и ClearSpeak. Их словарь «как читают формулы вслух» — готовый материал для вашей грамматики.
+- **Korzh D. и соавт. *Speech-to-LaTeX: New Models and Datasets for Converting Spoken Equations and Sentences.* arXiv:2508.03542; ICLR 2026.** Открытый датасет S2L (Hugging Face `marsianin500/Speech2Latex`, CC BY 4.0): более 66 тыс. размеченных людьми аудио и 571 тыс. синтетических, **английский и русский**. Лучшие системы ошибаются примерно в четверти символов формулы (CER ≈ 27%). Единственный найденный открытый корпус русской устной математики — кандидат во внешний бенчмарк sci-witch.
+- Hyeon S. и соавт. *MathSpeech: Leveraging Small LMs for Accurate Conversion in Mathematical Speech-to-Formula.* AAAI 2025 — конвейер ASR → исправление → LaTeX, бенчмарк из реальных лекций (английский).
+- Jung K. и соавт. *MathBridge* (arXiv:2408.07081, 2024; ~23 млн пар «устное английское описание ↔ LaTeX», устные формы синтетические) и метрика *TeXBLEU* (ICASSP 2025).
+- Запросы: `speech to LaTeX`, `spoken mathematics recognition`, `mathematical speech recognition`, `voice input mathematics accessibility`.
+- Обратное направление — **математика → речь** для экранных дикторов: правила MathSpeak (однозначные, по Немету) и ClearSpeak (Frankel, Brownstein, Soiffer, Hansen, ETS Research Report RR-16-23, 2016 — как говорят в классе). Реализации: Speech Rule Engine (Sorge и соавт., W4A 2014; русской локали нет) и **MathCAT** (N. Soiffer, DAISY; **Rust, лицензия MIT, есть русские правила ClearSpeak и SimpleSpeak**). MathCAT можно использовать как словарь терминалов грамматики и, в обратную сторону (LaTeX/MathML → русская речь), как генератор тестовых пар, написанных не автором парсера.
 - Lowe D. M., Corbett P. T., Murray-Rust P., Glen R. C. *Chemical Name to Structure: OPSIN, an Open Source Solution.* J. Chem. Inf. Model., 2011. OPSIN — эталонный разборщик IUPAC-названий (письменных, английских); с ним честно сравнивать номенклатурную часть.
 - Запросы: `chemical named entity recognition`, `IUPAC name to structure`, `chemical name parsing`.
+- Открытого корпуса устной химии на русском при проверке не нашлось. Ближайший — FormulaSpeech/SciFormula (химические записи на китайском и английском, синтетическое аудио, IJCAI 2026; статью не открывали). Ниша свободна.
 
 ### C. Ошибки распознавания и выбор гипотезы (этап 3Б, «оптимизация обработки голоса»)
 
-- Radford A. и соавт. *Robust Speech Recognition via Large-Scale Weak Supervision.* 2022 (статья о Whisper). Прочитать обязательно: как устроен декодер, откуда берутся ошибки.
+- Radford A. и соавт. *Robust Speech Recognition via Large-Scale Weak Supervision.* ICML 2023, PMLR 202: 28492–28518 (препринт arXiv:2212.04356, 2022) — статья о Whisper. Прочитать обязательно: как устроен декодер, откуда берутся ошибки.
 - Salazar J. и соавт. *Masked Language Model Scoring.* ACL 2020 — переранжирование N-best гипотез языковой моделью.
 - Pundak G. и соавт. *Deep Context: End-to-End Contextual Speech Recognition.* SLT 2018 — contextual biasing, подсказка списка слов распознавателю.
 - Запросы: `N-best rescoring`, `ASR error correction`, `contextual biasing speech recognition`, `shallow fusion`, `domain-specific ASR`, `named entity ASR errors`.
@@ -121,7 +134,8 @@
 - Geifman Y., El-Yaniv R. *Selective Classification for Deep Neural Networks.* NeurIPS 2017.
 - Guo C. и соавт. *On Calibration of Modern Neural Networks.* ICML 2017 (уже в плане).
 - Platt J. (1999) и Zadrozny B., Elkan C. (2002) — калибровка по Платту и изотоническая.
-- Angelopoulos A., Bates S. *A Gentle Introduction to Conformal Prediction and Distribution-Free Uncertainty Quantification.* arXiv, 2021 — лучший вход в конформное предсказание.
+- Angelopoulos A., Bates S. *A Gentle Introduction to Conformal Prediction and Distribution-Free Uncertainty Quantification.* arXiv, 2021; опубликовано в Foundations and Trends in ML, 2023, как *Conformal Prediction: A Gentle Introduction* — лучший вход в конформное предсказание.
+- Laptev A., Ginsburg B. (SLT 2022) — быстрые энтропийные оценки уверенности по словам для CTC/RNN-T; Quach V. и соавт. (ICLR 2024) — конформное предсказание для генеративных моделей.
 - Vovk V., Gammerman A., Shafer G. *Algorithmic Learning in a Random World.* 2005 (книга, первоисточник).
 
 ### F. Как измерять (этап 2)
@@ -144,7 +158,9 @@
 
 ### H. Русская речь: данные и сообщество
 
-- Karpov N. и соавт. *Golos: Russian Dataset for Speech Research.* Interspeech 2021.
+- Karpov N. и соавт. *Golos: Russian Dataset for Speech Research.* Interspeech 2021 (около 1240 часов).
+- Kutsakov и соавт. *GigaAM* (Interspeech 2025; модели и код под MIT) — по словам авторов, на русском заметно лучше Whisper-large-v3; включить в сравнение распознавателей.
+- Открытый вопрос для sci-witch: теряют ли сжатые модели (Distil-Whisper, квантованный whisper.cpp) именно редкие научные термины. Для английского его ставит препринт TARQ (Wang и соавт., arXiv, 2026); для русской научной речи ответа нет.
 - Ardila R. и соавт. *Common Voice: A Massively-Multilingual Speech Corpus.* LREC 2020 (русская часть под CC0).
 - Запросы: `Russian speech recognition`, `Open STT Russian`, `распознавание русской речи`.
 - Журнал «Информатика и автоматизация» (бывшие «Труды СПИИРАН») — русская речевая группа Санкт-Петербурга; конференции SPECOM, «Диалог», AINL.

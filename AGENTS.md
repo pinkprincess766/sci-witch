@@ -23,7 +23,7 @@ Grok, кто угодно ещё. Правила собраны из решен�
 ## Что продукт обещает
 
 Продукт — компилятор текста в научную структуру:
-[`docs/development/COMPILER_CONTRACT_RU.md`](docs/development/COMPILER_CONTRACT_RU.md).
+[`docs/compiler/COMPILER_CONTRACT_RU.md`](docs/compiler/COMPILER_CONTRACT_RU.md).
 Голосовое приложение — референсный фронтенд.
 
 - Обычная речь не становится формулой. Название вещества и количество (число с
