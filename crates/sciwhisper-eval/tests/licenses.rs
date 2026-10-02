@@ -215,7 +215,7 @@ fn the_lockfile_reader_finds_the_dependencies_it_should() {
         );
     }
     // Our own crates have no `source` and must not be counted as third party.
-    for ours in ["sciwhisper-core", "sciwhisper-update"] {
+    for ours in ["sciwhisper-core", "sciwhisper-grammar", "sciwhisper-update"] {
         assert!(
             !locked.iter().any(|(name, _)| name == ours),
             "{ours} is this workspace's own crate"

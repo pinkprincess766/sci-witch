@@ -6,6 +6,7 @@ members = [
     "crates/sciwhisper-shell",
     "crates/sciwhisper-cli",
     "crates/sciwhisper-eval",
+    "crates/sciwhisper-grammar",
     "crates/sciwhisper-update",
 ]
 default-members = [

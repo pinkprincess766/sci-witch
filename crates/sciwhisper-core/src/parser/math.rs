@@ -16,7 +16,7 @@ const OPERATORS_YAML: &str = include_str!("../../data/domains/mathematics/operat
 const SUPPORTED_OPERATOR_SCHEMA: u32 = 1;
 
 #[derive(Clone, Debug, PartialEq)]
-enum Tok {
+pub(crate) enum Tok {
     Num(String),
     Sym(Symbol),
     /// A letter that was spoken as a bare Russian function word: «а», «и»,
@@ -1146,7 +1146,12 @@ fn distribute_order(variables: Vec<Math>, order: Option<u32>) -> Result<Vec<Deri
         .collect())
 }
 
-fn tokenize(words: &[String], lex: &Lexicon, nums: &NumberLex, mode: MathMode) -> Result<Vec<Tok>> {
+pub(crate) fn tokenize(
+    words: &[String],
+    lex: &Lexicon,
+    nums: &NumberLex,
+    mode: MathMode,
+) -> Result<Vec<Tok>> {
     let mut i = 0;
     let mut out = Vec::new();
     while i < words.len() {
@@ -1478,4 +1483,78 @@ fn consume_symbol(
         return Some((sym, used));
     }
     None
+}
+
+impl Tok {
+    /// EBNF terminal name for this class (`Tok::WeakSym` → `WEAK_SYM`).
+    ///
+    /// Payload-bearing variants (`Num`, `Sym`, `Unit`, `Function`, `Ordinal`)
+    /// contribute only the class, matching the terminals in
+    /// `docs/grammar/math.ebnf`.
+    pub(crate) fn class_name(&self) -> &'static str {
+        match self {
+            Tok::Num(_) => "NUM",
+            Tok::Sym(_) => "SYM",
+            Tok::WeakSym(_) => "WEAK_SYM",
+            Tok::Unit(_) => "UNIT",
+            Tok::Plus => "PLUS",
+            Tok::Minus => "MINUS",
+            Tok::Times => "TIMES",
+            Tok::Div => "DIV",
+            Tok::Eq => "EQ",
+            Tok::Ne => "NE",
+            Tok::Lt => "LT",
+            Tok::Gt => "GT",
+            Tok::Le => "LE",
+            Tok::Ge => "GE",
+            Tok::PlusMinus => "PLUS_MINUS",
+            Tok::Squared => "SQUARED",
+            Tok::Cubed => "CUBED",
+            Tok::Degree => "DEGREE",
+            Tok::FracStart => "FRAC_START",
+            Tok::Numer => "NUMER",
+            Tok::Denom => "DENOM",
+            Tok::FracEnd => "FRAC_END",
+            Tok::PowStart => "POW_START",
+            Tok::PowEnd => "POW_END",
+            Tok::LParen => "L_PAREN",
+            Tok::RParen => "R_PAREN",
+            Tok::LBrack => "L_BRACK",
+            Tok::RBrack => "R_BRACK",
+            Tok::LBrace => "L_BRACE",
+            Tok::RBrace => "R_BRACE",
+            Tok::Root => "ROOT",
+            Tok::RootStart => "ROOT_START",
+            Tok::RootEnd => "ROOT_END",
+            Tok::Sum => "SUM",
+            Tok::Product => "PRODUCT",
+            Tok::Integral => "INTEGRAL",
+            Tok::From => "FROM",
+            Tok::To => "TO",
+            Tok::By => "BY",
+            Tok::SumEnd => "SUM_END",
+            Tok::ProdEnd => "PROD_END",
+            Tok::IntEnd => "INT_END",
+            Tok::Fact => "FACT",
+            Tok::AbsKw => "ABS_KW",
+            Tok::Function(_) => "FUNCTION",
+            Tok::VectorKw => "VECTOR_KW",
+            Tok::SubKw => "SUB_KW",
+            Tok::Inf => "INF",
+            Tok::Ellipsis => "ELLIPSIS",
+            Tok::Comma => "COMMA",
+            Tok::Delta => "DELTA",
+            Tok::Derivative => "DERIVATIVE",
+            Tok::Partial => "PARTIAL",
+            Tok::OrderKw => "ORDER_KW",
+            Tok::Ordinal(_) => "ORDINAL",
+            Tok::Limit => "LIMIT",
+            Tok::LimitLeft => "LIMIT_LEFT",
+            Tok::LimitRight => "LIMIT_RIGHT",
+            Tok::LimitVar => "LIMIT_VAR",
+            Tok::Tends => "TENDS",
+            Tok::AndBy => "AND_BY",
+            Tok::FuncFiller => "FUNC_FILLER",
+        }
+    }
 }

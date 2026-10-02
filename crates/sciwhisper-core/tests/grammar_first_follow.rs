@@ -634,6 +634,10 @@ fn tok_variants(math_rs: &str) -> BTreeSet<String> {
     let mut inside = false;
     for line in math_rs.lines() {
         let t = line.trim();
+        let t = t
+            .strip_prefix("pub(crate) ")
+            .or_else(|| t.strip_prefix("pub "))
+            .unwrap_or(t);
         if t.starts_with("enum Tok") {
             inside = true;
             continue;

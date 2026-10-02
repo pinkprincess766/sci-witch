@@ -1,0 +1,205 @@
+{
+  "cells": {
+    "ambiguous-v2": {
+      "math": {
+        "both_accept": 7,
+        "both_reject": 0,
+        "earley_only": 2,
+        "parser_only": 0,
+        "tokenize_fail": 49
+      },
+      "physics": {
+        "both_accept": 7,
+        "both_reject": 0,
+        "earley_only": 2,
+        "parser_only": 0,
+        "tokenize_fail": 49
+      }
+    },
+    "dev-seed-v3": {
+      "math": {
+        "both_accept": 36,
+        "both_reject": 7,
+        "earley_only": 3,
+        "parser_only": 0,
+        "tokenize_fail": 67
+      },
+      "physics": {
+        "both_accept": 56,
+        "both_reject": 7,
+        "earley_only": 3,
+        "parser_only": 0,
+        "tokenize_fail": 47
+      }
+    },
+    "nomenclature-v1": {
+      "math": {
+        "both_accept": 4,
+        "both_reject": 0,
+        "earley_only": 0,
+        "parser_only": 0,
+        "tokenize_fail": 49
+      },
+      "physics": {
+        "both_accept": 4,
+        "both_reject": 0,
+        "earley_only": 0,
+        "parser_only": 0,
+        "tokenize_fail": 49
+      }
+    },
+    "prose-negatives-v2": {
+      "math": {
+        "both_accept": 0,
+        "both_reject": 0,
+        "earley_only": 0,
+        "parser_only": 0,
+        "tokenize_fail": 180
+      },
+      "physics": {
+        "both_accept": 0,
+        "both_reject": 0,
+        "earley_only": 0,
+        "parser_only": 0,
+        "tokenize_fail": 180
+      }
+    }
+  },
+  "earley_only": [
+    {
+      "corpus": "dev-seed-v3",
+      "furthest": null,
+      "kind": "earley_only",
+      "mode": "math",
+      "text": "два аш два о",
+      "tokens": [
+        "NUM",
+        "SYM",
+        "NUM",
+        "WEAK_SYM"
+      ]
+    },
+    {
+      "corpus": "dev-seed-v3",
+      "furthest": null,
+      "kind": "earley_only",
+      "mode": "math",
+      "text": "аш два эс о четыре",
+      "tokens": [
+        "SYM",
+        "NUM",
+        "SYM",
+        "WEAK_SYM",
+        "NUM"
+      ]
+    },
+    {
+      "corpus": "dev-seed-v3",
+      "furthest": null,
+      "kind": "earley_only",
+      "mode": "math",
+      "text": "аш два о",
+      "tokens": [
+        "SYM",
+        "NUM",
+        "WEAK_SYM"
+      ]
+    },
+    {
+      "corpus": "dev-seed-v3",
+      "furthest": null,
+      "kind": "earley_only",
+      "mode": "physics",
+      "text": "два аш два о",
+      "tokens": [
+        "NUM",
+        "SYM",
+        "NUM",
+        "WEAK_SYM"
+      ]
+    },
+    {
+      "corpus": "dev-seed-v3",
+      "furthest": null,
+      "kind": "earley_only",
+      "mode": "physics",
+      "text": "аш два эс о четыре",
+      "tokens": [
+        "SYM",
+        "NUM",
+        "SYM",
+        "WEAK_SYM",
+        "NUM"
+      ]
+    },
+    {
+      "corpus": "dev-seed-v3",
+      "furthest": null,
+      "kind": "earley_only",
+      "mode": "physics",
+      "text": "аш два о",
+      "tokens": [
+        "SYM",
+        "NUM",
+        "WEAK_SYM"
+      ]
+    },
+    {
+      "corpus": "ambiguous-v2",
+      "furthest": null,
+      "kind": "earley_only",
+      "mode": "math",
+      "text": "аш два эс о четыре",
+      "tokens": [
+        "SYM",
+        "NUM",
+        "SYM",
+        "WEAK_SYM",
+        "NUM"
+      ]
+    },
+    {
+      "corpus": "ambiguous-v2",
+      "furthest": null,
+      "kind": "earley_only",
+      "mode": "math",
+      "text": "цэ о два",
+      "tokens": [
+        "SYM",
+        "WEAK_SYM",
+        "NUM"
+      ]
+    },
+    {
+      "corpus": "ambiguous-v2",
+      "furthest": null,
+      "kind": "earley_only",
+      "mode": "physics",
+      "text": "аш два эс о четыре",
+      "tokens": [
+        "SYM",
+        "NUM",
+        "SYM",
+        "WEAK_SYM",
+        "NUM"
+      ]
+    },
+    {
+      "corpus": "ambiguous-v2",
+      "furthest": null,
+      "kind": "earley_only",
+      "mode": "physics",
+      "text": "цэ о два",
+      "tokens": [
+        "SYM",
+        "WEAK_SYM",
+        "NUM"
+      ]
+    }
+  ],
+  "note": "The recogniser does not enforce semantic constraints or special sequences; it accepts a superset. Syntactic literals, if any, match a token only when the literal text equals the token-class name.",
+  "parser_only": [],
+  "start": "math_input",
+  "syntactic_literals": [],
+  "version": "grammar-differential-v1"
+}
