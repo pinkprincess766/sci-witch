@@ -8,8 +8,10 @@
 //! 1. A counted name was not a *bare* substance (the coefficient was not one),
 //!    so it was taken for something dictated and made strong. A strong span
 //!    keeps the weak names beside it.
-//! 2. «два йода» and «бром» are two names covering three words of five, which
-//!    is what the enumeration rule calls a list.
+//! 2. «два йода» and «бром» were two names covering three words of five, which
+//!    the enumeration rule of the time (a share of the words) called a list.
+//!    The rule is now "after a colon, or nothing but names"; the sentences
+//!    above stay prose under it as well, see `tests/enumeration_rule.rs`.
 //!
 //! The owner's decision is that an amount inside a sentence stays words, and a
 //! counted name is an amount. These tests pin both directions: the sentences
@@ -146,8 +148,8 @@ fn a_charge_still_says_the_speaker_is_writing() {
 #[test]
 fn a_list_of_names_is_still_a_list() {
     // The enumeration rule is not switched off. The counted name simply does
-    // not vote, so a list with enough uncounted names covering the sentence
-    // is still read as one.
+    // not vote, so a list with enough uncounted names after its colon is
+    // still read as one.
     assert_eq!(
         shown("Примеры: павликова кислота, уксусная кислота, ацетон и глицерин."),
         "Примеры: HF, CH₃COOH, CH₃COCH₃ и C₃H₈O₃."

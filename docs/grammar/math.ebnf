@@ -255,7 +255,7 @@ ORDINAL = ? порядковое числительное ? ;
 SYM = ? название буквы { модификатор } ? ;
 
 (* math.rs:tokenize:L1149 — та же буква, но сказанная голым служебным
-   словом из FUNCTION_WORD_LETTERS (chemistry.rs:FUNCTION_WORD_LETTERS:L706)
+   словом из FUNCTION_WORD_LETTERS (chemistry.rs:FUNCTION_WORD_LETTERS:L752)
    и без модификатора. Это токен WeakSym *)
 WEAK_SYM = "а" | "б" | "в" | "ж" | "же" | "и" | "к" | "о" | "с" | "у" | "я" ;
 

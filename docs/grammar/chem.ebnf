@@ -78,19 +78,19 @@ species_core =
     | material_class
     | marked_species ;
 
-(* chemistry.rs:try_coordination_cationic:L1074 — «ион тетрамминмеди два» *)
+(* chemistry.rs:try_coordination_cationic:L1120 — «ион тетрамминмеди два» *)
 cationic_complex = ION_LEAD_IN CATIONIC_COMPLEX_WORD [ oxidation ] ;
 
-(* chemistry.rs:try_coordination_anionic:L1000 — «гексацианоферрат три калия»:
+(* chemistry.rs:try_coordination_anionic:L1046 — «гексацианоферрат три калия»:
    слово-комплекс, степень окисления, противоион *)
 anionic_complex = ANIONIC_COMPLEX_WORD [ oxidation ] ELEMENT_BY_WORD ;
 
-(* chemistry.rs:try_material_class:L1140 — «феррит цинка», «цинковый феррит» *)
+(* chemistry.rs:try_material_class:L1186 — «феррит цинка», «цинковый феррит» *)
 material_class =
       CLASS_WORD ELEMENT_BY_WORD
     | CLASS_ADJECTIVE CLASS_WORD ;
 
-(* chemistry.rs:oxidation_at:L955 — явная фраза, римская цифра или число *)
+(* chemistry.rs:oxidation_at:L1001 — явная фраза, римская цифра или число *)
 oxidation = [ OXIDATION_MARKER ] ( ROMAN | INTEGER ) ;
 
 (* chemistry.rs:parse_species_inner:L381 — маркер «газ» или «осадок» стоит в
@@ -112,7 +112,7 @@ ion_body = ANION_CLASS | ELEMENT_WORD [ INTEGER ] ;
    выбран, решает plus_is_a_charge (L82) *)
 ion_sign = PLUS | CHARGE_MINUS ;
 
-(* chemistry.rs:try_systematic:L565 — «гидроксид меди два», «хлорид аммония» *)
+(* chemistry.rs:try_systematic:L611 — «гидроксид меди два», «хлорид аммония» *)
 systematic_salt = ANION_CLASS ( ELEMENT_WORD [ oxidation ] | CATION_CLASS [ INTEGER ] ) ;
 
 
@@ -120,28 +120,28 @@ systematic_salt = ANION_CLASS ( ELEMENT_WORD [ oxidation ] | CATION_CLASS [ INTE
    СИНТАКСИС: формула по буквам
    --------------------------------------------------------------------- *)
 
-(* chemistry.rs:try_spelled:L642 — «аш два эс о четыре» = H2SO4; хотя бы один
+(* chemistry.rs:try_spelled:L688 — «аш два эс о четыре» = H2SO4; хотя бы один
    элемент обязателен *)
 spelled_formula = element_item { spelled_item } ;
 
-(* chemistry.rs:try_spelled:L652 — «дважды» группирует предыдущий радикал
+(* chemistry.rs:try_spelled:L698 — «дважды» группирует предыдущий радикал
    (apply_times, L868) и потому первым словом формулы быть не может (L653-L655,
    apply_times при пустых частях возвращает false) *)
 spelled_item = GROUPING | element_item ;
 
-(* chemistry.rs:try_spelled:L659 — у элемента необязателен индекс; ноль и
+(* chemistry.rs:try_spelled:L705 — у элемента необязателен индекс; ноль и
    больше MAX_ATOM_COUNT отвергают всю формулу (L667) *)
 element_item = spelled_element [ INTEGER ] ;
 
-(* chemistry.rs:chemistry_element_at:L803 — сперва таблица пар из двух слов,
+(* chemistry.rs:chemistry_element_at:L849 — сперва таблица пар из двух слов,
    затем слово-элемент, затем название латинской буквы, затем служебное
    слово-буква (оно допускается лишь в контексте, см. spelled_context, L747) *)
 spelled_element = element_pair | ELEMENT_WORD | LETTER_NAME | FUNCTION_LETTER ;
 
-(* chemistry.rs:chemistry_element_at:L811 — только пары из таблицы PAIR_TABLE *)
+(* chemistry.rs:chemistry_element_at:L857 — только пары из таблицы PAIR_TABLE *)
 element_pair = pair_word pair_word ;
 
-(* chemistry.rs:chemistry_element_at:L811 *)
+(* chemistry.rs:chemistry_element_at:L857 *)
 pair_word = LETTER_NAME | FUNCTION_LETTER ;
 
 
@@ -208,7 +208,7 @@ STATE_MARKER = "газ" | "в виде газа" | "осадок" | "выпад�
 ION_MARKER = "ион" | "иона" | "ионы" ;
 
 (* aliases.yaml:grouping.twice aliases.yaml:grouping.thrice
-   chemistry.rs:try_spelled:L652 *)
+   chemistry.rs:try_spelled:L698 *)
 GROUPING = "дважды" | "трижды" ;
 
 (* chemistry.rs:try_ion:L468 — «минус» как знак заряда; «плюс» — PLUS *)
@@ -284,7 +284,7 @@ CATION_CLASS = ? название катиона из ions.yaml ? ;
    если elements.yaml перечисляет их среди имён *)
 ELEMENT_WORD = ? слово из elements.yaml ? ;
 
-(* chemistry.rs:element_by_word:L938 — название элемента из elements.yaml или
+(* chemistry.rs:element_by_word:L984 — название элемента из elements.yaml или
    его символ без учёта регистра *)
 ELEMENT_BY_WORD = ? название или символ элемента ? ;
 
@@ -293,12 +293,12 @@ ELEMENT_BY_WORD = ? название или символ элемента ? ;
    FUNCTION_LETTER сюда не входят: их принимает отдельный терминал *)
 LETTER_NAME = ? название латинской буквы ? ;
 
-(* chemistry.rs:FUNCTION_WORD_LETTERS:L706 — слова, которые одновременно
+(* chemistry.rs:FUNCTION_WORD_LETTERS:L752 — слова, которые одновременно
    названия букв и предлоги, союзы, частицы. Принимаются как элемент только
    если spelled_context (L747) подтверждает формулу *)
 FUNCTION_LETTER = "а" | "б" | "в" | "ж" | "же" | "и" | "к" | "о" | "с" | "у" | "я" ;
 
-(* helper: chemistry.rs:chemistry_element_at:L811 — таблица двухсловных
+(* helper: chemistry.rs:chemistry_element_at:L857 — таблица двухсловных
    символов: «эн а» = Na, «цэ а» = Ca, «цэ эль» = Cl, «эм гэ» = Mg, «а эль» = Al,
    «цэ у» = Cu, «зет эн» = Zn, «эф е» = Fe, «эм эн» = Mn. Пара проверяется
    раньше одиночных слов *)

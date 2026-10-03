@@ -133,11 +133,15 @@ fn delta_applied_to_something_is_still_notation() {
 #[test]
 fn names_are_substituted_only_when_they_are_most_of_the_sentence() {
     // Counting the names cannot tell these apart: both name four substances.
-    // The cupboard sentence spends most of its words on where things are
-    // kept, so the names are mentions and have to stay words. The examples
-    // sentence is the names, which is what was dictated, and those have to
-    // become formulas. A fix that only keeps the first would throw the list
-    // away; a fix that only compiles the second would rewrite the cupboard.
+    // The cupboard sentence spends its words on where things are kept, so
+    // the names are mentions and have to stay words. The examples sentence
+    // announces a list with a colon, which is what was dictated, and those
+    // have to become formulas. A fix that only keeps the first would throw
+    // the list away; a fix that only compiles the second would rewrite the
+    // cupboard. (The name of this test is the share-of-words rule it was
+    // written under, and PAIR_WORKFLOW_RU.md cites it; the rule now is a
+    // colon or a sentence of nothing but names, see
+    // `tests/enumeration_rule.rs`.)
     let cupboard = "Натрий и калий мы держим отдельно, медь и цинк можно рядом, а кислоты вообще в другом шкафу.";
     assert_eq!(shown(cupboard), cupboard);
     assert_eq!(
