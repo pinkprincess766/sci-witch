@@ -3,19 +3,15 @@ resolver = "2"
 members = [
     "crates/sciwhisper-core",
     "crates/sciwhisper-asr",
-    "crates/sciwhisper-shell",
     "crates/sciwhisper-cli",
     "crates/sciwhisper-eval",
     "crates/sciwhisper-grammar",
-    "crates/sciwhisper-update",
 ]
 default-members = [
     "crates/sciwhisper-core",
     "crates/sciwhisper-asr",
-    "crates/sciwhisper-shell",
     "crates/sciwhisper-cli",
     "crates/sciwhisper-eval",
-    "crates/sciwhisper-update",
 ]
 
 [workspace.package]
@@ -27,14 +23,12 @@ edition = "2021"
 rust-version = "1.98"
 license = "Apache-2.0"
 authors = ["SciWhisper contributors"]
-description = "Offline voice input for structured scientific notation"
+description = "Compiler from transcribed Russian scientific speech to a typed structure (research)"
 
 [workspace.dependencies]
 sciwhisper-core = { path = "crates/sciwhisper-core" }
 sciwhisper-asr = { path = "crates/sciwhisper-asr" }
-sciwhisper-shell = { path = "crates/sciwhisper-shell" }
 sciwhisper-eval = { path = "crates/sciwhisper-eval" }
-sciwhisper-update = { path = "crates/sciwhisper-update" }
 serde = { version = "1", features = ["derive"] }
 serde_yaml = "0.9"
 thiserror = "2"

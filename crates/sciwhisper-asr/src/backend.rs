@@ -3,33 +3,31 @@
 //! The order is fixed and never silently skipped:
 //!
 //! 1. a path the user configured explicitly;
-//! 2. the `whisper-cli` shipped inside the application bundle;
+//! 2. a `whisper-cli` in `whisper/` next to the executable;
 //! 3. a supported local `whisper.cpp` on `PATH`;
-//! 4. Python `openai-whisper` — a developer convenience only.
+//! 4. the external `openai-whisper` program — a developer convenience only,
+//!    refusable with `SCIWHISPER_NO_PYTHON`.
 //!
-//! In a packaged bundle only the first two are allowed. A shipped copy that
-//! has lost its backend is a packaging fault, and saying so is far better than
-//! quietly reaching for a Python interpreter the user never installed.
+//! The packaged Windows bundle and its marker file were removed with the
+//! application on 2026-10-04 (tag `app-0.5-final`).
 
 use std::path::{Path, PathBuf};
 
 use crate::engine::EngineKind;
 use crate::error::{Error, Result};
 
-/// Marker file that only the packaged Windows bundle carries.
-pub const BUNDLE_MARKER: &str = "README-WINDOWS.txt";
-/// Directory inside the bundle that holds the backend and the model.
+/// Directory next to the executable that may hold the backend and the model.
 pub const WHISPER_DIR: &str = "whisper";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BackendOrigin {
     /// `--whisper <path>` or `SCIWHISPER_WHISPER`.
     Configured,
-    /// Shipped next to the application.
+    /// In `whisper/` next to the executable.
     Bundled,
     /// A `whisper.cpp` build found on `PATH`.
     ExternalWhisperCpp,
-    /// Python `openai-whisper`. Never used from a packaged bundle.
+    /// The external `openai-whisper` program.
     Developer,
 }
 
@@ -80,11 +78,6 @@ impl Layout {
     pub fn bundled_backend(&self) -> PathBuf {
         self.whisper_dir().join(backend_file_name())
     }
-
-    /// True when this looks like a shipped bundle rather than a build tree.
-    pub fn is_packaged_bundle(&self) -> bool {
-        self.root.join(BUNDLE_MARKER).is_file()
-    }
 }
 
 /// `whisper-cli.exe` on Windows, `whisper-cli` elsewhere.
@@ -131,7 +124,7 @@ pub fn discover_in(
         });
     }
 
-    // 2. The copy shipped with the application.
+    // 2. A copy next to the executable.
     if let Some(layout) = layout {
         let bundled = layout.bundled_backend();
         if bundled.is_file() {
@@ -139,14 +132,6 @@ pub fn discover_in(
                 binary: bundled,
                 kind: EngineKind::WhisperCpp,
                 origin: BackendOrigin::Bundled,
-            });
-        }
-        // A shipped bundle that lost its backend is broken. Falling through to
-        // Python here would turn a packaging fault into a mysterious runtime
-        // dependency on the user's machine.
-        if layout.is_packaged_bundle() {
-            return Err(Error::BundleIncomplete {
-                missing: format!("{WHISPER_DIR}/{}", backend_file_name()),
             });
         }
     }
@@ -162,7 +147,7 @@ pub fn discover_in(
         }
     }
 
-    // 4. Python, and only outside a bundle.
+    // 4. The external openai-whisper program, unless refused.
     if allow_python {
         if let Some(path) = on_path("whisper") {
             return Ok(Backend {
@@ -175,7 +160,8 @@ pub fn discover_in(
 
     Err(Error::BackendMissing {
         looked_for: format!("{WHISPER_DIR}/{}", backend_file_name()),
-        detail: "в комплекте нет whisper-cli и в системе не найден whisper.cpp".into(),
+        detail: "рядом с программой нет whisper/whisper-cli и в системе не найден whisper.cpp"
+            .into(),
     })
 }
 
@@ -272,23 +258,6 @@ mod tests {
         .unwrap();
         assert_eq!(backend.origin, BackendOrigin::Bundled);
         assert_eq!(backend.binary, layout.bundled_backend());
-    }
-
-    #[test]
-    fn a_packaged_bundle_without_its_backend_is_a_packaging_fault() {
-        let dir = tempfile::tempdir().unwrap();
-        touch(&dir.path().join(BUNDLE_MARKER));
-        let layout = Layout::from_dir(dir.path());
-
-        // Python is on PATH and must still not be chosen.
-        let error = discover_in(Some(&layout), None, true, |name| {
-            (name == "whisper").then(|| PathBuf::from("/usr/bin/whisper"))
-        })
-        .expect_err("a shipped bundle must not fall back to Python");
-        match error {
-            Error::BundleIncomplete { missing } => assert!(missing.contains("whisper-cli")),
-            other => panic!("{other}"),
-        }
     }
 
     #[test]

@@ -163,7 +163,7 @@ cargo run -p sciwhisper-eval --locked -- gate \
 
 Та же проверка опубликованных отчётов выполняется тестом `the_published_benchmark_reports_pass` в [`crates/sciwhisper-eval/src/gate.rs`](crates/sciwhisper-eval/src/gate.rs). Закреплённые дайджесты сверяются с файлами на диске тестом `the_pinned_digests_match_the_corpora_on_disk` в том же файле.
 
-Профиль голосового приложения `release-0.5` ([research/schema/release-gates-v1.json](research/schema/release-gates-v1.json)) по-прежнему требует `real_audio` и запечатанный замороженный test. Файла `research/results/voice-v1.json` в этом дереве нет.
+Профиль `release-0.5` ([research/schema/release-gates-v1.json](research/schema/release-gates-v1.json)) относился к убранному голосовому приложению и оставлен, потому что опубликован; он по-прежнему требует `real_audio` и запечатанный замороженный test. Файла `research/results/voice-v1.json` в этом дереве нет.
 
 ## Дорожная карта
 
@@ -193,15 +193,22 @@ cargo run -p sciwhisper-cli -- nbest "карбанат кальция" "карб
 
 `format` компилирует уже имеющийся текст (Whisper не вызывается). `nbest` выбирает одну гипотезу, затем компилирует её. Фраза, которая не разбирается, остаётся как сказана; `format` на `предел терпения` печатает исходные слова и завершается с кодом 1 (`could not parse input; raw transcript preserved`).
 
-Трей (двойное нажатие Control начинает запись, вставка в окно в фокусе, по желанию формула Word) поставляется в этом репозитории как **референсный фронтенд**. Ворота компилятора его не судят. Пошаговое использование и настройки: [docs/user/USAGE_RU.md](docs/user/USAGE_RU.md). Заметки о переносимом архиве Windows: [packaging/windows/README-WINDOWS.txt](packaging/windows/README-WINDOWS.txt). Известные ограничения фронтенда: [docs/user/KNOWN_LIMITATIONS_RU.md](docs/user/KNOWN_LIMITATIONS_RU.md).
+Исследовательские инструменты вокруг компилятора, все локальные и все в `sciwhisper-cli`:
+
+- `transcribe <audio>` и `corpus <dir>`: аудиофайл или все файлы каталога через установленный локально Whisper, затем компилятор. `doctor` показывает, какие распознаватель и модель найдены; в репозитории нет ни того, ни другого.
+- `ingest`: заполняет манифест голосового корпуса по его записям (измеряет каждый WAV, распознаёт его). Согласие, транскрипт и цели должны уже лежать в манифесте.
+- `collect-voice`: протокол записи с согласием ([docs/user/VOICE_COLLECTION_RU.md](docs/user/VOICE_COLLECTION_RU.md)).
+- `rec`: микрофон, затем Whisper, затем компилятор, для разовой сквозной проверки.
+- `self-test` и `demo`: восемь фиксированных фраз через компилятор.
+
+Голосовое приложение (трей, вставка в другие окна, формула Word, обновление, упаковка для Windows и macOS) убрано 04.10.2026. Его последнее состояние — тег Git `app-0.5-final`. Что запускать, прежде чем назвать изменение готовым: [docs/process/RESEARCH_CHECKS_RU.md](docs/process/RESEARCH_CHECKS_RU.md).
 
 ```text
 crates/sciwhisper-core     AST, лексиконы, парсер, рендереры
 crates/sciwhisper-eval     корпуса, метрики, ворота компилятора
-crates/sciwhisper-cli      format / nbest / rec / collect-voice
-crates/sciwhisper-asr      распознавание речи, резидентная модель, микрофон
-crates/sciwhisper-shell    трей, горячая клавиша, буфер обмена, Word
-crates/sciwhisper-update   установка и замена уже собранной версии
+crates/sciwhisper-grammar  Earley-эталон для EBNF-грамматики (исследовательский оракул)
+crates/sciwhisper-cli      format / nbest / transcribe / corpus / ingest / collect-voice / rec / doctor
+crates/sciwhisper-asr      адаптер Whisper, подготовка аудио, запись с микрофона
 ```
 
 Стабильная поверхность компилятора: реэкспорты в [`crates/sciwhisper-core/src/lib.rs`](crates/sciwhisper-core/src/lib.rs), закреплённые тестом [`crates/sciwhisper-core/tests/public_surface.rs`](crates/sciwhisper-core/tests/public_surface.rs).
@@ -213,8 +220,7 @@ crates/sciwhisper-update   установка и замена уже собра�
 - `confidence` — четырёхуровневый флаг разбора. [`crates/sciwhisper-eval/src/selective.rs`](crates/sciwhisper-eval/src/selective.rs) сообщает риск–покрытие и отказывается подгонять порог ниже `MIN_ERRORS_TO_FIT` (20).
 - Химическая номенклатура — подмножество из [docs/compiler/CHEMISTRY_NOMENCLATURE_RU.md](docs/compiler/CHEMISTRY_NOMENCLATURE_RU.md). Органические названия внутри предложения не ищутся (чтобы «декан факультета» не читался как углеводород).
 - Четыре опубликованных отчёта написаны из грязного рабочего дерева (`git_dirty`: `true`).
-- Порождение OMML ([`crates/sciwhisper-core/tests/acceptance.rs`](crates/sciwhisper-core/tests/acceptance.rs), [`crates/sciwhisper-core/tests/functions.rs`](crates/sciwhisper-core/tests/functions.rs)) и выбор режима вставки (`resolve_mode` в [`crates/sciwhisper-shell/src/insert.rs`](crates/sciwhisper-shell/src/insert.rs)) покрыты тестами. Вставка в Word через COM ([`crates/sciwhisper-shell/src/word_win.rs`](crates/sciwhisper-shell/src/word_win.rs), `#[cfg(windows)]`) автоматическими тестами не покрыта и вручную не проверялась.
-- Сборки референсного фронтенда для Windows без подписи. Сборки для macOS подписаны ad hoc и не прошли нотаризацию Apple.
+- Порождение OMML ([`crates/sciwhisper-core/tests/acceptance.rs`](crates/sciwhisper-core/tests/acceptance.rs), [`crates/sciwhisper-core/tests/functions.rs`](crates/sciwhisper-core/tests/functions.rs)) покрыто тестами компилятора. Вставка результата в Word была частью убранного приложения и в этом репозитории отсутствует.
 - Речевые модели и сторонние распознаватели в этот репозиторий не входят.
 
 ## Лицензии

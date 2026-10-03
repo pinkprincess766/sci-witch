@@ -7,11 +7,8 @@ pub enum Error {
     #[error("whisper binary not found (install openai-whisper or whisper.cpp)")]
     WhisperNotFound,
     /// Nothing usable was found anywhere in the discovery order.
-    #[error("не найден движок распознавания ({looked_for}): {detail}. Переустановите комплект sci-witch целиком.")]
+    #[error("не найден движок распознавания ({looked_for}): {detail}. Укажите путь к whisper-cli (--whisper или SCIWHISPER_WHISPER) или установите whisper.cpp.")]
     BackendMissing { looked_for: String, detail: String },
-    /// A shipped bundle is missing one of its own files.
-    #[error("комплект sci-witch неполный: отсутствует {missing}. Распакуйте официальный архив целиком, не выборочно.")]
-    BundleIncomplete { missing: String },
     /// The model is absent, truncated or does not match its manifest.
     #[error("{detail}")]
     ModelUnusable { detail: String },

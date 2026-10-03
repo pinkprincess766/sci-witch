@@ -163,7 +163,7 @@ cargo run -p sciwhisper-eval --locked -- gate \
 
 The same check on the published reports runs as the test `the_published_benchmark_reports_pass` in [`crates/sciwhisper-eval/src/gate.rs`](crates/sciwhisper-eval/src/gate.rs). The pinned digests are checked against the files on disk by `the_pinned_digests_match_the_corpora_on_disk` in the same file.
 
-The voice-application profile `release-0.5` ([research/schema/release-gates-v1.json](research/schema/release-gates-v1.json)) still requires `real_audio` and a sealed frozen test. There is no `research/results/voice-v1.json` in this tree.
+The profile `release-0.5` ([research/schema/release-gates-v1.json](research/schema/release-gates-v1.json)) belonged to the removed voice application and is kept because it is published; it still requires `real_audio` and a sealed frozen test. There is no `research/results/voice-v1.json` in this tree.
 
 ## Roadmap
 
@@ -193,15 +193,22 @@ cargo run -p sciwhisper-cli -- nbest "карбанат кальция" "карб
 
 `format` compiles text already in hand (Whisper is not invoked). `nbest` chooses one hypothesis, then compiles it. A phrase that does not parse is left as said; `format` on `предел терпения` prints the original words and then exits with code 1 (`could not parse input; raw transcript preserved`).
 
-The tray application (double-tap Control to record, insert into the focused window, optional Word equation) ships in this repository as a **reference frontend**. Compiler gates do not judge it. Click-by-click use and settings: [docs/user/USAGE_RU.md](docs/user/USAGE_RU.md). Windows portable-archive notes: [packaging/windows/README-WINDOWS.txt](packaging/windows/README-WINDOWS.txt). Known frontend limits: [docs/user/KNOWN_LIMITATIONS_RU.md](docs/user/KNOWN_LIMITATIONS_RU.md).
+Research tools around the compiler, all local and all in `sciwhisper-cli`:
+
+- `transcribe <audio>` and `corpus <dir>`: an audio file, or every file in a directory, through a locally installed Whisper, then the compiler. `doctor` shows which recogniser and model were found; the repository contains neither.
+- `ingest`: fills a voice-corpus manifest from its recordings (measures each WAV, transcribes it). Consent, transcript and targets must already be in the manifest.
+- `collect-voice`: the consent-based recording protocol ([docs/user/VOICE_COLLECTION_RU.md](docs/user/VOICE_COLLECTION_RU.md)).
+- `rec`: microphone, then Whisper, then the compiler, for an ad hoc end-to-end check.
+- `self-test` and `demo`: eight fixed phrases through the compiler.
+
+The voice application (tray, insertion into other windows, Word equation, updater, Windows and macOS packaging) was removed on 2026-10-04. Its last state is the Git tag `app-0.5-final`. Checks to run before a change is called done: [docs/process/RESEARCH_CHECKS_RU.md](docs/process/RESEARCH_CHECKS_RU.md).
 
 ```text
 crates/sciwhisper-core     AST, lexicons, parser, renderers
 crates/sciwhisper-eval     corpora, metrics, compiler gates
-crates/sciwhisper-cli      format / nbest / rec / collect-voice
-crates/sciwhisper-asr      speech recognition, resident model, microphone
-crates/sciwhisper-shell    tray, hotkey, clipboard, Word
-crates/sciwhisper-update   install and replace an existing build
+crates/sciwhisper-grammar  Earley reference for the EBNF grammar (research oracle)
+crates/sciwhisper-cli      format / nbest / transcribe / corpus / ingest / collect-voice / rec / doctor
+crates/sciwhisper-asr      Whisper adapter, audio preparation, microphone capture
 ```
 
 Stable surface of the compiler: re-exports in [`crates/sciwhisper-core/src/lib.rs`](crates/sciwhisper-core/src/lib.rs), pinned by [`crates/sciwhisper-core/tests/public_surface.rs`](crates/sciwhisper-core/tests/public_surface.rs).
@@ -213,8 +220,7 @@ Stable surface of the compiler: re-exports in [`crates/sciwhisper-core/src/lib.r
 - `confidence` is a four-level parse flag. [`crates/sciwhisper-eval/src/selective.rs`](crates/sciwhisper-eval/src/selective.rs) reports risk–coverage and refuses to fit a threshold below `MIN_ERRORS_TO_FIT` (20).
 - Chemical nomenclature is the subset in [docs/compiler/CHEMISTRY_NOMENCLATURE_RU.md](docs/compiler/CHEMISTRY_NOMENCLATURE_RU.md). Organic names are not searched for inside a sentence (so that «декан факультета» is not read as a hydrocarbon).
 - The four published reports were written from a dirty worktree (`git_dirty`: `true`).
-- OMML generation ([`crates/sciwhisper-core/tests/acceptance.rs`](crates/sciwhisper-core/tests/acceptance.rs), [`crates/sciwhisper-core/tests/functions.rs`](crates/sciwhisper-core/tests/functions.rs)) and insert-mode selection (`resolve_mode` in [`crates/sciwhisper-shell/src/insert.rs`](crates/sciwhisper-shell/src/insert.rs)) are covered by tests. Word insertion through COM ([`crates/sciwhisper-shell/src/word_win.rs`](crates/sciwhisper-shell/src/word_win.rs), `#[cfg(windows)]`) is not covered by automatic tests and has not been checked by hand.
-- Windows builds of the reference frontend are unsigned. macOS builds are ad-hoc signed, not notarized.
+- OMML generation ([`crates/sciwhisper-core/tests/acceptance.rs`](crates/sciwhisper-core/tests/acceptance.rs), [`crates/sciwhisper-core/tests/functions.rs`](crates/sciwhisper-core/tests/functions.rs)) is covered by compiler tests. Inserting the result into Word was part of the removed application and is not in this repository.
 - Speech models and third-party recognizers are outside this repository.
 
 ## Licenses

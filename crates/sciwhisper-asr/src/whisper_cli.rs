@@ -317,7 +317,7 @@ fn dirs_home() -> Option<PathBuf> {
 /// replaced by the bundled model, because a run against a different model than
 /// the one that was asked for is worse than a clear failure.
 fn resolve_cpp_model(eng: &WhisperCliEngine, name: &str) -> Result<PathBuf> {
-    let requirements = model::Requirements::for_layout(eng.layout.as_ref(), false);
+    let requirements = model::Requirements::new(false);
     if name.is_empty() {
         return model::resolve(eng.layout.as_ref(), None, requirements);
     }
@@ -345,20 +345,11 @@ pub struct DoctorReport {
     pub model: String,
     pub model_ready: bool,
     pub microphones: Vec<String>,
-    pub word_integration: String,
-    pub bundle: String,
 }
 
 impl DoctorReport {
     pub fn collect(verify_model_checksum: bool) -> Self {
         let layout = Layout::detect();
-        let bundle = match &layout {
-            Some(layout) if layout.is_packaged_bundle() => {
-                "официальный комплект sci-witch".to_string()
-            }
-            Some(_) => "рабочее дерево разработчика".to_string(),
-            None => "не удалось определить папку программы".to_string(),
-        };
         let backend = match crate::backend::discover(configured_backend().as_deref()) {
             Ok(found) => Ok((display_name(&found.binary), found.origin, found.kind)),
             Err(error) => Err(error.to_string()),
@@ -370,7 +361,7 @@ impl DoctorReport {
             let status = model::inspect(
                 layout.as_ref(),
                 None,
-                model::Requirements::for_layout(layout.as_ref(), verify_model_checksum),
+                model::Requirements::new(verify_model_checksum),
             );
             (status.message(), status.is_ready())
         } else {
@@ -393,14 +384,11 @@ impl DoctorReport {
             model,
             model_ready,
             microphones: crate::capture::input_devices(),
-            word_integration: word_integration_status(),
-            bundle,
         }
     }
 
     pub fn render(&self) -> String {
         let mut lines = Vec::new();
-        lines.push(format!("комплект: {}", self.bundle));
         match &self.backend {
             Ok((name, origin, kind)) => {
                 lines.push(format!("движок распознавания: {name}"));
@@ -431,19 +419,8 @@ impl DoctorReport {
                 lines.push(format!("  {name}"));
             }
         }
-        lines.push(format!("интеграция с Word: {}", self.word_integration));
         lines.push("сеть: не используется — ни модели, ни движки не скачиваются".into());
         lines.join("\n")
-    }
-}
-
-fn word_integration_status() -> String {
-    if cfg!(windows) {
-        // Whether Word is actually installed and answers COM is something only
-        // a real insertion can show; claiming more here would be a guess.
-        "Windows: вставка уравнения проверяется командой SciWhisper-Test.cmd".into()
-    } else {
-        "недоступна: нативные уравнения Word вставляются только в Windows".into()
     }
 }
 
