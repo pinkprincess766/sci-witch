@@ -472,6 +472,18 @@ fn which_ffmpeg() -> Option<PathBuf> {
 mod tests {
     use super::*;
 
+    /// Tests that open the audio host take this lock, so they never run at
+    /// the same time. On the Windows CI runner two test threads enumerating
+    /// WASAPI devices at once crashed the whole test binary with
+    /// STATUS_ACCESS_VIOLATION; one at a time they pass.
+    static AUDIO_HOST: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    fn audio_host() -> std::sync::MutexGuard<'static, ()> {
+        AUDIO_HOST
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
     #[test]
     fn temporary_recording_is_removed_on_drop() {
         let wav = write_wav(&[0.1; 1_600], TARGET_HZ).unwrap();
@@ -486,6 +498,7 @@ mod tests {
         // A device the user explicitly chose must never be silently swapped
         // for another one (e.g. after it is unplugged): the caller has to
         // see this as an error, not start recording from the wrong mic.
+        let _host = audio_host();
         let err = select_device(Some("это устройство точно не существует #12345"));
         assert!(err.is_err());
     }
@@ -495,6 +508,7 @@ mod tests {
         // Absence of a preference is not the same as a missing preference:
         // `None` should still resolve (or fail only if there is truly no
         // input device at all), never because of the name-matching branch.
+        let _host = audio_host();
         let result = select_device(None);
         if let Err(e) = result {
             assert!(matches!(e, Error::NoMicrophone));

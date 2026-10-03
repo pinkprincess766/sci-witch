@@ -13,6 +13,14 @@ use crate::numbers::NumberLex;
 pub const MAX_ATOM_COUNT: u32 = 999;
 
 pub fn parse_chemistry(words: &[String], lex: &Lexicon, nums: &NumberLex) -> Result<Node> {
+    // A comma between two names is the end of one item and the start of the
+    // next, so the two are not read as one compound.
+    if comma_separates_names(words, lex) {
+        return Err(Error::Parse {
+            domain: "chemistry",
+            reason: "a comma between two names: they are separate items, not one compound".into(),
+        });
+    }
     // Whisper inserts commas around «превращается в».
     let cleaned: Vec<String> = words
         .iter()
@@ -1261,4 +1269,78 @@ fn strip_hydrate(words: &[String]) -> Option<Result<(Vec<String>, u32)>> {
         Ok(count) => Ok((words[..words.len() - 1].to_vec(), count)),
         Err(refusal) => Err(refused(refusal)),
     })
+}
+
+/// Whether a comma sits between two words that would be read as parts of the
+/// same substance.
+///
+/// The parser used to drop every comma before it looked at the words, because
+/// Whisper puts commas around «превращается в» and a reaction connective must
+/// not be cut by one. The price was that «йод, бром» became «йод бром» and
+/// was read the way «натрий хлор» is — as a compound — so «Принесли йод, бром
+/// и хлор» came back as «Принесли IBr и Cl₂»: a substance nobody named.
+///
+/// A comma is harmless beside a connective («натрий хлор, превращается в,
+/// …», «A, плюс B») or a reaction condition («…, при нагревании, …»): the
+/// words on one side of it are those phrases, not names. Anywhere else it
+/// stands between two names, and two names with a comma between them are two
+/// items. The caller refuses the whole span then; the names are still read on
+/// their own, one by one.
+fn comma_separates_names(words: &[String], lex: &Lexicon) -> bool {
+    let mut cleaned: Vec<String> = Vec::new();
+    let mut comma_before: Vec<bool> = Vec::new();
+    let mut pending = false;
+    for word in words {
+        match word.as_str() {
+            "," => pending = true,
+            "-" | "." => {}
+            _ => {
+                cleaned.push(word.clone());
+                comma_before.push(pending);
+                pending = false;
+            }
+        }
+    }
+    if !comma_before.iter().any(|comma| *comma) {
+        return false;
+    }
+    let speech = &lex.chemistry_speech;
+    // Words that belong to a connective or a condition, not to a name.
+    let mut phrase = vec![false; cleaned.len()];
+    for index in 0..cleaned.len() {
+        let used = speech
+            .connective_at(&cleaned, index)
+            .map(|(_, used)| used)
+            .into_iter()
+            .chain(speech.condition_at(&cleaned, index).map(|(_, used)| used))
+            .max();
+        if let Some(used) = used {
+            for flag in phrase.iter_mut().skip(index).take(used) {
+                *flag = true;
+            }
+        }
+    }
+    // A hydrate marker and a charge are said *about* a name, they are not
+    // another name: «сульфат меди, пентагидрат», «ион меди, два плюс». The
+    // charge needs an ion marker earlier in the words, so «йод, два плюс»
+    // is still two items.
+    let nums = NumberLex::new();
+    let mut after_ion_marker = false;
+    for index in 0..cleaned.len() {
+        after_ion_marker |= index > 0 && speech.is_ion_marker(&cleaned[index - 1]);
+        if Coordination::builtin().hydrate(&cleaned[index]).is_some() {
+            phrase[index] = true;
+        }
+        if after_ion_marker
+            && nums.consume_int(&cleaned, index).is_some_and(|(_, used)| {
+                matches!(
+                    cleaned.get(index + used).map(String::as_str),
+                    Some("плюс" | "минус")
+                )
+            })
+        {
+            phrase[index] = true;
+        }
+    }
+    (1..cleaned.len()).any(|index| comma_before[index] && !phrase[index - 1] && !phrase[index])
 }

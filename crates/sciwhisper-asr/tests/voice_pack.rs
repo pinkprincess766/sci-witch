@@ -1,4 +1,4 @@
-//! End-to-end checks for the autonomous Windows voice pack.
+//! End-to-end checks for the speech-recognition layer, using a fake backend and a fake bundle layout.
 //!
 //! Nothing here needs a microphone, a real Whisper model or a network. The
 //! backend is a tiny test executable that behaves the way `whisper-cli` does, so the
@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Duration;
 
-use sciwhisper_asr::backend::{self, backend_file_name, BackendOrigin, Layout, BUNDLE_MARKER};
+use sciwhisper_asr::backend::{self, backend_file_name, BackendOrigin, Layout};
 use sciwhisper_asr::engine::{AsrEngine, EngineKind, TranscribeOptions};
 use sciwhisper_asr::error::Error;
 use sciwhisper_asr::model::{self, ModelStatus, Requirements, MANIFEST_FILE};
@@ -56,10 +56,9 @@ struct Bundle {
 }
 
 impl Bundle {
-    /// A directory shaped like a shipped bundle.
+    /// A directory with `whisper/` next to where the executable would be.
     fn new(body: &str, with_model: bool) -> Self {
         let dir = tempfile::tempdir().unwrap();
-        std::fs::write(dir.path().join(BUNDLE_MARKER), "sci-witch").unwrap();
         let whisper = dir.path().join("whisper");
         std::fs::create_dir_all(&whisper).unwrap();
         fake_whisper(&whisper, body);
@@ -115,21 +114,6 @@ fn a_bundled_backend_is_found_and_labelled_as_bundled() {
     assert_eq!(engine.info.kind, EngineKind::WhisperCpp);
 }
 
-#[test]
-fn a_bundle_without_its_backend_reports_a_packaging_fault() {
-    let dir = tempfile::tempdir().unwrap();
-    std::fs::write(dir.path().join(BUNDLE_MARKER), "sci-witch").unwrap();
-    let layout = Layout::from_dir(dir.path());
-    // Even with a Python whisper available, the bundle must not use it.
-    let error = backend::discover_in(Some(&layout), None, true, |name| {
-        (name == "whisper").then(|| PathBuf::from("/usr/bin/whisper"))
-    })
-    .expect_err("an incomplete bundle is an error");
-    let message = error.to_string();
-    assert!(matches!(error, Error::BundleIncomplete { .. }), "{message}");
-    assert!(message.contains("whisper-cli"), "{message}");
-}
-
 // ------------------------------------------------------------- model state
 
 #[test]
@@ -154,7 +138,7 @@ fn a_corrupted_model_is_reported_rather_than_loaded() {
     let bundle = Bundle::new(WRITES_TRANSCRIPT, true);
     let model_file = bundle.layout.whisper_dir().join("ggml-small-q5_1.bin");
     std::fs::write(&model_file, b"truncated").unwrap();
-    let requirements = Requirements::for_layout(Some(&bundle.layout), false);
+    let requirements = Requirements::new(false);
     match model::check(&bundle.layout.whisper_dir(), requirements) {
         ModelStatus::SizeMismatch { .. } => {}
         other => panic!("{other:?}"),
@@ -503,232 +487,10 @@ fn the_recogniser_has_no_way_to_reach_the_network() {
     assert!(offenders.is_empty(), "network use found: {offenders:?}");
 }
 
-// --------------------------------------------------------- bundle contents
-
-#[derive(serde::Deserialize)]
-struct BundleContents {
-    schema_version: u32,
-    required_files: Vec<String>,
-    required_dirs: Vec<String>,
-    model_pack_files: Vec<String>,
-}
-
-fn bundle_contents() -> BundleContents {
-    let path =
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../packaging/windows/BUNDLE_CONTENTS.json");
-    let text = std::fs::read_to_string(&path).expect("BUNDLE_CONTENTS.json must exist");
-    serde_json::from_str(&text).expect("BUNDLE_CONTENTS.json must be valid")
-}
-
-fn repo_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
-}
-
-/// Where a required bundle entry comes from in this repository. `None` means
-/// it is produced by the build rather than copied.
-fn source_of(entry: &str) -> Option<PathBuf> {
-    let root = repo_root();
-    match entry {
-        // Built, not stored: these three exist only after a compile, so the
-        // check for them is that the release workflow names them.
-        "sciwhisper.exe" => None,
-        "sciwhisper-updater.exe" => None,
-        "whisper/whisper-cli.exe" => None,
-        name if name.ends_with(".cmd") || name.ends_with(".ps1") => {
-            Some(root.join("packaging/windows").join(name))
-        }
-        "README-WINDOWS.txt" => Some(root.join("packaging/windows/README-WINDOWS.txt")),
-        other => Some(root.join(other)),
-    }
-}
+// ---------------------------------------------------------- model pack
 
 #[test]
-fn every_required_bundle_file_exists_in_the_repository_and_is_copied_by_ci() {
-    let contents = bundle_contents();
-    let workflow =
-        std::fs::read_to_string(repo_root().join(".github/workflows/release.yml")).unwrap();
-    let mut problems = Vec::new();
-
-    for entry in &contents.required_files {
-        match source_of(entry) {
-            None => {
-                // Built, not copied: the workflow must still name it somewhere.
-                let base = entry.rsplit('/').next().unwrap();
-                if !workflow.contains(base) {
-                    problems.push(format!("{entry}: the release workflow never mentions it"));
-                }
-            }
-            Some(path) => {
-                match std::fs::metadata(&path) {
-                    Ok(meta) if meta.len() > 100 => {}
-                    Ok(meta) => problems.push(format!(
-                        "{entry}: source is only {} bytes, that is a stub",
-                        meta.len()
-                    )),
-                    Err(_) => problems.push(format!(
-                        "{entry}: no source in the repository at {}",
-                        path.display()
-                    )),
-                }
-                let base = entry.rsplit('/').next().unwrap();
-                if !workflow.contains(base) {
-                    problems.push(format!("{entry}: the release workflow never copies it"));
-                }
-            }
-        }
-    }
-    assert!(
-        problems.is_empty(),
-        "bundle manifest and repository disagree: {problems:#?}"
-    );
-}
-
-#[test]
-fn the_bundle_manifest_describes_a_layout_the_application_accepts() {
-    let contents = bundle_contents();
-    assert_eq!(contents.schema_version, 1);
-    // The marker the application uses to tell a bundle from a build tree must
-    // be one of the files the release is required to ship.
-    assert!(
-        contents.required_files.iter().any(|f| f == BUNDLE_MARKER),
-        "the bundle marker {BUNDLE_MARKER} must be a required file"
-    );
-    assert!(contents
-        .required_files
-        .iter()
-        .any(|f| f == "whisper/whisper-cli.exe"));
-    assert!(contents.required_dirs.iter().any(|d| d == "whisper"));
-    assert!(contents
-        .model_pack_files
-        .iter()
-        .any(|f| f.ends_with(MANIFEST_FILE)));
-
-    // Build the described layout out of the real files, not placeholders, so
-    // the check fails if the manifest names something this repository does not
-    // actually have.
-    let dir = tempfile::tempdir().unwrap();
-    for relative in &contents.required_dirs {
-        std::fs::create_dir_all(dir.path().join(relative)).unwrap();
-    }
-    for relative in &contents.required_files {
-        let target = dir.path().join(relative);
-        std::fs::create_dir_all(target.parent().unwrap()).unwrap();
-        match source_of(relative) {
-            Some(source) => {
-                std::fs::copy(&source, &target)
-                    .unwrap_or_else(|error| panic!("{}: {error}", source.display()));
-            }
-            // Stand-ins for the executables, which only exist after a build.
-            None => std::fs::write(&target, vec![0u8; 200_000]).unwrap(),
-        }
-    }
-
-    let layout = Layout::from_dir(dir.path());
-    // The manifest describes a Windows bundle. On another host the same layout
-    // is checked with that host's executable name, so the test exercises the
-    // discovery rule rather than the file extension.
-    std::fs::write(layout.bundled_backend(), vec![0u8; 200_000]).unwrap();
-    assert!(layout.is_packaged_bundle(), "the marker must be recognised");
-    let backend = backend::discover_in(Some(&layout), None, false, |_| None)
-        .expect("the described bundle must resolve its own backend");
-    assert_eq!(backend.origin, BackendOrigin::Bundled);
-
-    // A bundle with the engine but no model pack must say exactly that.
-    let status = model::inspect(
-        Some(&layout),
-        None,
-        Requirements::for_layout(Some(&layout), false),
-    );
-    assert_eq!(status, ModelStatus::ManifestMissing);
-    assert!(
-        status.message().contains("model pack"),
-        "{}",
-        status.message()
-    );
-}
-
-#[test]
-fn every_external_component_is_pinned_to_something_immutable() {
-    let path =
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../packaging/windows/model-pack.json");
-    let text = std::fs::read_to_string(&path).expect("model-pack.json must exist");
-    let pin: serde_json::Value =
-        serde_json::from_str(&text).expect("model-pack.json must be valid");
-    assert_eq!(pin["schema_version"].as_u64(), Some(2));
-
-    let whisper = &pin["whisper_cpp"];
-    assert_eq!(whisper["license"].as_str(), Some("MIT"));
-    let tag = whisper["tag"].as_str().expect("a tag is required");
-    for floating in ["latest", "main", "master", "HEAD"] {
-        assert_ne!(
-            tag, floating,
-            "the engine must not follow a moving reference"
-        );
-    }
-    // A tag can be moved; the commit cannot. It must be pinned, not left open.
-    let commit = whisper["commit"]
-        .as_str()
-        .expect("the engine commit must be pinned, not null");
-    assert_eq!(commit.len(), 40, "commit must be a full git object id");
-    assert!(commit.chars().all(|c| c.is_ascii_hexdigit()), "{commit}");
-
-    let models = pin["models"].as_array().expect("models must be a list");
-    assert!(!models.is_empty());
-    assert_eq!(
-        models
-            .iter()
-            .filter(|m| m["recommended"].as_bool() == Some(true))
-            .count(),
-        1,
-        "exactly one model is recommended"
-    );
-    for model in models {
-        let id = model["id"].as_str().unwrap_or("?");
-        for field in [
-            "id",
-            "file",
-            "source_url",
-            "license",
-            "license_url",
-            "rationale",
-        ] {
-            assert!(
-                model[field].as_str().is_some_and(|v| !v.is_empty()),
-                "model {id} is missing {field}"
-            );
-        }
-        // Every shippable model carries a real digest and a real size. There is
-        // no "unpinned but publishable" state any more.
-        let sha = model["sha256"]
-            .as_str()
-            .unwrap_or_else(|| panic!("model {id} has no pinned sha256"));
-        assert_eq!(sha.len(), 64, "model {id} digest length");
-        assert!(
-            sha.chars().all(|c| c.is_ascii_hexdigit()),
-            "model {id} digest"
-        );
-        assert!(
-            model["size_bytes"].as_u64().is_some_and(|n| n > 1_000_000),
-            "model {id} needs a real byte size"
-        );
-        // A branch URL would let the bytes change under a fixed digest.
-        let url = model["source_url"].as_str().unwrap();
-        assert!(
-            !url.contains("/resolve/main/") && !url.contains("/resolve/master/"),
-            "model {id} points at a branch instead of an immutable revision: {url}"
-        );
-        let revision = model["source_revision"]
-            .as_str()
-            .unwrap_or_else(|| panic!("model {id} has no source_revision"));
-        assert!(
-            url.contains(revision),
-            "model {id} url must contain its pinned revision"
-        );
-    }
-}
-
-#[test]
-fn an_official_bundle_refuses_a_model_pack_that_was_never_verified() {
+fn a_pinned_digest_is_enforced_only_when_the_caller_asks_for_it() {
     let bundle = Bundle::new(WRITES_TRANSCRIPT, true);
     let manifest = bundle.layout.whisper_dir().join(MANIFEST_FILE);
     let text = std::fs::read_to_string(&manifest).unwrap();
@@ -740,19 +502,19 @@ fn an_official_bundle_refuses_a_model_pack_that_was_never_verified() {
         ),
     )
     .unwrap();
+    let dir = bundle.layout.whisper_dir();
 
-    let mut engine = bundle.engine();
-    let dir = tempfile::tempdir().unwrap();
-    let audio = wav(dir.path());
-    let error = engine
-        .transcribe(&audio, &TranscribeOptions::default())
-        .expect_err("an unverified pack must be refused inside a shipped bundle");
-    let message = error.to_string();
-    assert!(matches!(error, Error::ModelUnusable { .. }), "{message}");
-    assert!(
-        message.contains("verified_against_repository_pin"),
-        "the reason must name the field: {message}"
-    );
+    // Asked for: an unverified pack is refused and the reason names the field.
+    let strict = Requirements {
+        verify_checksum: false,
+        require_pinned: true,
+    };
+    match model::check(&dir, strict) {
+        ModelStatus::NotPinned => {}
+        other => panic!("{other:?}"),
+    }
+    // Not asked for (the default of a recording run): the same pack is used.
+    assert!(model::check(&dir, Requirements::new(false)).is_ready());
 }
 
 #[test]

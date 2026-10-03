@@ -43,20 +43,27 @@ pub const MAX_CORRECTIONS: usize = 4;
 /// Names needed in **one sentence** before it can be read as a dictated list
 /// rather than as prose that mentions something.
 ///
-/// The count is only half the test; the other half is how much of that
-/// sentence the names cover, and it has to be a majority.
+/// The count is only half the test; the other half is the shape of the
+/// sentence, see [`holds_an_enumeration`]: the names come after a colon, or
+/// the sentence is nothing but names.
 ///
 /// Counting alone does not work: «Примеры: павликова кислота, уксусная
 /// кислота, ацетон и глицерин» and «Натрий и калий мы держим отдельно, медь
 /// и цинк можно рядом, а кислоты вообще в другом шкафу» both name four
-/// substances. The first is six words of eight and is the thing being said;
-/// the second is four words of sixteen and is a sentence about a cupboard.
+/// substances. The first announces a list; the second is a sentence about a
+/// cupboard.
 ///
-/// Measuring across the whole utterance does not work either: «Попытка
-/// записи: пермангнат калия или же уксусная кислота, павликовая кислота. А
-/// может быть, этиловый…» is a list followed by an unfinished afterthought,
-/// and the second sentence diluted the first below the majority. A list is a
-/// property of the sentence it is said in.
+/// Measuring the share of the sentence the names cover does not work either,
+/// and it was the rule before: «Принесли йод, бром и хлор» is three words of
+/// five and «Мы обсуждали углерод, водород, кислород, азот» is four of five,
+/// and both are sentences about what was brought or discussed, with a verb in
+/// them. The owner's decision (2 October 2026) is that a share is no evidence
+/// of dictation.
+///
+/// A list is a property of the sentence it is said in: «Попытка записи:
+/// пермангнат калия или же уксусная кислота, павликовая кислота. А может
+/// быть, этиловый…» is a list followed by an unfinished afterthought, and the
+/// second sentence must neither dilute the first nor borrow from it.
 pub const MIN_ENUMERATION_SPANS: usize = 2;
 
 /// Rewriting a stretch *inside* a sentence is held to the stricter bar: a
@@ -770,71 +777,176 @@ fn is_strong_cue(word: &str) -> bool {
     )
 }
 
-/// Whether any one sentence of the utterance is a dictated list of names.
+/// Words that may stand between the colon and the first name of a list:
+/// «Попытка вставки: на примере гидроксида железа три, оксида меди два или
+/// перманганата калия». Any other word there («Он сказал: вчера мы взяли йод,
+/// бром и хлор») makes the sentence prose. Pinned by
+/// `tests/enumeration_rule.rs`.
+const LIST_LEAD_IN_WORDS: [&str; 4] = ["на", "примере", "например", "именно"];
+
+/// Words besides «и» / «а» that may stand between two names of a list:
+/// «пермангнат калия или же уксусная кислота». Any other word between names
+/// («Вывод: цинк, олово и свинец плавятся ниже железа») makes the sentence
+/// prose. Pinned by `tests/enumeration_rule.rs`.
+const LIST_JOINER_WORDS: [&str; 2] = ["или", "же"];
+
+/// For every word of the utterance: whether the sentence it stands in is a
+/// dictated list of names.
 ///
 /// See [`MIN_ENUMERATION_SPANS`]. The unit is the sentence, because that is
 /// what a list is said in; the shell («ну запиши…») is not counted, since it
 /// introduces the list rather than belonging to it.
 ///
+/// A sentence is a list in exactly two shapes, the owner's decision of
+/// 2 October 2026, and each needs at least [`MIN_ENUMERATION_SPANS`] names:
+///
+/// 1. **After a colon in the same sentence come names and nothing else.**
+///    «Примеры: павликова кислота, уксусная кислота, ацетон и глицерин», «Нам
+///    нужны: йод, бром и хлор», «Список: железо, кобальт, никель». The colon
+///    announces the list; what stands before it is the announcement and may
+///    be any words. From the colon to the end of the sentence every word is
+///    inside a name or is «и» / «а», with two small exceptions that are
+///    constants: [`LIST_LEAD_IN_WORDS`] before the first name («…: на примере
+///    …») and [`LIST_JOINER_WORDS`] between names («… или же …»). After the
+///    last name nothing may follow but «и» / «а»: «Он сказал: йод и бром
+///    стоят рядом» and «Мы взяли: железо и медь, а потом ушли» have a colon
+///    and two names and are still sentences about something, with a verb after
+///    the names. So is «Вывод: цинк, олово и свинец плавятся ниже железа»,
+///    where the verb sits between two names and the last name alone would have
+///    passed for the end of a list, and «Он сказал: вчера мы взяли йод, бром
+///    и хлор», where it stands before the first. A counted name is a name here
+///    (it does not vote, but it stands with the list: «…, ацетон и два
+///    глицерина»).
+/// 2. **The sentence is nothing but names.** «Железо, медь, цинк, олово и
+///    свинец». Every word is inside a name or is the conjunction «и» / «а»
+///    between two of them; commas and the final stop carry no words.
+///
+/// Everything else is prose, however much of it the names cover. The rule was
+/// «the names are more than half of the words», and it let a verb through:
+/// «Принесли йод, бром и хлор» is three words of five and came back as
+/// «Принесли I₂, Br₂ и Cl₂», «Мы обсуждали углерод, водород, кислород, азот»
+/// as «Мы обсуждали C, H₂, O₂, N₂». Both are sentences about something, and a
+/// name inside such a sentence is mentioned, not dictated. «Нам нужны йод,
+/// бром и хлор» without the colon is the same sentence.
+///
+/// A framing («запиши …») does not go through this test: the span right
+/// after it is strong on its own, see the strength computed in
+/// [`interpret_utterance`].
+///
 /// Each span carries whether it is an amount — a bare quantity
 /// ([`is_bare_quantity`]) or a counted substance ([`is_counted_substance`]) —
-/// and **an amount never counts towards a list**. The enumeration rule
-/// exists for lists of names: «Примеры: павликова кислота, уксусная кислота,
-/// ацетон и глицерин». Two amounts in a sentence are not that. «Налили три
-/// литра, потом ещё два литра» covers four words of six and used to come back
-/// as «налили 3 л, потом ещё 2 л»; «налей два литра воды» was a quantity
-/// beside a substance and came back as «налей 2 лH₂O». Both are prose, and
-/// the owner's decision is that an amount inside a sentence stays words. A
-/// quantity is still dictation when it is the whole utterance, follows a
-/// framing, is corrected mid-way or sits inside an expression — none of which
-/// goes through this test.
+/// and **an amount never counts towards a list**, in either shape. The
+/// enumeration rule exists for lists of names: «Примеры: павликова кислота,
+/// уксусная кислота, ацетон и глицерин». Two amounts in a sentence are not
+/// that. «Налили три литра, потом ещё два литра» used to come back as «налили
+/// 3 л, потом ещё 2 л»; «налей два литра воды» was a quantity beside a
+/// substance and came back as «налей 2 лH₂O». Both are prose, and the owner's
+/// decision is that an amount inside a sentence stays words. A quantity is
+/// still dictation when it is the whole utterance, follows a framing, is
+/// corrected mid-way or sits inside an expression — none of which goes through
+/// this test. Because an amount covers no name, a sentence that holds one is
+/// not "nothing but names" either.
 ///
 /// A substance with a count in front of it is the same thing for the same
-/// reason. «Принесли два йода и бром» is three words of five, and with the
-/// counted «два йода» left out of the tally it has one name, not two, so it is
-/// no list: it is a sentence about what was brought.
+/// reason. «Принесли два йода и бром» has one name once the counted «два
+/// йода» is left out of the tally, so it is no list: it is a sentence about
+/// what was brought.
 fn holds_an_enumeration(
     utterance: &Utterance,
     shell_words: usize,
     span_words: &[(usize, usize, bool)],
-) -> bool {
+) -> Vec<bool> {
     if span_words.len() < MIN_ENUMERATION_SPANS {
-        return false;
+        return vec![false; utterance.words.len()];
     }
-    // Sentence number of every word, in one pass over the tokens. The first
-    // version recounted the boundaries before each word from scratch, inside
-    // a loop over sentences: sentences × words × tokens. Bounded by
-    // MAX_UTTERANCE_WORDS it was never slow in absolute terms — a 390-word,
-    // 130-sentence dictation spends its time in the span search, not here —
-    // but a cubic loop is not the right shape for a check this simple.
+    // Sentence number of every word, and whether a colon came before it in
+    // that sentence, in one pass over the tokens. The first version recounted
+    // the boundaries before each word from scratch, inside a loop over
+    // sentences: sentences × words × tokens. Bounded by MAX_UTTERANCE_WORDS
+    // it was never slow in absolute terms — a 390-word, 130-sentence
+    // dictation spends its time in the span search, not here — but a cubic
+    // loop is not the right shape for a check this simple.
     let mut sentence_of_word = Vec::with_capacity(utterance.words.len());
+    let mut after_colon = Vec::with_capacity(utterance.words.len());
     let mut sentence = 0usize;
+    let mut colon_seen = false;
     let mut next_word = 0usize;
     for (index, token) in utterance.tokens.iter().enumerate() {
         if token.kind == TokenKind::Boundary {
             sentence += 1;
+            colon_seen = false;
+        } else if token.text == ":" {
+            colon_seen = true;
         } else if utterance.word_token.get(next_word) == Some(&index) {
             sentence_of_word.push(sentence);
+            after_colon.push(colon_seen);
             next_word += 1;
         }
     }
     let sentences = sentence + 1;
-    let mut total = vec![0usize; sentences];
+    // Words of each sentence that are neither inside a name nor a
+    // conjunction. A sentence with none is nothing but names.
+    let mut other = vec![0usize; sentences];
+    let mut in_name = vec![false; utterance.words.len()];
+    for &(start, end, amount) in span_words {
+        if !amount {
+            in_name[start..end].iter_mut().for_each(|flag| *flag = true);
+        }
+    }
     for word in shell_words..utterance.words.len() {
-        total[sentence_of_word[word]] += 1;
+        if !in_name[word] && !matches!(utterance.words[word].as_str(), "и" | "а") {
+            other[sentence_of_word[word]] += 1;
+        }
+    }
+    // Words after the colon that the shape of a list does not allow. A counted
+    // name is a span too: it stands with the list. «и» / «а» are allowed
+    // anywhere. Before the first name only the words of
+    // [`LIST_LEAD_IN_WORDS`] are allowed («на примере …»), between two names
+    // only those of [`LIST_JOINER_WORDS`] («… или же …»), and after the last
+    // name nothing: any other word means the names are a part of a sentence
+    // about something, and the sentence is prose.
+    let mut in_span = vec![false; utterance.words.len()];
+    let mut first_start = vec![usize::MAX; sentences];
+    let mut last_end = vec![0usize; sentences];
+    for &(start, end, _) in span_words {
+        in_span[start..end].iter_mut().for_each(|flag| *flag = true);
+        let here = sentence_of_word[start];
+        if after_colon[start] {
+            first_start[here] = first_start[here].min(start);
+        }
+        last_end[here] = last_end[here].max(end);
+    }
+    let mut other_after_colon = vec![0usize; sentences];
+    for word in shell_words..utterance.words.len() {
+        let here = sentence_of_word[word];
+        let text = utterance.words[word].as_str();
+        let allowed = in_span[word]
+            || matches!(text, "и" | "а")
+            || (word < first_start[here] && LIST_LEAD_IN_WORDS.contains(&text))
+            || (word < last_end[here] && LIST_JOINER_WORDS.contains(&text));
+        if after_colon[word] && !allowed {
+            other_after_colon[here] += 1;
+        }
     }
     let mut names = vec![0usize; sentences];
-    let mut covered = vec![0usize; sentences];
-    for &(start, end, amount) in span_words {
+    let mut names_after_colon = vec![0usize; sentences];
+    for &(start, _, amount) in span_words {
         if amount {
             continue;
         }
         let here = sentence_of_word[start];
         names[here] += 1;
-        covered[here] += end - start;
+        if after_colon[start] {
+            names_after_colon[here] += 1;
+        }
     }
-    (0..sentences)
-        .any(|here| names[here] >= MIN_ENUMERATION_SPANS && covered[here] * 2 > total[here])
+    let is_list: Vec<bool> = (0..sentences)
+        .map(|here| {
+            (names_after_colon[here] >= MIN_ENUMERATION_SPANS && other_after_colon[here] == 0)
+                || (names[here] >= MIN_ENUMERATION_SPANS && other[here] == 0)
+        })
+        .collect();
+    sentence_of_word.iter().map(|&here| is_list[here]).collect()
 }
 
 /// Whether this reading is a substance name and nothing more.
@@ -1346,6 +1458,15 @@ impl<'a> Utterance<'a> {
             .any(|token| token.kind == TokenKind::Boundary)
     }
 
+    /// True when a comma sits between word `before` and the word after it.
+    fn comma_after(&self, before: usize) -> bool {
+        let first = self.word_token[before];
+        let last = self.word_token[before + 1];
+        self.tokens[first..=last]
+            .iter()
+            .any(|token| token.kind == TokenKind::Separator && token.text == ",")
+    }
+
     fn refs(&self) -> Vec<&str> {
         self.words.iter().map(String::as_str).collect()
     }
@@ -1651,29 +1772,42 @@ pub fn interpret_utterance(text: &str, options: UtteranceOptions) -> UtteranceRe
     // a list of chemistry and the bare names belong to it, while a lone
     // ordinary noun in an ordinary sentence does not.
     //
-    // Company is either something strong beside it, or enough names covering
-    // enough of the utterance that the utterance *is* the list — see
-    // [`MIN_ENUMERATION_SPANS`]. Without the second clause a dictated list of
+    // Company is either something strong beside it, or enough names in a
+    // sentence that *is* a list — after a colon, or nothing but names; see
+    // [`holds_an_enumeration`]. Without the second clause a dictated list of
     // four substances would be thrown away whole, because no single name in
     // it is strong any more.
-    let enumerated = holds_an_enumeration(&utterance, shell_words, &span_words);
-    if !enumerated && !strengths.iter().any(|strong| *strong) {
-        for (span, strong) in spans.iter().zip(strengths.iter()) {
-            if !strong {
-                result.rejected.push(RejectedSpan {
-                    start: span.start,
-                    end: span.end,
-                    source_text: span.source_text.clone(),
-                    reason: "a single ordinary word with no other science in the utterance".into(),
-                });
+    //
+    // The list is a property of its sentence. A weak span in another sentence
+    // of the same utterance has no company: «Принесли серу. Примеры: йод,
+    // бром.» is a list and a sentence about sulphur. A counted name inside a
+    // list does not vote, but it stands with the list: «Примеры: …, ацетон и
+    // два глицерина», see `tests/prose_coefficients.rs`.
+    let listed = holds_an_enumeration(&utterance, shell_words, &span_words);
+    if !strengths.iter().any(|strong| *strong) {
+        let mut kept_spans = Vec::new();
+        for (index, span) in spans.drain(..).enumerate() {
+            let (first_word, _, _) = span_words[index];
+            if listed[first_word] {
+                kept_spans.push(span);
+                continue;
+            }
+            result.rejected.push(RejectedSpan {
+                start: span.start,
+                end: span.end,
+                source_text: span.source_text.clone(),
+                reason: "a single ordinary word with no other science in the utterance".into(),
+            });
+            for segment in &mut segments {
+                if segment.kind == SegmentKind::ScientificSpan
+                    && segment.start == span.start
+                    && segment.end == span.end
+                {
+                    segment.kind = SegmentKind::PlainText;
+                }
             }
         }
-        spans.clear();
-        for segment in &mut segments {
-            if segment.kind == SegmentKind::ScientificSpan {
-                segment.kind = SegmentKind::PlainText;
-            }
-        }
+        spans = kept_spans;
     }
 
     if spans.is_empty() {
@@ -1740,6 +1874,12 @@ fn stops_before_an_oxidation_state(utterance: &Utterance<'_>, end: usize) -> boo
     let Some(next) = utterance.words.get(end) else {
         return false;
     };
+    // A comma ends the name: in «аш два о, три» the three is not the
+    // oxidation state of the oxygen, and refusing to stop on «о» cut the
+    // formula into «H₂» and «O₂».
+    if utterance.comma_after(end - 1) {
+        return false;
+    }
     if is_number_word(next) {
         return true;
     }

@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 authors.workspace = true
-description = "CLI for SciWhisper: Whisper overlay that compiles spoken science"
+description = "Research CLI for sci-witch: text compiler, Whisper transcription, voice-corpus collection"
 
 [[bin]]
 name = "sciwhisper"
@@ -14,7 +14,6 @@ path = "src/main.rs"
 [dependencies]
 sciwhisper-core = { workspace = true }
 sciwhisper-asr = { workspace = true }
-sciwhisper-shell = { workspace = true }
 clap = { workspace = true }
 serde_json = { workspace = true }
 serde = { workspace = true }

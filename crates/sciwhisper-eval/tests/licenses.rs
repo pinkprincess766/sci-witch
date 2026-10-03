@@ -1,9 +1,11 @@
 //! Licence audit, run as a test rather than remembered.
 //!
-//! A shipped binary statically links five hundred crates. "See Cargo.toml"
-//! is not a licence notice for that, and two of those crates —
-//! `option-ext` (MPL-2.0) and `webpki-roots` (CDLA-Permissive-2.0) — carry
-//! licences that require the notice to travel with the distribution.
+//! The workspace links about 170 third-party crates. "See Cargo.toml" is not
+//! a licence notice for that. None of them currently carries a licence that
+//! requires its notice to travel with a distribution (MPL-2.0,
+//! CDLA-Permissive-2.0), but earlier snapshots did (`option-ext`,
+//! `webpki-roots`), and the check below stays so that one cannot return
+//! unnoticed.
 //!
 //! Two checks, neither of which needs a network:
 //!
@@ -208,14 +210,14 @@ fn licences_that_require_a_notice_are_named_in_notice() {
 fn the_lockfile_reader_finds_the_dependencies_it_should() {
     let locked = locked_packages();
     assert!(locked.len() > 100, "only {} packages parsed", locked.len());
-    for expected in ["serde", "zip", "sha2"] {
+    for expected in ["serde", "cpal", "sha2"] {
         assert!(
             locked.iter().any(|(name, _)| name == expected),
             "{expected} missing from the parsed lockfile"
         );
     }
     // Our own crates have no `source` and must not be counted as third party.
-    for ours in ["sciwhisper-core", "sciwhisper-grammar", "sciwhisper-update"] {
+    for ours in ["sciwhisper-core", "sciwhisper-grammar", "sciwhisper-asr"] {
         assert!(
             !locked.iter().any(|(name, _)| name == ours),
             "{ours} is this workspace's own crate"

@@ -4,6 +4,14 @@
 
 ## [Unreleased]
 
+### Removed
+
+- 2026-10-04: проект стал исследовательским репозиторием (компилятор текста в научную структуру и статья), голосовое приложение снято. Удалены крейты `sciwhisper-shell` (трей, горячие клавиши, вставка, Word, буфер обмена, настройки, журнал исправлений) и `sciwhisper-update`; `packaging/windows`, `packaging/macos`, `packaging/linux`, `packaging/branding`; `.github/workflows/release.yml` и задачи сборки приложения в `ci.yml`; `docs/user/USAGE_RU.md`, `TESTING_RU.md`, `WINDOWS_ACCEPTANCE_RU.md`, `docs/process/AUTO_UPDATE_RU.md`, `RELEASE_CHECKLIST.md`, `docs/images/`. Последнее состояние с приложением — тег `app-0.5-final`.
+- Из `sciwhisper-asr` удалены `WarmWhisper` и его Python-демон `scripts/whisperd.py`: держать модель в памяти нужно было только трею.
+- В CLI убраны команды `app`, `settings`, `corrections` и запуск приложения без аргументов (теперь без аргументов печатается справка). Остались `format`, `nbest`, `transcribe`, `corpus`, `ingest`, `collect-voice`, `rec`, `doctor`, `self-test`, `demo`.
+- В `sciwhisper-asr` убран `SharedEngine` (обёртка для трея) и строка про Word в отчёте `doctor`; из тестов убраны три проверки, читавшие `packaging/windows` и `release.yml`.
+- `packaging/THIRD-PARTY-LICENSES.json` и `NOTICE` приведены к оставшимся зависимостям (174 пакета вместо 513). Поведение компилятора не менялось.
+
 ## [0.1.1-rc1] - 2026-09-01
 
 ### Added

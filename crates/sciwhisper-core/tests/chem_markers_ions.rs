@@ -116,13 +116,21 @@ fn spelled_formulas_keep_their_readings() {
         ("эс о два", "SO₂"),
         ("аш два эс о четыре", "H₂SO₄"),
         ("калий йод", "KI"),
-        ("водород плюс кислород равно вода", "H₂ плюс O₂ равно H₂O"),
-        (
-            "натрий плюс хлор равно натрий хлор",
-            "Na плюс Cl₂ равно NaCl",
-        ),
     ] {
         assert_eq!(shown(spoken), expected, "«{spoken}»");
+    }
+    // Bare names with «плюс» and «равно» between them used to come back as
+    // «H₂ плюс O₂ равно H₂O» and «Na плюс Cl₂ равно NaCl»: the names were more
+    // than half of the words. That was the share rule. These sentences have
+    // words in them that are neither names nor «и», so they are not lists and
+    // the names stay words. A compound said in two words is not strong either:
+    // «NaCl» is a bare species. With an arrow it is still an equation, see
+    // `tests/comma_names.rs`.
+    for spoken in [
+        "водород плюс кислород равно вода",
+        "натрий плюс хлор равно натрий хлор",
+    ] {
+        assert_eq!(shown(spoken), spoken, "«{spoken}»");
     }
 }
 

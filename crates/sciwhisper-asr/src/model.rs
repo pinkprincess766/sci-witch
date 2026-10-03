@@ -187,11 +187,14 @@ pub struct Requirements {
 }
 
 impl Requirements {
-    /// What the running application should demand, given where it lives.
-    pub fn for_layout(layout: Option<&Layout>, verify_checksum: bool) -> Self {
+    /// What a recording run demands: the checksum as asked, and a pinned
+    /// digest only when the caller sets `require_pinned` itself. It used to
+    /// switch on automatically inside the packaged Windows bundle, which was
+    /// removed with the application (tag `app-0.5-final`).
+    pub fn new(verify_checksum: bool) -> Self {
         Requirements {
             verify_checksum,
-            require_pinned: layout.is_some_and(|layout| layout.is_packaged_bundle()),
+            require_pinned: false,
         }
     }
 }
@@ -575,14 +578,10 @@ mod tests {
     }
 
     #[test]
-    fn requirements_follow_the_layout() {
-        let dir = tempfile::tempdir().unwrap();
-        let developer = Layout::from_dir(dir.path());
-        assert!(!Requirements::for_layout(Some(&developer), false).require_pinned);
-
-        std::fs::write(dir.path().join(crate::backend::BUNDLE_MARKER), "sci-witch").unwrap();
-        let shipped = Layout::from_dir(dir.path());
-        assert!(Requirements::for_layout(Some(&shipped), false).require_pinned);
+    fn a_pinned_digest_is_required_only_when_asked_for() {
+        assert!(!Requirements::new(false).require_pinned);
+        assert!(!Requirements::new(true).require_pinned);
+        assert!(official().require_pinned);
     }
 
     #[test]

@@ -5,7 +5,7 @@
   "program": {
     "name": "sciwhisper-eval",
     "version": "0.1.1-rc1",
-    "git_commit": "f6b6d8104643d6d074eb7bb34c92f90a95bde8cc",
+    "git_commit": "3059351092f0fb1889ca83339a9424376aa3575a",
     "git_dirty": true
   },
   "dataset": {
@@ -1889,7 +1889,7 @@
     "The candidate lattice offers readings; it never inserts one. Readings that exist only because the words were edited first are generated behind RAW, so a wider lattice cannot raise the false-rewrite rate on its own."
   ],
   "timing": {
-    "latency_us_p50": 2618,
-    "latency_us_p95": 4336
+    "latency_us_p50": 335,
+    "latency_us_p95": 479
   }
 }

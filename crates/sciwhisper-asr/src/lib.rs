@@ -12,7 +12,6 @@ pub mod process;
 pub mod prompt;
 pub mod vad;
 pub mod whisper_cli;
-pub mod whisperd;
 
 pub use backend::{Backend, BackendOrigin, Layout};
 pub use capture::PttSession;
@@ -23,4 +22,3 @@ pub use pipeline::{
     compile_transcript, from_audio, from_microphone, PipelineOptions, PipelineResult,
 };
 pub use whisper_cli::{doctor, WhisperCliEngine};
-pub use whisperd::{SharedEngine, WarmWhisper};

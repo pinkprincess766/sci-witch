@@ -1,7 +1,7 @@
 mod collect_voice;
 mod ingest;
 
-use std::io::{self, IsTerminal, Read, Write};
+use std::io::{self, Read};
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
@@ -10,17 +10,17 @@ use sciwhisper_core::{
     choose_hypothesis, interpret, interpret_utterance, render, render_result, Domain,
     InterpretOptions, Renderer, UtteranceMode, UtteranceOptions,
 };
-use sciwhisper_shell::config::Config;
 
 #[derive(Parser)]
 #[command(
     name = "sciwhisper",
     version,
-    about = "Whisper overlay: speech → local Whisper → scientific notation"
+    about = "Research CLI: text → scientific structure (compiler), Whisper transcription, voice-corpus collection",
+    arg_required_else_help = true
 )]
 struct Cli {
     #[command(subcommand)]
-    command: Option<Command>,
+    command: Command,
 }
 
 #[derive(Subcommand)]
@@ -100,13 +100,6 @@ enum Command {
     SelfTest,
     /// Show representative chemistry, mathematics and physics conversions.
     Demo,
-    /// System panel app. Press Control twice to start and twice again to insert.
-    App,
-    /// View or edit persistent SciWhisper settings.
-    Settings {
-        #[command(subcommand)]
-        action: Option<SettingsAction>,
-    },
     /// Transcribe every audio file in a directory through Whisper + compiler.
     Corpus {
         dir: PathBuf,
@@ -116,12 +109,6 @@ enum Command {
         model: Option<String>,
         #[arg(long, default_value = "ru")]
         language: String,
-    },
-    /// Show the corrections recorded locally, if that was switched on.
-    Corrections {
-        /// Print the raw JSONL instead of the table, for piping into review.
-        #[arg(long)]
-        json: bool,
     },
     /// Fill a research corpus manifest from its recordings: measure each
     /// WAV and transcribe it. Consent, transcript and targets must already
@@ -142,23 +129,6 @@ enum Command {
     },
 }
 
-#[derive(Subcommand)]
-enum SettingsAction {
-    /// Print the active configuration and its file path.
-    Show,
-    /// Change one setting, for example: settings set domain chemistry.
-    Set { key: String, value: String },
-    /// Run the interactive terminal setup assistant.
-    Configure,
-    /// Print the configuration file path.
-    Path,
-    /// Restore default settings. Requires --yes.
-    Reset {
-        #[arg(long)]
-        yes: bool,
-    },
-}
-
 fn main() {
     let cli = Cli::parse();
     if let Err(e) = run(cli) {
@@ -169,17 +139,16 @@ fn main() {
 
 fn run(cli: Cli) -> Result<(), String> {
     match cli.command {
-        Some(Command::CollectVoice(args)) => collect_voice::run(args),
-        None => sciwhisper_shell::run().map_err(|e| e.to_string()),
-        Some(Command::Nbest { hypotheses }) => run_nbest(&hypotheses),
-        Some(Command::Format {
+        Command::CollectVoice(args) => collect_voice::run(args),
+        Command::Nbest { hypotheses } => run_nbest(&hypotheses),
+        Command::Format {
             domain,
             mode,
             renderer,
             json,
             text,
-        }) => run_format(&domain, &mode, &renderer, json, text),
-        Some(Command::Rec {
+        } => run_format(&domain, &mode, &renderer, json, text),
+        Command::Rec {
             domain,
             renderer,
             seconds,
@@ -188,7 +157,7 @@ fn run(cli: Cli) -> Result<(), String> {
             json,
             whisper,
             mic,
-        }) => {
+        } => {
             let domain: Domain = domain.parse()?;
             eprintln!("SciWhisper поверх Whisper. Домен: {}", domain.as_str());
             let result = from_microphone(
@@ -205,7 +174,7 @@ fn run(cli: Cli) -> Result<(), String> {
             .map_err(|e| e.to_string())?;
             print_pipeline(&result, &renderer, json)
         }
-        Some(Command::Transcribe {
+        Command::Transcribe {
             audio,
             domain,
             renderer,
@@ -213,7 +182,7 @@ fn run(cli: Cli) -> Result<(), String> {
             language,
             json,
             whisper,
-        }) => {
+        } => {
             let domain: Domain = domain.parse()?;
             if !audio.exists() {
                 return Err(format!("audio not found: {}", audio.display()));
@@ -233,11 +202,11 @@ fn run(cli: Cli) -> Result<(), String> {
             .map_err(|e| e.to_string())?;
             print_pipeline(&result, &renderer, json)
         }
-        Some(Command::Doctor { verify_model }) => {
+        Command::Doctor { verify_model } => {
             let report = sciwhisper_asr::whisper_cli::DoctorReport::collect(verify_model);
             println!("{}", report.render());
-            // The exit code is what SciWhisper-Test.cmd checks, so an
-            // incomplete pack has to fail rather than merely print badly.
+            // Scripts check the exit code, so an incomplete setup has to fail
+            // rather than merely print badly.
             match (&report.backend, report.model_ready) {
                 (Err(reason), _) => Err(format!("движок распознавания не готов: {reason}")),
                 // The reason is already worked out and printed above; repeating
@@ -246,198 +215,22 @@ fn run(cli: Cli) -> Result<(), String> {
                 (Ok(_), true) => Ok(()),
             }
         }
-        Some(Command::SelfTest) => run_self_test(),
-        Some(Command::Demo) => run_demo(),
-        Some(Command::App) => sciwhisper_shell::run().map_err(|e| e.to_string()),
-        Some(Command::Settings { action }) => run_settings(action),
-        Some(Command::Corpus {
+        Command::SelfTest => run_self_test(),
+        Command::Demo => run_demo(),
+        Command::Corpus {
             dir,
             domain,
             model,
             language,
-        }) => run_corpus(dir, &domain, model, language),
-        Some(Command::Corrections { json }) => run_corrections(json),
-        Some(Command::Ingest {
+        } => run_corpus(dir, &domain, model, language),
+        Command::Ingest {
             manifest,
             output,
             model,
             language,
             describe_only,
-        }) => run_ingest(manifest, output, model, language, describe_only),
+        } => run_ingest(manifest, output, model, language, describe_only),
     }
-}
-
-fn run_settings(action: Option<SettingsAction>) -> Result<(), String> {
-    match action {
-        Some(SettingsAction::Path) => {
-            println!("{}", Config::path().display());
-            Ok(())
-        }
-        Some(SettingsAction::Show) => show_settings(&Config::load().map_err(|e| e.to_string())?),
-        Some(SettingsAction::Set { key, value }) => {
-            let mut config = Config::load().map_err(|e| e.to_string())?;
-            config.set(&key, &value).map_err(|e| e.to_string())?;
-            config.save().map_err(|e| e.to_string())?;
-            println!("Сохранено: {key} = {value}");
-            println!("{}", Config::path().display());
-            Ok(())
-        }
-        Some(SettingsAction::Reset { yes: true }) => {
-            Config::default().save().map_err(|e| e.to_string())?;
-            println!("Настройки восстановлены по умолчанию.");
-            Ok(())
-        }
-        Some(SettingsAction::Reset { yes: false }) => {
-            Err("reset отменён: добавьте --yes, чтобы подтвердить".into())
-        }
-        Some(SettingsAction::Configure) => configure_settings(),
-        None if io::stdin().is_terminal() => configure_settings(),
-        None => show_settings(&Config::load().map_err(|e| e.to_string())?),
-    }
-}
-
-fn show_settings(config: &Config) -> Result<(), String> {
-    println!("SciWhisper settings");
-    println!("  config:          {}", Config::path().display());
-    println!("  domain:          {}", config.domain);
-    println!("  output:          {}", config.output);
-    println!("  dictation:       {}", config.dictation);
-    println!("  language:        {}", config.language);
-    println!(
-        "  model:           {}",
-        config.model.as_deref().unwrap_or("default local model")
-    );
-    println!(
-        "  mic:             {}",
-        config.mic.as_deref().unwrap_or("системный по умолчанию")
-    );
-    println!("  ptt:             {}", config.ptt);
-    println!("  double_control:  {}", config.double_control);
-    println!("  ptt_latex:       {}", config.ptt_latex);
-    println!("  ptt_word:        {}", config.ptt_word);
-    println!("  persist_history: {}", config.persist_history);
-    Ok(())
-}
-
-fn configure_settings() -> Result<(), String> {
-    if !io::stdin().is_terminal() {
-        return Err(
-            "interactive settings require a terminal; use `settings set <key> <value>`".into(),
-        );
-    }
-    let mut config = Config::load().map_err(|e| e.to_string())?;
-    println!("SciWhisper — помощница настройки");
-    println!("Enter сохраняет текущее значение. '-' очищает путь модели.\n");
-
-    let current = config.domain.clone();
-    update_from_prompt(
-        &mut config,
-        "domain",
-        "Домен [auto/chemistry/mathematics/physics/plain]",
-        &current,
-    )?;
-    let current = config.output.clone();
-    update_from_prompt(
-        &mut config,
-        "output",
-        "Формат [auto/unicode/latex/word]",
-        &current,
-    )?;
-    let current = config.dictation.clone();
-    update_from_prompt(
-        &mut config,
-        "dictation",
-        "Диктовка [mixed = сохранять речь / scientific = только формула]",
-        &current,
-    )?;
-    let current = config.language.clone();
-    update_from_prompt(&mut config, "language", "Язык Whisper", &current)?;
-    let current = config.model.clone().unwrap_or_else(|| "default".into());
-    update_from_prompt(&mut config, "model", "Локальная модель", &current)?;
-    configure_mic(&mut config)?;
-    let current = config.ptt.clone();
-    update_from_prompt(&mut config, "ptt", "Запись по удержанию клавиш", &current)?;
-    let double_control = config.double_control.to_string();
-    update_from_prompt(
-        &mut config,
-        "double_control",
-        "Двойной Control запускает/останавливает запись [true/false]",
-        &double_control,
-    )?;
-    let current = config.ptt_latex.clone();
-    update_from_prompt(&mut config, "ptt_latex", "Быстрый LaTeX", &current)?;
-    let current = config.ptt_word.clone();
-    update_from_prompt(&mut config, "ptt_word", "Быстрый Word", &current)?;
-    let history = config.persist_history.to_string();
-    update_from_prompt(
-        &mut config,
-        "persist_history",
-        "Хранить историю [true/false]",
-        &history,
-    )?;
-
-    print!("\nСохранить настройки? [Y/n] ");
-    io::stdout().flush().map_err(|e| e.to_string())?;
-    let mut answer = String::new();
-    io::stdin()
-        .read_line(&mut answer)
-        .map_err(|e| e.to_string())?;
-    if matches!(answer.trim().to_ascii_lowercase().as_str(), "n" | "no") {
-        println!("Изменения отменены.");
-        return Ok(());
-    }
-    config.save().map_err(|e| e.to_string())?;
-    println!("Сохранено в {}", Config::path().display());
-    Ok(())
-}
-
-fn configure_mic(config: &mut Config) -> Result<(), String> {
-    let devices = sciwhisper_asr::capture::input_devices();
-    let current = config.mic.clone().unwrap_or_else(|| "по умолчанию".into());
-    println!("Микрофон [{current}]:");
-    println!("  0. системный по умолчанию");
-    for (index, name) in devices.iter().enumerate() {
-        println!("  {}. {name}", index + 1);
-    }
-    print!("Номер или название устройства (Enter — оставить текущее): ");
-    io::stdout().flush().map_err(|e| e.to_string())?;
-    let mut value = String::new();
-    io::stdin()
-        .read_line(&mut value)
-        .map_err(|e| e.to_string())?;
-    let value = value.trim();
-    if value.is_empty() {
-        return Ok(());
-    }
-    if let Ok(index) = value.parse::<usize>() {
-        if index == 0 {
-            return config.set("mic", "default").map_err(|e| e.to_string());
-        }
-        return match devices.get(index - 1) {
-            Some(name) => config.set("mic", name).map_err(|e| e.to_string()),
-            None => Err(format!("нет устройства с номером {index}")),
-        };
-    }
-    config.set("mic", value).map_err(|e| e.to_string())
-}
-
-fn update_from_prompt(
-    config: &mut Config,
-    key: &str,
-    label: &str,
-    current: &str,
-) -> Result<(), String> {
-    print!("{label} [{current}]: ");
-    io::stdout().flush().map_err(|e| e.to_string())?;
-    let mut value = String::new();
-    io::stdin()
-        .read_line(&mut value)
-        .map_err(|e| e.to_string())?;
-    let value = value.trim();
-    if !value.is_empty() {
-        config.set(key, value).map_err(|e| e.to_string())?;
-    }
-    Ok(())
 }
 
 fn run_corpus(
@@ -488,47 +281,6 @@ fn run_corpus(
         }
     }
     println!("done: {ok}/{} transcribed", files.len());
-    Ok(())
-}
-
-/// Shows what the user has disagreed with.
-///
-/// Deliberately read-only, and deliberately **not** an export to the
-/// research corpus. A corpus entry needs a gold AST, and deriving one by
-/// re-parsing the user's chosen text would be gold produced by the parser —
-/// exactly what `research/README_RU.md` forbids. Turning these into corpus
-/// records is a human step.
-fn run_corrections(json: bool) -> Result<(), String> {
-    let file = sciwhisper_shell::corrections::path(&Config::path());
-    let entries = sciwhisper_shell::corrections::read(&file);
-    if entries.is_empty() {
-        println!("исправлений нет: {}", file.display());
-        println!("включить запись можно в меню значка или командой");
-        println!("  sciwhisper settings set remember_corrections true");
-        return Ok(());
-    }
-    if json {
-        for entry in &entries {
-            println!(
-                "{}",
-                serde_json::to_string(entry).map_err(|error| error.to_string())?
-            );
-        }
-        return Ok(());
-    }
-    println!("{} исправлений в {}", entries.len(), file.display());
-    for entry in &entries {
-        println!();
-        println!("  услышано : {}", entry.transcript);
-        println!("  вставлено: {}", entry.inserted);
-        println!("  выбрано  : {}  [{}]", entry.chosen, entry.kind);
-        if let Some(domain) = &entry.domain {
-            println!("  домен    : {domain}");
-        }
-    }
-    println!();
-    println!("Это материал для корпуса, а не корпус: gold-разметку по нему");
-    println!("нужно проставить руками — см. research/README_RU.md.");
     Ok(())
 }
 
@@ -805,4 +557,18 @@ fn run_format(
         return Err("could not parse input; raw transcript preserved".into());
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The eight phrases `self-test` and `demo` show must keep compiling to
+    /// the strings written next to them; the commands print and exit, so
+    /// without this nothing in the test run would notice a drift.
+    #[test]
+    fn the_self_test_and_the_demo_phrases_still_compile() {
+        run_self_test().expect("self-test");
+        run_demo().expect("demo");
+    }
 }
