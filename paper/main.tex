@@ -1,0 +1,167 @@
+\documentclass[11pt,a4paper]{article}
+% Builds with pdfLaTeX or LuaLaTeX: latexmk -pdf main.tex
+\usepackage[T2A,T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[russian,english]{babel}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage[hidelinks]{hyperref}
+\usepackage{url}
+
+\input{numbers}
+
+\newcommand{\ru}[1]{\foreignlanguage{russian}{#1}}
+
+\title{Compiling Spoken Russian Science Without Rewriting Prose:\\
+a Typed Compiler, its Grammar, and a Refusal-First Policy}
+\author{sci-witch}
+\date{Draft}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We study how spoken Russian scientific language --- chemistry, mathematics
+and physics --- can be compiled into a typed structure, and when that
+compilation should refuse. The artefact is a deterministic text compiler:
+a transcript goes in, and either one typed abstract syntax tree (rendered as
+Unicode, \LaTeX{} or OMML) or the original words come out. Its central
+promise is safety: ordinary speech must not acquire notation nobody
+dictated, and a substance name or an amount inside a sentence is a mention,
+not a formula. On a pinned benchmark of four hand-written corpora the
+compiler rewrites \PooledRewrites{} of \PooledOrdinary{} ordinary sentences
+(one-sided 95\% upper bound \PooledUpper). The grammar the hand-written
+parser implements is recovered as an explicit EBNF object and checked against
+an independent Earley recogniser. Every number here is text in, tree out:
+no live speaker has been recorded yet, and we state precisely what that does
+and does not license.
+\end{abstract}
+
+\section{Introduction}
+Speech recognisers transcribe words; a person dictating a lab report means
+formulas, units and equations as well. Inverse text normalisation (ITN)
+already converts spoken forms such as numbers and measures into written ones
+\cite{zhang2019neural,zhang2021nemo}, and recent work converts spoken
+mathematics into \LaTeX{} \cite{korzh2026speech2latex,hyeon2025mathspeech}.
+The failure that matters most in this setting is not a missed formula but an
+invented one: a sentence \emph{about} sulphuric acid turned into
+H$_2$SO$_4$, or the conjunction \ru{«и»} read as the letter $i$. Neural
+normalisers are known to make such unrecoverable errors
+\cite{sproat2017rnn,zhang2019neural}; grammars are the usual guard.
+
+This work makes three contributions.
+\begin{enumerate}
+  \item A refusal-first compiler whose policy for ordinary prose is stated as
+        rules with tests on both sides: what must stay words and what must
+        still compile (Section~\ref{sec:policy}).
+  \item The grammar of the hand-written parser written down as an EBNF object,
+        its LL(1) conflicts with concrete phrases, and an Earley reference
+        compared with the parser on every corpus (Section~\ref{sec:grammar}).
+  \item A measurement discipline: pinned corpora, pooled admission gates and
+        explicit bounds instead of point estimates (Section~\ref{sec:eval}).
+\end{enumerate}
+
+\section{Related work}
+\IfFileExists{review.tex}{\input{review}}{%
+\emph{The literature review is being written by the project owner; it will be
+included from \texttt{paper/review.tex}.}}
+
+\section{Problem statement}
+Let $a$ be an utterance (audio), $w$ a transcript and $t$ a typed tree. A
+noisy-channel reading chooses
+\[
+  \hat t = \arg\max_{t} \; P(t)\,P(w \mid t),
+\]
+with $P(t)$ from a grammar and $P(w \mid t)$ a model of recognition errors.
+Our compiler does not yet score; it decides. Following the reject option of
+Chow \cite{chow1970optimum} and selective prediction
+\cite{elyaniv2010foundations,geifman2017selective}, every reading carries a
+parse level $c \in \{1.0, 0.95, 0.7, 0.0\}$ and a span inside a sentence is
+inserted only at $c \ge 0.9$. The level is an engineering grade of the parse,
+not a probability; turning it into a calibrated one is an open question of
+the programme.
+
+\section{The compiler}
+The pipeline is
+\begin{center}
+transcript $\to$ candidate readings $\to$ typed AST $\to$ checks $\to$
+Unicode / \LaTeX{} / OMML,
+\end{center}
+or the original words. The core library has no audio dependency. Two entry
+points are measured: \texttt{interpret} reads the whole string as one
+construct or refuses; \texttt{interpret\_utterance} keeps ordinary words and
+replaces only proven spans. Renderers never re-parse the transcript.
+
+\section{Prose stays words}\label{sec:policy}
+The policy was decided case by case on traps found in the project's own text
+and in coursework written by a chemist for another purpose:
+\begin{itemize}
+  \item a substance name inside a sentence is mentioned, not dictated
+        (\ru{«серная кислота хранится в лаборатории»} stays words);
+  \item so is an amount, a number with a unit
+        (\ru{«на каждый моль хлора расходуется один моль водорода»});
+  \item a conjunction between two operands is a word, not the letter $i$
+        (\ru{«икс и игрек»} was $xiy$);
+  \item a dictated list compiles, prose with a verb does not.
+\end{itemize}
+Each rule is pinned by tests that try to pass it the wrong way: the
+forbidden rewrite fails, and the legitimate dictation (\ru{«два моля»},
+\ru{«запиши …»}, a reaction with \ru{«стрелка»}) still compiles.
+
+\section{The grammar as an object}\label{sec:grammar}
+The recursive-descent parser is described by an EBNF grammar written from
+the code, each rule referenced to the function that implements it. Its
+FIRST/FOLLOW sets expose LL(1) conflicts; boundary commands
+(\ru{«начало дроби … конец дроби»}) remove some of them, natural speech
+keeps the rest. An Earley recogniser \cite{earley1970efficient} over the
+same EBNF serves as an independent reference. Over all four corpora in both
+modes, both accept \DiffBothAccept{} and both reject \DiffBothReject{}
+token sequences; the grammar alone accepts \DiffEarleyOnly{} (spelled
+chemistry the context-free rules cannot exclude) and the parser alone
+accepts \DiffParserOnly. A further \DiffTokenizeFail{} inputs never reach
+comparison because the mathematics tokenizer refuses ordinary words.
+
+\section{Evaluation}\label{sec:eval}
+The compiler is admitted on a fixed benchmark of four corpora pinned by
+SHA-256 and pooled into one sample (Table~\ref{tab:bench}).
+\begin{table}[h]
+\centering
+\begin{tabular}{lrrrr}
+\toprule
+Corpus & Records & AST exact & False rewrites & Upper 95\% \\
+\midrule
+dev-seed-v3 & \DevSeedRecords & \DevSeedExactNum/\DevSeedExactDen
+  & \DevSeedRewriteNum/\DevSeedRewriteDen & \DevSeedRewriteUpper \\
+ambiguous-v2 & \AmbiguousRecords & \AmbiguousExactNum/\AmbiguousExactDen
+  & \AmbiguousRewriteNum/\AmbiguousRewriteDen & \AmbiguousRewriteUpper \\
+nomenclature-v1 & \NomenclatureRecords & \NomenclatureExactNum/\NomenclatureExactDen
+  & \NomenclatureRewriteNum/\NomenclatureRewriteDen & \NomenclatureRewriteUpper \\
+prose-negatives-v2 & \ProseRecords & \ProseExactNum/\ProseExactDen
+  & \ProseRewriteNum/\ProseRewriteDen & \ProseRewriteUpper \\
+\bottomrule
+\end{tabular}
+\caption{Benchmark of the compiler gates. ``False rewrites'' counts ordinary
+sentences turned into notation; the upper bound is the one-sided 95\% bound
+at zero events.}
+\label{tab:bench}
+\end{table}
+Pooled, \PooledRewrites{} of \PooledOrdinary{} ordinary sentences are
+rewritten; the one-sided 95\% upper bound is \PooledUpper. These sentences
+were written for the project, so the bound applies to them and not to live
+speech.
+
+\section{Limitations}
+No live speaker has been recorded; word error rate is unmeasured; every
+benchmark record is hand-written text. The parse level is not calibrated.
+The chemistry grammar is not yet covered by the Earley reference, and no
+grammar probabilities have been estimated.
+
+\section{Reproducibility}
+Every table in this paper is generated from the reports in
+\texttt{research/results}; a test fails when the paper and the reports
+disagree. The corpora, their manifests and the commands that regenerate the
+reports are in the repository.
+
+\bibliographystyle{plain}
+\bibliography{refs}
+\end{document}
