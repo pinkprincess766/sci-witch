@@ -43,7 +43,7 @@ interpret_utterance(text, UtteranceOptions { domain, mode, allow_shortcuts })
 * конфигурации — поле `dictation` (`mixed` | `scientific`), которое читает приложение;
 * приложению — `compile_transcript_with(transcript, domain, mode)`.
 
-**Отдельный оставшийся шаг:** пункт переключения режима в меню tray. Ядро, конфигурация и CLI готовы; сам пункт меню не добавлен, чтобы не смешиваться с незакоммиченными изменениями tray. Пользователь уже может задать режим в конфиге.
+Переключатель режима в меню трея не понадобился: приложение снято 04.10.2026 (тег `app-0.5-final`). Режим задаётся флагом CLI `sciwhisper format --mode mixed|scientific`.
 
 ## 3. Сегментация речи
 

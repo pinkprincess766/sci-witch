@@ -42,6 +42,11 @@ ASR и сборщик голосового корпуса — исследова
 
 - [Проверки исследовательского репозитория](process/RESEARCH_CHECKS_RU.md)
 - [Работа в паре: Claude и Grok](process/PAIR_WORKFLOW_RU.md)
+- [Список задач для агентов](process/BACKLOG_RU.md)
+
+## Статья (`paper/`)
+
+- [Черновик статьи и как он собирается](../paper/README.md)
 
 ## Решения (`decisions/`)
 
