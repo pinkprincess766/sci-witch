@@ -1,0 +1,11 @@
+# Build output of latexmk; the PDF is attached to the CI run instead.
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.synctex.gz
+*.toc
+*.pdf
