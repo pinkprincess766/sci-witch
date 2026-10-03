@@ -193,7 +193,7 @@ cargo run -p sciwhisper-cli -- nbest "карбанат кальция" "карб
 
 `format` compiles text already in hand (Whisper is not invoked). `nbest` chooses one hypothesis, then compiles it. A phrase that does not parse is left as said; `format` on `предел терпения` prints the original words and then exits with code 1 (`could not parse input; raw transcript preserved`).
 
-The tray application (double-tap Control to record, insert into the focused window, optional Word equation) ships in this repository as a **reference frontend**. Compiler gates do not judge it. Click-by-click use and settings: [README.ru.md](README.ru.md). Windows portable-archive notes: [packaging/windows/README-WINDOWS.txt](packaging/windows/README-WINDOWS.txt). Known frontend limits: [docs/user/KNOWN_LIMITATIONS_RU.md](docs/user/KNOWN_LIMITATIONS_RU.md).
+The tray application (double-tap Control to record, insert into the focused window, optional Word equation) ships in this repository as a **reference frontend**. Compiler gates do not judge it. Click-by-click use and settings: [docs/user/USAGE_RU.md](docs/user/USAGE_RU.md). Windows portable-archive notes: [packaging/windows/README-WINDOWS.txt](packaging/windows/README-WINDOWS.txt). Known frontend limits: [docs/user/KNOWN_LIMITATIONS_RU.md](docs/user/KNOWN_LIMITATIONS_RU.md).
 
 ```text
 crates/sciwhisper-core     AST, lexicons, parser, renderers
