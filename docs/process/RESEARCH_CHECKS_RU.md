@@ -80,3 +80,11 @@ frozen test не запечатан; ворота о живой речи не и
 - WAV и микрофон работают без `ffmpeg`, не-WAV даёт понятное сообщение
   (`a_stereo_44k_wav_is_converted_without_ffmpeg`,
   `a_non_wav_file_without_ffmpeg_says_so_instead_of_failing_obscurely`).
+
+Тесты, которые открывают настоящий аудиохост (перечисление микрофонов,
+отмена живой записи), по умолчанию пропускаются: на Windows-раннере CI без
+звуковых устройств перечисление WASAPI иногда роняло процесс тестов с
+`STATUS_ACCESS_VIOLATION`. На машине с микрофоном их запускают явно:
+`SCIWHISPER_AUDIO_TESTS=1 cargo test -p sciwhisper-asr`. Правило выбора
+микрофона по имени (`find_named` в `crates/sciwhisper-asr/src/capture.rs`)
+проверяется без железа.

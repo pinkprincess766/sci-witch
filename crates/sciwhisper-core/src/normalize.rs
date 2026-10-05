@@ -15,14 +15,16 @@ pub fn normalize(text: &str) -> String {
                 out.push(c);
             }
             prev_space = false;
-        } else if ch == ',' {
+        } else if ch == ',' || ch == ':' {
+            // A comma or a colon is a pause between items. Dropping it made
+            // «йод, бром» and «йод: бром» into the compound «йод бром».
             if !prev_space {
                 out.push(' ');
             }
-            out.push(',');
+            out.push(ch);
             out.push(' ');
             prev_space = true;
-        } else if matches!(ch, ';' | ':' | '.' | '!' | '?' | '"' | '\'' | '«' | '»') {
+        } else if matches!(ch, ';' | '.' | '!' | '?' | '"' | '\'' | '«' | '»') {
             if !prev_space {
                 out.push(' ');
             }
@@ -141,7 +143,7 @@ mod tests {
     fn strips_punctuation_and_yo() {
         assert_eq!(
             normalize("Дробь: числитель ещё; знаменатель."),
-            "дробь числитель еще знаменатель"
+            "дробь : числитель еще знаменатель"
         );
     }
 

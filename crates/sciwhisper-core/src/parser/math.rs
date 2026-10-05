@@ -5,7 +5,7 @@ use serde::Deserialize;
 
 use crate::ast::{
     Alphabet, BinOp, Case, DerivativeKind, DerivativeVariable, FunctionKind, GroupKind,
-    LimitDirection, Math, Node, Symbol, UnitExpr, UnitFactor, MAX_DERIVATIVE_ORDER,
+    LimitDirection, Math, Symbol, UnitExpr, UnitFactor, MAX_DERIVATIVE_ORDER,
 };
 use crate::error::{Error, Result};
 use crate::lexicon::Lexicon;
@@ -119,6 +119,8 @@ pub fn parse_math(
     nums: &NumberLex,
     mode: MathMode,
 ) -> Result<MathParse> {
+    #[cfg(test)]
+    PARSE_MATH_CALLS.with(|calls| calls.set(calls.get() + 1));
     let toks = tokenize(words, lex, nums, mode)?;
     if toks.is_empty() {
         return Err(Error::Parse {
@@ -166,13 +168,19 @@ fn reparse_with(toks: &[Tok], binding: RootBinding) -> Option<Math> {
     (p.i >= p.toks.len()).then_some(ast)
 }
 
-pub fn parse_math_node(
-    words: &[String],
-    lex: &Lexicon,
-    nums: &NumberLex,
-    mode: MathMode,
-) -> Result<Node> {
-    Ok(Node::Math(parse_math(words, lex, nums, mode)?.ast))
+#[cfg(test)]
+thread_local! {
+    static PARSE_MATH_CALLS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(test)]
+pub(crate) fn reset_parse_math_calls() {
+    PARSE_MATH_CALLS.with(|calls| calls.set(0));
+}
+
+#[cfg(test)]
+pub(crate) fn parse_math_calls() -> u64 {
+    PARSE_MATH_CALLS.with(|calls| calls.get())
 }
 
 struct Parser<'a> {
@@ -1157,6 +1165,13 @@ pub(crate) fn tokenize(
     while i < words.len() {
         if words[i] == "," {
             out.push(Tok::Comma);
+            i += 1;
+            continue;
+        }
+        // A colon used to be deleted in `normalize`, so a fraction introduced
+        // as «дробь: числитель …» never saw the mark. It is a pause, not a
+        // math operator; chemistry decides for itself whether it splits names.
+        if words[i] == ":" {
             i += 1;
             continue;
         }

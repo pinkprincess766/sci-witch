@@ -13,18 +13,20 @@ use crate::numbers::NumberLex;
 pub const MAX_ATOM_COUNT: u32 = 999;
 
 pub fn parse_chemistry(words: &[String], lex: &Lexicon, nums: &NumberLex) -> Result<Node> {
-    // A comma between two names is the end of one item and the start of the
-    // next, so the two are not read as one compound.
-    if comma_separates_names(words, lex) {
+    // A comma, a colon or a dash between two names is the end of one item
+    // and the start of the next, so the two are not read as one compound.
+    if separator_splits_names(words, lex) {
         return Err(Error::Parse {
             domain: "chemistry",
-            reason: "a comma between two names: they are separate items, not one compound".into(),
+            reason: "punctuation between two names: they are separate items, not one compound"
+                .into(),
         });
     }
-    // Whisper inserts commas around «превращается в».
+    // Whisper inserts commas around «превращается в». A colon or a dash that
+    // did not split two names is the same kind of pause and is dropped here.
     let cleaned: Vec<String> = words
         .iter()
-        .filter(|w| *w != "," && *w != "-" && *w != ".")
+        .filter(|w| !matches!(w.as_str(), "," | ":" | "-" | "."))
         .cloned()
         .collect();
     let words = &cleaned;
@@ -1271,34 +1273,61 @@ fn strip_hydrate(words: &[String]) -> Option<Result<(Vec<String>, u32)>> {
     })
 }
 
-/// Whether a comma sits between two words that would be read as parts of the
-/// same substance.
+/// Whether a comma, a colon or a dash sits between two words that would be
+/// read as parts of the same substance.
 ///
-/// The parser used to drop every comma before it looked at the words, because
-/// Whisper puts commas around «превращается в» and a reaction connective must
-/// not be cut by one. The price was that «йод, бром» became «йод бром» and
-/// was read the way «натрий хлор» is — as a compound — so «Принесли йод, бром
-/// и хлор» came back as «Принесли IBr и Cl₂»: a substance nobody named.
+/// The parser used to drop every one of those marks before it looked at the
+/// words, because Whisper puts commas around «превращается в» and a reaction
+/// connective must not be cut by one. The price was that «йод, бром»,
+/// «йод: бром» and «йод - бром» became «йод бром» and were read the way
+/// «натрий хлор» is — as a compound — so the list came back as IBr: a
+/// substance nobody named.
 ///
-/// A comma is harmless beside a connective («натрий хлор, превращается в,
-/// …», «A, плюс B») or a reaction condition («…, при нагревании, …»): the
-/// words on one side of it are those phrases, not names. Anywhere else it
-/// stands between two names, and two names with a comma between them are two
-/// items. The caller refuses the whole span then; the names are still read on
-/// their own, one by one.
-fn comma_separates_names(words: &[String], lex: &Lexicon) -> bool {
+/// The mark is harmless beside a connective («натрий хлор, превращается в,
+/// …», «A, плюс B»), a reaction condition («…, при нагревании, …») or a
+/// charge said about an ion («ион меди - два плюс»): the words on one side
+/// of it are those phrases, not names. Anywhere else it stands between two
+/// names, and those are two items. The caller refuses the whole span then;
+/// the names are still read on their own, one by one.
+fn separator_splits_names(words: &[String], lex: &Lexicon) -> bool {
     let mut cleaned: Vec<String> = Vec::new();
     let mut comma_before: Vec<bool> = Vec::new();
-    let mut pending = false;
+    let mut weak_before: Vec<bool> = Vec::new();
+    let mut pending: Option<&str> = None;
     for word in words {
         match word.as_str() {
-            "," => pending = true,
-            "-" | "." => {}
+            "," => pending = Some(","),
+            ":" | "-" => pending = pending.or(Some("-")),
+            "." => {}
             _ => {
                 cleaned.push(word.clone());
-                comma_before.push(pending);
-                pending = false;
+                comma_before.push(pending.is_some());
+                weak_before.push(pending == Some("-"));
+                pending = None;
             }
+        }
+    }
+    if !comma_before.iter().any(|comma| *comma) {
+        return false;
+    }
+    // A comma separates whole items: «аш два о, це о два» is two formulas.
+    // A colon or a dash is weaker: a recogniser writes one at a pause, and
+    // a pause inside a spelled formula («це о - два», «эн а - хлор», «аш два
+    // - о два») is still one formula. So a colon or a dash separates only two
+    // *names*: when the word on either side is a spelled letter or a number,
+    // it is not a boundary.
+    let nums_for_spelling = NumberLex::new();
+    let spelled = |word: &str| {
+        lex.latin(word).is_some()
+            || spelling_evidence(lex, word)
+            || FUNCTION_WORD_LETTERS.contains(&word)
+            || nums_for_spelling
+                .consume_int(std::slice::from_ref(&word.to_string()), 0)
+                .is_some()
+    };
+    for index in 1..cleaned.len() {
+        if weak_before[index] && (spelled(&cleaned[index - 1]) || spelled(&cleaned[index])) {
+            comma_before[index] = false;
         }
     }
     if !comma_before.iter().any(|comma| *comma) {
