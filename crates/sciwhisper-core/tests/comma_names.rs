@@ -125,6 +125,63 @@ fn a_comma_between_two_formulas_spelled_out_letter_by_letter_separates_them() {
 // ----------------------------------------------- what must keep working
 
 #[test]
+fn a_colon_or_a_dash_between_names_does_not_form_one_compound() {
+    // The same glue as a comma, through the two marks `normalize` and the
+    // chemistry filter used to throw away. «йод-бром» with no spaces is the
+    // hyphen of «плюс-минус»: it joins two words and stays the compound.
+    for (spoken, forbidden) in [
+        ("Йод: бром.", "IBr"),
+        ("йод: бром", "IBr"),
+        ("йод - бром", "IBr"),
+        ("сера: хлор", "SCl"),
+        ("калий - йод", "KI"),
+        ("натрий хлор - калий йод", "NaClKI"),
+    ] {
+        let out = shown(spoken);
+        assert!(
+            !out.contains(forbidden),
+            "«{spoken}» glued its names into {forbidden}: {out}"
+        );
+    }
+    for spoken in ["Йод: бром.", "йод: бром", "йод - бром", "калий - йод"]
+    {
+        assert_eq!(
+            chemistry(spoken),
+            None,
+            "«{spoken}» was read as one compound"
+        );
+    }
+}
+
+#[test]
+fn a_colon_or_a_dash_between_names_keeps_each_name() {
+    for (spoken, expected) in [
+        ("Йод: бром.", "I₂: Br₂."),
+        ("йод: бром", "I₂: Br₂"),
+        ("йод - бром", "I₂ - Br₂"),
+        ("сера: хлор", "S: Cl₂"),
+        ("калий - йод", "K - I₂"),
+        ("натрий хлор - калий йод", "NaCl - KI"),
+    ] {
+        assert_eq!(shown(spoken), expected, "«{spoken}»");
+    }
+}
+
+#[test]
+fn a_dash_inside_a_charge_or_a_reaction_is_not_a_name_boundary() {
+    // The mark is dropped when one side is a charge or a connective, which
+    // is what «ион меди - два плюс» and a dictated reaction rely on.
+    assert_eq!(shown("ион меди - два плюс"), "Cu²⁺");
+    assert_eq!(shown("сульфат меди, пентагидрат"), "CuSO₄·5H₂O");
+    assert_eq!(
+        shown("гидроксид меди два превращается в оксид меди два плюс вода"),
+        "Cu(OH)₂ → CuO + H₂O"
+    );
+    assert_eq!(shown("натрий хлор, превращается в, калий йод"), "NaCl → KI");
+    assert_eq!(shown("дробь: числитель икс знаменатель два"), "(x)/(2)");
+}
+
+#[test]
 fn a_compound_named_by_its_elements_still_joins_without_a_comma() {
     // The other side of the rule: the same words with no comma between them
     // are the compound. A fix that cut every pair of adjacent names apart
@@ -134,6 +191,7 @@ fn a_compound_named_by_its_elements_still_joins_without_a_comma() {
         ("калий йод", "KI"),
         ("сера хлор", "SCl"),
         ("йод бром", "IBr"),
+        ("йод-бром", "IBr"),
         ("железо три хлор", "Fe₃Cl"),
     ] {
         assert_eq!(shown(spoken), expected, "«{spoken}»");
@@ -236,5 +294,26 @@ fn prose_that_mentions_a_substance_or_two_stays_words() {
         "Натрий и калий мы держим отдельно, медь и цинк можно рядом, а кислоты вообще в другом шкафу.",
     ] {
         assert_eq!(shown(spoken), spoken, "prose was rewritten: «{spoken}»");
+    }
+}
+
+#[test]
+fn a_dash_inside_a_spelled_formula_is_a_pause_not_a_boundary() {
+    // A recogniser writes a dash at a pause. Between two names it separates
+    // items («йод - бром» was the invented IBr); inside a formula spelled
+    // letter by letter it is only the pause, and the formula stays whole.
+    for (spoken, expected) in [
+        ("це о - два", "CO₂"),
+        ("эн а - хлор", "NaCl"),
+        ("аш два - о два", "H₂O₂"),
+    ] {
+        assert_eq!(shown(spoken), expected, "«{spoken}»");
+    }
+    for (spoken, forbidden) in [("йод - бром", "IBr"), ("калий - йод", "KI")] {
+        let out = shown(spoken);
+        assert!(
+            !out.contains(forbidden),
+            "«{spoken}» glued into {forbidden}: {out}"
+        );
     }
 }
