@@ -14,6 +14,20 @@ use proptest::test_runner::{Config as ProptestConfig, RngSeed, TestCaseError};
 use sciwhisper_core::ast::{Arrow, Equation, Formula, Part, Species};
 use sciwhisper_core::balance_equation;
 
+/// A reaction built so that one positive balance is known in advance.
+///
+/// Each left-hand species owns an element that appears in no other left-hand
+/// species. The single right-hand formula is the sum of those species weighted
+/// by the chosen coefficients, so those coefficients together with `1` on the
+/// right are a strictly positive solution. The private elements keep the rows
+/// independent, so the kernel is one-dimensional and that solution is the
+/// primitive one.
+#[derive(Clone, Debug)]
+struct Constructed {
+    equation: Equation,
+    primitive: Vec<u32>,
+}
+
 const ELEMENTS: &[&str] = &["H", "O", "C", "N", "Fe", "Cl", "Na", "Cu"];
 
 fn arb_element() -> impl Strategy<Value = String> {
@@ -107,6 +121,92 @@ fn reorder(species: &[Species], keys: &[u32]) -> (Vec<usize>, Vec<Species>) {
     (order, permuted)
 }
 
+fn permute_parts(parts: &mut Vec<Part>, keys: &[u32]) {
+    if parts.is_empty() {
+        return;
+    }
+    let mut order: Vec<usize> = (0..parts.len()).collect();
+    order.sort_by_key(|&index| (keys[index % keys.len()], index));
+    let old = std::mem::take(parts);
+    *parts = order.into_iter().map(|index| old[index].clone()).collect();
+    for part in parts.iter_mut() {
+        if let Part::Group { inner, .. } = part {
+            permute_parts(&mut inner.parts, keys);
+        }
+    }
+}
+
+fn permute_formulas(equation: &mut Equation, keys: &[u32]) {
+    for species in equation.left.iter_mut().chain(equation.right.iter_mut()) {
+        permute_parts(&mut species.formula.parts, keys);
+    }
+}
+
+/// `k` times a reaction whose formulas already balance: only the dictated
+/// coefficients change. `balance_equation` does not read those coefficients.
+fn scale_dictated(equation: &Equation, primitive: &[u32], k: u32) -> Equation {
+    let mut scaled = equation.clone();
+    for (species, &coeff) in scaled
+        .left
+        .iter_mut()
+        .chain(scaled.right.iter_mut())
+        .zip(primitive)
+    {
+        species.coefficient = coeff * k;
+    }
+    scaled
+}
+
+fn arb_constructed() -> impl Strategy<Value = Constructed> {
+    (1usize..=3)
+        .prop_flat_map(|n_left| {
+            let coeffs = proptest::collection::vec(1u32..=6, n_left);
+            let shared = proptest::collection::vec(proptest::collection::vec(0u32..=3, 2), n_left);
+            (coeffs, shared)
+        })
+        .prop_map(|(coeffs, shared)| {
+            let mut left = Vec::with_capacity(coeffs.len());
+            let mut right_counts: BTreeMap<String, u32> = BTreeMap::new();
+            for (index, (&coeff, shares)) in coeffs.iter().zip(shared).enumerate() {
+                let private = format!("U{index}");
+                let mut parts = vec![Part::Atom {
+                    symbol: private.clone(),
+                    count: 1,
+                }];
+                *right_counts.entry(private).or_insert(0) += coeff;
+                for (share_index, count) in shares.into_iter().enumerate() {
+                    if count == 0 {
+                        continue;
+                    }
+                    let symbol = format!("S{share_index}");
+                    parts.push(Part::Atom {
+                        symbol: symbol.clone(),
+                        count,
+                    });
+                    *right_counts.entry(symbol).or_insert(0) += coeff * count;
+                }
+                left.push(Species::new(Formula { parts }));
+            }
+            let right = Species::new(Formula {
+                parts: right_counts
+                    .into_iter()
+                    .map(|(symbol, count)| Part::Atom { symbol, count })
+                    .collect(),
+            });
+            let mut primitive = coeffs;
+            primitive.push(1);
+            Constructed {
+                equation: Equation {
+                    left,
+                    arrow: Arrow::Forward,
+                    right: vec![right],
+                    condition: None,
+                },
+                primitive,
+            }
+        })
+}
+
 /// A fixed seed, and no failure file written into the source tree.
 ///
 /// proptest's defaults are a fresh random seed on every run and, on failure,
@@ -196,5 +296,64 @@ proptest! {
             expected.push(coeffs[equation.left.len() + old]);
         }
         prop_assert_eq!(permuted_coeffs, expected, "{}", describe(&equation));
+    }
+
+    /// A reaction assembled from chosen coefficients balances as exactly
+    /// those coefficients, made primitive by the trailing 1 on the right.
+    #[test]
+    fn a_reaction_balanced_by_construction_returns_that_primitive_vector(
+        built in arb_constructed(),
+    ) {
+        prop_assert_eq!(
+            balance_equation(&built.equation),
+            Some(built.primitive.clone()),
+            "{}",
+            describe(&built.equation)
+        );
+    }
+
+    /// Multiplying an already balanced reaction by k does not change the
+    /// primitive coefficients the balancer proposes.
+    #[test]
+    fn multiplying_a_balanced_reaction_by_k_keeps_the_primitive_coefficients(
+        built in arb_constructed(),
+        k in 2u32..=9,
+    ) {
+        let scaled = scale_dictated(&built.equation, &built.primitive, k);
+        prop_assert_eq!(
+            balance_equation(&scaled),
+            Some(built.primitive),
+            "k = {}; {}",
+            k,
+            describe(&scaled)
+        );
+    }
+
+    /// The order of pieces inside a formula is not a chemical fact.
+    #[test]
+    fn permuting_elements_inside_formulas_keeps_the_coefficients(
+        built in arb_constructed(),
+        equation in arb_equation(),
+        keys in proptest::collection::vec(any::<u32>(), 8),
+    ) {
+        let mut shuffled = built.equation.clone();
+        permute_formulas(&mut shuffled, &keys);
+        prop_assert_eq!(
+            balance_equation(&shuffled),
+            Some(built.primitive),
+            "{}",
+            describe(&shuffled)
+        );
+
+        let before = balance_equation(&equation);
+        let mut shuffled_arbitrary = equation.clone();
+        permute_formulas(&mut shuffled_arbitrary, &keys);
+        prop_assert_eq!(
+            balance_equation(&shuffled_arbitrary),
+            before.clone(),
+            "before {:?} for {}",
+            before,
+            describe(&equation)
+        );
     }
 }
