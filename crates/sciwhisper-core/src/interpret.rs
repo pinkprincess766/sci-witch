@@ -2,7 +2,7 @@ use crate::ast::{Domain, InterpretationResult, Node, Renderer, UnresolvedSpan, W
 use crate::lexicon::Lexicon;
 use crate::normalize::{normalize, words as split_words};
 use crate::numbers::NumberLex;
-use crate::parser::{math, parse_domain};
+use crate::parser::{parse_domain, DomainParse};
 use crate::render;
 
 #[derive(Clone, Debug)]
@@ -48,41 +48,26 @@ pub fn interpret(text: &str, opts: InterpretOptions) -> InterpretationResult {
     // In `Auto` the domain and the parse are decided together: whichever
     // domain can actually read the phrase wins, and the keyword evidence only
     // breaks a tie. An explicit domain is honoured exactly as before.
-    let (resolved, routed) = match opts.domain {
+    let (resolved, attempt) = match opts.domain {
         Domain::Auto => route(&words, lex, &nums),
-        other => (other, None),
-    };
-    let attempt = match routed {
-        Some(node) => Ok(node),
-        None => parse_domain(&words, resolved, lex, &nums),
+        other => (other, parse_domain(&words, other, lex, &nums)),
     };
 
     match attempt {
-        Ok(ast) => {
-            let mut warnings = Vec::new();
-            let mut alternatives = Vec::new();
-            if resolved == Domain::Mathematics || resolved == Domain::Physics {
-                if let Ok(p) = math::parse_math(
-                    &words,
-                    lex,
-                    &nums,
-                    if resolved == Domain::Physics {
-                        math::MathMode::Physics
-                    } else {
-                        math::MathMode::Math
-                    },
-                ) {
-                    warnings.extend(p.warnings.into_iter().map(|message| Warning {
-                        code: "math".into(),
-                        message,
-                    }));
-                    alternatives.extend(p.alternatives.into_iter().map(Node::Math));
-                }
-            }
+        Ok(parsed) => {
+            let mut warnings: Vec<Warning> = parsed
+                .warnings
+                .into_iter()
+                .map(|message| Warning {
+                    code: "math".into(),
+                    message,
+                })
+                .collect();
+            let alternatives = parsed.alternatives;
             let structural_confidence = if warnings.is_empty() { 0.95 } else { 0.7 };
-            warnings.extend(crate::validate::semantic_warnings(&ast));
+            warnings.extend(crate::validate::semantic_warnings(&parsed.node));
             InterpretationResult {
-                ast,
+                ast: parsed.node,
                 raw_transcript: text.to_string(),
                 normalized_transcript: normalized,
                 domain: resolved,
@@ -268,19 +253,30 @@ fn collect_evidence(words: &[String], lex: &Lexicon) -> Evidence {
 ///
 /// Keyword evidence still decides between readings that all succeeded and
 /// disagree, and it still picks the domain named in a failure message.
-fn route(words: &[String], lex: &Lexicon, nums: &NumberLex) -> (Domain, Option<Node>) {
+fn route(
+    words: &[String],
+    lex: &Lexicon,
+    nums: &NumberLex,
+) -> (Domain, crate::error::Result<DomainParse>) {
     let evidence = collect_evidence(words, lex);
-    let mut parsed: Vec<(Domain, Node)> = Vec::new();
+    let guess = evidence.best_guess();
+    let mut parsed: Vec<(Domain, DomainParse)> = Vec::new();
+    let mut guess_error = None;
     for domain in [Domain::Chemistry, Domain::Mathematics, Domain::Physics] {
-        if let Ok(node) = parse_domain(words, domain, lex, nums) {
-            parsed.push((domain, node));
+        match parse_domain(words, domain, lex, nums) {
+            Ok(reading) => parsed.push((domain, reading)),
+            Err(error) if domain == guess => guess_error = Some(error),
+            Err(_) => {}
         }
     }
     match parsed.len() {
-        0 => (evidence.best_guess(), None),
+        0 => (
+            guess,
+            Err(guess_error.expect("the best-guess domain was one of the three attempts")),
+        ),
         1 => {
-            let (domain, node) = parsed.remove(0);
-            (domain, Some(node))
+            let (domain, reading) = parsed.remove(0);
+            (domain, Ok(reading))
         }
         _ => {
             // Several domains produced something. If they agree, the choice is
@@ -303,11 +299,12 @@ fn route(words: &[String], lex: &Lexicon, nums: &NumberLex) -> (Domain, Option<N
                     _ => Some(domain),
                 })
                 .unwrap_or(Domain::Mathematics);
-            let node = parsed
+            let reading = parsed
                 .into_iter()
                 .find(|(domain, _)| *domain == best)
-                .map(|(_, node)| node);
-            (best, node)
+                .map(|(_, reading)| reading)
+                .expect("the chosen domain was one of the successful parses");
+            (best, Ok(reading))
         }
     }
 }
@@ -321,4 +318,100 @@ pub fn interpret_chemistry(text: &str) -> InterpretationResult {
             allow_shortcuts: true,
         },
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{interpret, InterpretOptions};
+    use crate::ast::{Domain, Renderer};
+    use crate::parser::math::{parse_math_calls, reset_parse_math_calls};
+    use crate::render::render;
+
+    fn calls_for(text: &str, domain: Domain) -> u64 {
+        reset_parse_math_calls();
+        let _ = interpret(
+            text,
+            InterpretOptions {
+                domain,
+                allow_shortcuts: true,
+            },
+        );
+        parse_math_calls()
+    }
+
+    #[test]
+    fn an_explicit_math_phrase_is_parsed_once() {
+        let result = interpret(
+            "икс в квадрате",
+            InterpretOptions {
+                domain: Domain::Mathematics,
+                allow_shortcuts: true,
+            },
+        );
+        assert_eq!(result.confidence, 0.95);
+        assert!(result.warnings.is_empty());
+        assert!(result.alternatives.is_empty());
+        assert_eq!(calls_for("икс в квадрате", Domain::Mathematics), 1);
+    }
+
+    #[test]
+    fn a_math_warning_and_an_open_root_still_come_from_that_single_parse() {
+        reset_parse_math_calls();
+        let warned = interpret(
+            "дельта три",
+            InterpretOptions {
+                domain: Domain::Mathematics,
+                allow_shortcuts: true,
+            },
+        );
+        assert_eq!(parse_math_calls(), 1);
+        assert_eq!(warned.confidence, 0.7);
+        assert!(warned
+            .warnings
+            .iter()
+            .any(|warning| warning.message.contains("ambiguous 'delta <number>'")));
+
+        reset_parse_math_calls();
+        let rooted = interpret(
+            "корень из икс плюс один",
+            InterpretOptions {
+                domain: Domain::Mathematics,
+                allow_shortcuts: true,
+            },
+        );
+        assert_eq!(parse_math_calls(), 1);
+        assert_eq!(render(&rooted.ast, Renderer::Unicode), "√x + 1");
+        assert_eq!(rooted.alternatives.len(), 1);
+        assert_eq!(
+            render(&rooted.alternatives[0], Renderer::Unicode),
+            "√(x + 1)"
+        );
+    }
+
+    #[test]
+    fn auto_parses_each_grammar_once_and_chemistry_stays_chemistry() {
+        // Mathematics and physics both accept this phrase. The old path
+        // parsed the winner a second time to recover warnings.
+        assert_eq!(calls_for("икс в квадрате", Domain::Auto), 2);
+        let math = interpret(
+            "икс в квадрате",
+            InterpretOptions {
+                domain: Domain::Auto,
+                allow_shortcuts: true,
+            },
+        );
+        assert_eq!(math.domain, Domain::Mathematics);
+        assert_eq!(math.confidence, 0.95);
+
+        assert_eq!(calls_for("натрий хлор", Domain::Chemistry), 0);
+        let salt = interpret(
+            "натрий хлор",
+            InterpretOptions {
+                domain: Domain::Auto,
+                allow_shortcuts: true,
+            },
+        );
+        assert_eq!(salt.domain, Domain::Chemistry);
+        assert!(salt.warnings.iter().all(|warning| warning.code != "math"));
+    }
 }

@@ -1880,7 +1880,7 @@ fn a_reference_to_a_missing_function_is_refused() {
     assert!(reference_defects(&none)
         .iter()
         .any(|d| d.contains("no reference to code")));
-    let right = parse_ebnf("(* math.rs:parse_add:L270 *)\ns = X ;\nX = \"x\" ;\n").expect("parses");
+    let right = parse_ebnf("(* math.rs:parse_add:L312 *)\ns = X ;\nX = \"x\" ;\n").expect("parses");
     assert!(reference_defects(&right)
         .iter()
         .all(|d| !d.contains("parse_add")));
