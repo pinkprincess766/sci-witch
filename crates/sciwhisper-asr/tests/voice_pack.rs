@@ -262,6 +262,10 @@ fn the_temporary_wav_is_owned_by_a_guard_and_dies_with_it() {
 fn cancelling_a_real_capture_session_writes_no_audio() {
     // Needs an input device. Where there is none — a headless CI runner — the
     // test says so instead of pretending to have proved something.
+    if !sciwhisper_asr::capture::audio_tests_enabled() {
+        eprintln!("skipped: set SCIWHISPER_AUDIO_TESTS=1 to open the audio host");
+        return;
+    }
     if sciwhisper_asr::capture::input_devices().is_empty() {
         eprintln!("skipped: no input device on this machine");
         return;

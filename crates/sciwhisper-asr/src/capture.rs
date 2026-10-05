@@ -42,14 +42,34 @@ fn select_device(name: Option<&str>) -> Result<cpal::Device> {
     let devices = host
         .input_devices()
         .map_err(|e| Error::Audio(e.to_string()))?;
+    find_named(
+        devices.filter_map(|device| device.name().ok().map(|n| (n, device))),
+        name,
+    )
+}
+
+/// The device called exactly `name`, or an error naming it. Kept apart from
+/// the audio host so the rule — an explicit choice is never swapped for
+/// another device — is tested without opening any hardware.
+fn find_named<T>(devices: impl IntoIterator<Item = (String, T)>, name: &str) -> Result<T> {
     devices
         .into_iter()
-        .find(|d| d.name().is_ok_and(|n| n == name))
+        .find(|(device_name, _)| device_name == name)
+        .map(|(_, device)| device)
         .ok_or_else(|| {
             Error::Audio(format!(
-                "выбранный микрофон «{name}» не найден или отключён; выберите другой в настройках или в трее"
+                "выбранный микрофон «{name}» не найден или отключён; выберите другое устройство"
             ))
         })
+}
+
+/// Whether tests may open the real audio host. Opt-in, because it is
+/// hardware: on the Windows CI runner, which has no audio device, enumerating
+/// WASAPI devices crashed the test binary with STATUS_ACCESS_VIOLATION on some
+/// runs and not others. Set `SCIWHISPER_AUDIO_TESTS=1` on a machine with a
+/// microphone to run them.
+pub fn audio_tests_enabled() -> bool {
+    std::env::var_os("SCIWHISPER_AUDIO_TESTS").is_some_and(|v| v == "1")
 }
 
 pub struct Recording {
@@ -472,18 +492,6 @@ fn which_ffmpeg() -> Option<PathBuf> {
 mod tests {
     use super::*;
 
-    /// Tests that open the audio host take this lock, so they never run at
-    /// the same time. On the Windows CI runner two test threads enumerating
-    /// WASAPI devices at once crashed the whole test binary with
-    /// STATUS_ACCESS_VIOLATION; one at a time they pass.
-    static AUDIO_HOST: std::sync::Mutex<()> = std::sync::Mutex::new(());
-
-    fn audio_host() -> std::sync::MutexGuard<'static, ()> {
-        AUDIO_HOST
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-    }
-
     #[test]
     fn temporary_recording_is_removed_on_drop() {
         let wav = write_wav(&[0.1; 1_600], TARGET_HZ).unwrap();
@@ -493,24 +501,40 @@ mod tests {
         assert!(!path.exists());
     }
 
+    fn named(names: &[&str]) -> Vec<(String, usize)> {
+        names
+            .iter()
+            .enumerate()
+            .map(|(i, n)| (n.to_string(), i))
+            .collect()
+    }
+
+    #[test]
+    fn a_configured_microphone_is_found_by_its_exact_name() {
+        let devices = named(&["Built-in", "USB Mic", "USB Mic 2"]);
+        assert_eq!(find_named(devices, "USB Mic").unwrap(), 1);
+    }
+
     #[test]
     fn missing_configured_microphone_fails_instead_of_silently_substituting() {
         // A device the user explicitly chose must never be silently swapped
         // for another one (e.g. after it is unplugged): the caller has to
-        // see this as an error, not start recording from the wrong mic.
-        let _host = audio_host();
-        let err = select_device(Some("это устройство точно не существует #12345"));
-        assert!(err.is_err());
+        // see this as an error, not start recording from the wrong mic —
+        // not even from one whose name merely contains it.
+        for devices in [named(&[]), named(&["Built-in", "USB Mic 2"])] {
+            let error = find_named(devices, "USB Mic").unwrap_err();
+            assert!(error.to_string().contains("USB Mic"), "{error}");
+        }
     }
 
     #[test]
-    fn no_configured_microphone_falls_back_to_system_default_without_error() {
-        // Absence of a preference is not the same as a missing preference:
-        // `None` should still resolve (or fail only if there is truly no
-        // input device at all), never because of the name-matching branch.
-        let _host = audio_host();
-        let result = select_device(None);
-        if let Err(e) = result {
+    fn the_real_audio_host_resolves_or_reports_a_missing_microphone() {
+        if !audio_tests_enabled() {
+            eprintln!("skipped: set SCIWHISPER_AUDIO_TESTS=1 to open the audio host");
+            return;
+        }
+        assert!(select_device(Some("это устройство точно не существует #12345")).is_err());
+        if let Err(e) = select_device(None) {
             assert!(matches!(e, Error::NoMicrophone));
         }
     }
