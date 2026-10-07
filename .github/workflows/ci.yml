@@ -27,5 +27,10 @@ jobs:
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - name: Test (no Whisper, no microphone)
         run: cargo test --workspace --locked
+      # Release turns off overflow checks and debug assertions; AGENTS.md
+      # runs the core this way too, so arithmetic that only wraps in release
+      # is caught here and not first on someone's machine.
+      - name: Test core (release)
+        run: cargo test -p sciwhisper-core --release --locked
       - name: Build
         run: cargo build --workspace --locked
