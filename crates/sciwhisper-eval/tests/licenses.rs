@@ -236,9 +236,28 @@ fn attribution_uses_the_public_name() {
         "NOTICE".to_string(),
         "DATA_LICENSE.md".to_string(),
     ];
-    for name in ["core", "asr", "cli", "eval", "grammar"] {
-        sources.push(format!("crates/sciwhisper-{name}/Cargo.toml"));
-    }
+    // Every crate directory, not a list kept by hand: a new crate is
+    // checked the day it appears.
+    let mut manifests: Vec<String> = std::fs::read_dir(root().join("crates"))
+        .expect("crates/ is readable")
+        .map(|entry| entry.expect("crates/ entry").path())
+        .filter(|dir| dir.join("Cargo.toml").is_file())
+        .map(|dir| {
+            let name = dir
+                .file_name()
+                .expect("crate dir name")
+                .to_string_lossy()
+                .into_owned();
+            format!("crates/{name}/Cargo.toml")
+        })
+        .collect();
+    manifests.sort();
+    // An empty or partial scan would pass on nothing.
+    assert!(
+        manifests.len() >= 5,
+        "found only {manifests:?} under crates/"
+    );
+    sources.extend(manifests);
     let mut stale = Vec::new();
     for source in &sources {
         let text = std::fs::read_to_string(root().join(source))
