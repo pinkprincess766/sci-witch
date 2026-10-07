@@ -7,6 +7,14 @@
 mod candidates;
 mod canonical;
 mod distance;
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "no report uses WER or CER yet; tested in the module"
+    )
+)]
+mod error_rate;
 mod evaluate;
 mod gate;
 mod lattice_report;

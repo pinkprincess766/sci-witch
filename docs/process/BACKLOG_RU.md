@@ -130,7 +130,7 @@
 
 ## C. Измерения (этап 2, подготовка к живым записям)
 
-### C1. WER и CER в `sciwhisper-eval`
+### C1. WER и CER в `sciwhisper-eval` — **сделано** (Claude, 07.10.2026)
 
 - **Цель.** Сейчас в `crates/sciwhisper-eval` нет метрики ошибок по словам; для
   сравнения с Speech2Latex нужен CER по строке LaTeX (их основная метрика).
