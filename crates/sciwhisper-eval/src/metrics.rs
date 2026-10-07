@@ -19,6 +19,9 @@ const Z95: f64 = 1.959_963_984_540_054;
 pub enum CiMethod {
     Wilson,
     Bootstrap,
+    /// Percentile bootstrap that resamples whole clusters (speakers), not
+    /// single examples; see [`cluster_bootstrap_proportion`].
+    ClusterBootstrap,
     /// No interval is meaningful because the denominator is zero.
     Undefined,
 }
@@ -106,6 +109,81 @@ pub fn bootstrap_proportion(indicators: &[bool], seed: u64, resamples: usize) ->
         ci95_high: Some(high),
         ci_method: CiMethod::Bootstrap,
         zero_count_upper95: (numerator == 0).then(|| 1.0 - 0.05f64.powf(1.0 / n)),
+    }
+}
+
+/// Deterministic percentile bootstrap that resamples **clusters** (speakers)
+/// instead of examples. Recordings of one speaker are correlated, so
+/// resampling recordings treats them as independent and understates the
+/// interval; the unit of independence here is the speaker.
+///
+/// Each inner `Vec` holds one speaker's indicators. A resample draws
+/// `k` speakers with replacement, where `k` is the number of speakers with at
+/// least one example, and takes the pooled proportion of the drawn speakers:
+/// total hits over total examples. The point estimate is the pooled
+/// proportion over all data. The draw is `next_u32() % k`, as in
+/// [`bootstrap_proportion`], so with every cluster of size 1 the two
+/// functions draw the same indices and give the same interval.
+///
+/// Edge cases, all fixed here rather than left to the caller:
+///
+/// - Speakers without examples are dropped up front. A drawn speaker
+///   therefore always contributes at least one example, no resample has a
+///   zero denominator, and no redraw loop exists.
+/// - No clusters, or only empty ones: zero examples, `Undefined`, no value.
+/// - `resamples == 0`: the Wilson interval on the pooled counts, exactly as
+///   `bootstrap_proportion` does. That interval treats examples as
+///   independent, so it is the one case that does not respect clusters.
+/// - A single non-empty speaker: every resample is that speaker, the
+///   interval collapses to the point estimate. One speaker carries no
+///   information about between-speaker variation; the caller must not read
+///   the zero width as certainty.
+///
+/// `zero_count_upper95` is always `None`: the exact binomial bound
+/// `1 − 0.05^(1/n)` assumes independent examples, which is the assumption
+/// this function exists to drop.
+#[cfg_attr(
+    not(test),
+    expect(dead_code, reason = "not yet wired into a report; tested below")
+)]
+pub fn cluster_bootstrap_proportion(
+    clusters: &[Vec<bool>],
+    seed: u64,
+    resamples: usize,
+) -> Proportion {
+    // (hits, examples) per non-empty speaker.
+    let speakers: Vec<(usize, usize)> = clusters
+        .iter()
+        .filter(|cluster| !cluster.is_empty())
+        .map(|cluster| (cluster.iter().filter(|hit| **hit).count(), cluster.len()))
+        .collect();
+    let numerator: usize = speakers.iter().map(|(hits, _)| hits).sum();
+    let denominator: usize = speakers.iter().map(|(_, examples)| examples).sum();
+    if denominator == 0 || resamples == 0 {
+        return proportion(numerator, denominator);
+    }
+    let mut rng = Pcg32::new(seed);
+    let mut means = Vec::with_capacity(resamples);
+    for _ in 0..resamples {
+        let mut hits = 0usize;
+        let mut examples = 0usize;
+        for _ in 0..speakers.len() {
+            let (speaker_hits, speaker_examples) =
+                speakers[(rng.next_u32() as usize) % speakers.len()];
+            hits += speaker_hits;
+            examples += speaker_examples;
+        }
+        means.push(hits as f64 / examples as f64);
+    }
+    means.sort_by(|a, b| a.partial_cmp(b).expect("bootstrap means are finite"));
+    Proportion {
+        numerator,
+        denominator,
+        value: Some(numerator as f64 / denominator as f64),
+        ci95_low: Some(means[percentile_index(means.len(), 2.5)]),
+        ci95_high: Some(means[percentile_index(means.len(), 97.5)]),
+        ci_method: CiMethod::ClusterBootstrap,
+        zero_count_upper95: None,
     }
 }
 
@@ -510,6 +588,161 @@ mod tests {
         assert_eq!(first.value, Some(0.75));
         assert!(first.ci95_low.unwrap() <= 0.75 && first.ci95_high.unwrap() >= 0.75);
         assert_eq!(first.ci_method, CiMethod::Bootstrap);
+    }
+
+    fn flatten(clusters: &[Vec<bool>]) -> Vec<bool> {
+        clusters.iter().flatten().copied().collect()
+    }
+
+    /// Ten speakers with four recordings each: five always right, five always
+    /// wrong. Within a speaker the recordings are perfectly correlated.
+    fn perfectly_correlated_speakers() -> Vec<Vec<bool>> {
+        (0..10).map(|speaker| vec![speaker % 2 == 0; 4]).collect()
+    }
+
+    #[test]
+    fn the_cluster_bootstrap_is_reproducible() {
+        let clusters = perfectly_correlated_speakers();
+        let first = cluster_bootstrap_proportion(&clusters, 20261007, 500);
+        let second = cluster_bootstrap_proportion(&clusters, 20261007, 500);
+        assert_eq!(first, second);
+        assert_eq!(first.ci_method, CiMethod::ClusterBootstrap);
+        // 20 hits of 40 examples.
+        assert_eq!((first.numerator, first.denominator), (20, 40));
+        assert_eq!(first.value, Some(0.5));
+        assert_eq!(first.zero_count_upper95, None);
+        // The all-or-nothing speakers above give a coarse interval that two
+        // seeds can share; speakers of mixed accuracy and size do not.
+        let mixed: Vec<Vec<bool>> = (1..=9)
+            .map(|speaker| (0..speaker).map(|index| index % 3 != 0).collect())
+            .collect();
+        let intervals: Vec<(Option<f64>, Option<f64>)> = (0..8u64)
+            .map(|seed| {
+                let p = cluster_bootstrap_proportion(&mixed, seed, 300);
+                (p.ci95_low, p.ci95_high)
+            })
+            .collect();
+        assert!(
+            intervals.iter().any(|interval| *interval != intervals[0]),
+            "the seed must matter: {intervals:?}"
+        );
+    }
+
+    #[test]
+    fn with_every_cluster_of_size_one_it_draws_like_the_example_bootstrap() {
+        // Same PRNG, same `next_u32() % n`, same sort and percentile: the
+        // interval must be bit-identical to the example bootstrap.
+        let indicators: Vec<bool> = (0..40).map(|index| index % 4 != 0).collect();
+        let clusters: Vec<Vec<bool>> = indicators.iter().map(|hit| vec![*hit]).collect();
+        let by_example = bootstrap_proportion(&indicators, 20260904, 500);
+        let by_cluster = cluster_bootstrap_proportion(&clusters, 20260904, 500);
+        assert_eq!(by_cluster.ci95_low, by_example.ci95_low);
+        assert_eq!(by_cluster.ci95_high, by_example.ci95_high);
+        assert_eq!(by_cluster.value, by_example.value);
+        assert_eq!(by_cluster.numerator, by_example.numerator);
+        assert_eq!(by_cluster.denominator, by_example.denominator);
+        assert_eq!(by_cluster.ci_method, CiMethod::ClusterBootstrap);
+    }
+
+    #[test]
+    fn two_opposite_speakers_give_hand_computable_bounds() {
+        // Speaker A: 3 of 3 right. Speaker B: 1 of 1 wrong. Each resample
+        // draws two speakers, so the pooled proportion is one of
+        //   A,A: 6/6 = 1      (probability 1/4)
+        //   B,B: 0/2 = 0      (probability 1/4)
+        //   A,B or B,A: 3/4   (probability 1/2)
+        // P(0) = 1/4 > 2.5% and P(1) = 1/4 > 2.5%, so the nearest-rank 2.5th
+        // percentile is 0 and the 97.5th is 1. Point estimate: 3/4.
+        let clusters = vec![vec![true; 3], vec![false]];
+        let p = cluster_bootstrap_proportion(&clusters, 7, 2000);
+        assert_eq!((p.numerator, p.denominator), (3, 4));
+        assert_eq!(p.value, Some(0.75));
+        assert_eq!(p.ci95_low, Some(0.0));
+        assert_eq!(p.ci95_high, Some(1.0));
+    }
+
+    #[test]
+    fn a_single_speaker_collapses_the_interval_to_the_point() {
+        // Every resample is that one speaker: 3/4 each time.
+        let clusters = vec![vec![true, true, true, false]];
+        let p = cluster_bootstrap_proportion(&clusters, 7, 100);
+        assert_eq!(p.value, Some(0.75));
+        assert_eq!(p.ci95_low, Some(0.75));
+        assert_eq!(p.ci95_high, Some(0.75));
+    }
+
+    #[test]
+    fn correlated_speakers_widen_the_interval_beyond_the_example_bootstrap() {
+        // The test an implementation resampling examples would pass wrongly:
+        // every speaker is all-right or all-wrong, so 40 recordings carry
+        // the information of about 10. By hand, the example bootstrap has
+        // sd = sqrt(0.25 / 40) = 0.079, interval about 0.5 ± 0.155; the
+        // cluster bootstrap has sd = sqrt(0.25 / 10) = 0.158, about
+        // 0.5 ± 0.31. Wider by a factor near two.
+        let clusters = perfectly_correlated_speakers();
+        let by_example = bootstrap_proportion(&flatten(&clusters), 20261007, 2000);
+        let by_cluster = cluster_bootstrap_proportion(&clusters, 20261007, 2000);
+        assert_eq!(by_cluster.value, by_example.value);
+        let example_width = by_example.ci95_high.unwrap() - by_example.ci95_low.unwrap();
+        let cluster_width = by_cluster.ci95_high.unwrap() - by_cluster.ci95_low.unwrap();
+        assert!(
+            cluster_width > example_width,
+            "cluster width {cluster_width} must exceed example width {example_width}"
+        );
+        assert!(
+            cluster_width > 1.5 * example_width,
+            "cluster width {cluster_width} should be near twice {example_width}"
+        );
+    }
+
+    #[test]
+    fn the_cluster_bootstrap_without_data_is_undefined_not_zero() {
+        for clusters in [Vec::new(), vec![Vec::new()], vec![Vec::new(); 5]] {
+            let p = cluster_bootstrap_proportion(&clusters, 1, 100);
+            assert_eq!((p.numerator, p.denominator), (0, 0));
+            assert_eq!(p.value, None);
+            assert_eq!(p.ci95_low, None);
+            assert_eq!(p.ci95_high, None);
+            assert_eq!(p.ci_method, CiMethod::Undefined);
+        }
+    }
+
+    #[test]
+    fn empty_speakers_are_excluded_and_do_not_change_the_result() {
+        // A zero-example speaker has no pooled contribution; drawing it
+        // would give 0/0. It is dropped up front, so inserting it anywhere
+        // leaves the result bit-identical (same number of draws, same
+        // indices).
+        let clusters = perfectly_correlated_speakers();
+        let mut padded = clusters.clone();
+        padded.insert(0, Vec::new());
+        padded.insert(4, Vec::new());
+        padded.push(Vec::new());
+        let plain = cluster_bootstrap_proportion(&clusters, 20261007, 300);
+        let with_empty = cluster_bootstrap_proportion(&padded, 20261007, 300);
+        assert_eq!(plain, with_empty);
+        assert!(with_empty.ci95_low.unwrap().is_finite());
+        assert!(with_empty.ci95_high.unwrap().is_finite());
+    }
+
+    #[test]
+    fn zero_cluster_resamples_fall_back_to_wilson_like_the_example_bootstrap() {
+        let clusters = perfectly_correlated_speakers();
+        let p = cluster_bootstrap_proportion(&clusters, 1, 0);
+        assert_eq!(p, proportion(20, 40));
+        assert_eq!(p.ci_method, CiMethod::Wilson);
+        // Same fallback as `bootstrap_proportion` with zero resamples.
+        assert_eq!(p, bootstrap_proportion(&flatten(&clusters), 1, 0));
+    }
+
+    #[test]
+    fn the_cluster_bootstrap_method_serialises_as_cluster_bootstrap() {
+        let name = |method: CiMethod| serde_json::to_string(&method).unwrap();
+        assert_eq!(name(CiMethod::ClusterBootstrap), "\"cluster_bootstrap\"");
+        // The existing names are unchanged.
+        assert_eq!(name(CiMethod::Bootstrap), "\"bootstrap\"");
+        assert_eq!(name(CiMethod::Wilson), "\"wilson\"");
+        assert_eq!(name(CiMethod::Undefined), "\"undefined\"");
     }
 
     fn species(count: u32, coefficient: u32, charge: Option<i32>) -> Node {
