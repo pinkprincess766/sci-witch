@@ -2,7 +2,7 @@
 
 Собственные словари и course packs в `crates/sciwhisper-core/data/` распространяются на условиях Creative Commons Attribution 4.0 International (CC BY 4.0).
 
-Авторство: **SciWhisper contributors**.
+Авторство: **sci-witch contributors**.
 
 Текст лицензии: <https://creativecommons.org/licenses/by/4.0/legalcode>
 
