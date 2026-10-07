@@ -98,3 +98,9 @@ Temperature scaling относится к логитам Whisper. К четыр�
 - Обучать модель на `spk04` или `spk05`.
 - Понижать `MIN_ERRORS_TO_FIT` или `MIN_EXAMPLES_PER_LEVEL`, чтобы прогон стал возможен.
 - Менять таксономию серьёзности, ворота или контракт AST ради числа.
+
+## Пометки после регистрации
+
+Правила выше не меняются. Здесь только факты о коде, которые изменились после того, как файл записан.
+
+- 08.10.2026. Число деревьев вывода считает `count_parses` в `crates/sciwhisper-grammar/src/earley.rs`, поэтому строка «`recognise` не возвращает число деревьев» в таблице признаков устарела. Признаком калибровки `count_parses` не подключён. Бутстрэп по дикторам появился: `cluster_bootstrap_proportion` в `crates/sciwhisper-eval/src/metrics.rs`. По-прежнему нет log-prob токенов, `no_speech_prob`, `log P` по PCFG, AURC и log loss. Запрет на подсчёт test в силе.
