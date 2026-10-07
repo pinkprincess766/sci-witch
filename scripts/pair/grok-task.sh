@@ -168,8 +168,18 @@ prompt_header() {
   принять твою работу, — команды целиком.
 - Правила из раздела «Прежде чем сказать „готово“» выполняй поиском по коду:
   найди всех, кто опирается на то, что ты меняешь.
-- Отчёт в конце — строго по схеме. Всё, что не сделано, — в not_done.
+- Всё, что не сделано, — в not_done.
+
+Отчёт. Ровно один, в самом конце, когда все файлы уже записаны. До этого —
+никаких промежуточных отчётов, никаких JSON-объектов в сообщениях: пока работаешь,
+пиши обычный текст или вызывай инструменты. Отчёт — последнее сообщение: один
+JSON-объект по схеме ниже, без пояснений до и после него. Сообщение с отчётом
+завершает работу; всё, что сделано после него, никто не увидит. Если отчёта нет
+или в нём не хватает обязательного поля, работа не принимается.
+
+Схема отчёта (JSON Schema):
 EOF
+    cat "$HERE/report-schema.json"
 }
 
 run_round() {
@@ -188,7 +198,6 @@ run_round() {
 
     local args=(
         --prompt-file "$prompt"
-        --json-schema "$(cat "$HERE/report-schema.json")"
         --max-turns "$MAX_TURNS"
         --permission-mode dontAsk
         --rules "$(cat "$run/rules.md")"
@@ -234,9 +243,42 @@ run_round() {
         printf 'yes\n' >"$run/tripped"
     fi
 
-    python3 - "$run" "$round" "$rc" "$tripped" <<'PY'
+    python3 - "$run" "$round" "$rc" "$tripped" "$HERE/report-schema.json" <<'PY'
 import json, pathlib, sys
 run, round_, rc, tripped = pathlib.Path(sys.argv[1]), sys.argv[2], int(sys.argv[3]), sys.argv[4]
+schema = json.loads(pathlib.Path(sys.argv[5]).read_text(encoding="utf-8"))
+
+
+def check(value, node, where="отчёт"):
+    """Stdlib-only check of the subset of JSON Schema that report-schema.json
+    uses: type, required, properties, additionalProperties, items. Returns a
+    list of problems; empty means the value fits."""
+    kind = node.get("type")
+    types = {"object": dict, "array": list, "string": str}
+    # A keyword this checker does not know would be skipped silently and
+    # let a wrong report through; stop instead.
+    unknown = set(node) - {"type", "required", "properties", "additionalProperties", "items", "description"}
+    if unknown or kind not in types:
+        sys.exit(f"report-schema.json: checker does not support {sorted(unknown) or kind!r}; extend check()")
+    if kind in types and not isinstance(value, types[kind]):
+        return [f"{where}: ожидался {kind}, получен {type(value).__name__}"]
+    problems = []
+    if kind == "object":
+        props = node.get("properties", {})
+        for key in node.get("required", []):
+            if key not in value:
+                problems.append(f"{where}: нет обязательного поля {key}")
+        for key, item in value.items():
+            if key in props:
+                problems += check(item, props[key], f"{where}.{key}")
+            elif node.get("additionalProperties") is False:
+                problems.append(f"{where}: лишнее поле {key}")
+    elif kind == "array" and "items" in node:
+        for number, item in enumerate(value):
+            problems += check(item, node["items"], f"{where}[{number}]")
+    return problems
+
+
 raw = (run / f"round-{round_}.json").read_text(encoding="utf-8")
 print(f"запуск {run.name}, раунд {round_}, код выхода grok {rc}")
 try:
@@ -257,29 +299,42 @@ if tripped == "yes":
     print("РАСТЯЖКА: настоящее рабочее дерево изменилось за время раунда. Раунд не принимается.")
 if out.get("stopReason") == "cancelled":
     print("ЗАПУСК ОБОРВАН: стажёр попытался сделать то, что ему запрещено.")
-# The schema constrains every message, not only the last one, so the text
-# is a run of JSON objects: one per step, the report last. Only the last one
-# is the report, and only if the run ended normally.
+# The schema is not passed to grok (the CLI applies it to every assistant
+# message and ends the run after the first one), so the text is free prose and
+# the report is asked for in the prompt, once, at the very end. The report is
+# the last JSON object in the text that fits the schema. An object that does
+# not fit (an early {"status": ...}, a report missing a field) is not a
+# report, even if it is the only JSON there is. Only top-level objects are
+# examined: after an object parses, scanning resumes after it.
 text = out.get("text") or ""
-objects, index, decoder = [], 0, json.JSONDecoder()
-while index < len(text):
-    while index < len(text) and text[index].isspace():
-        index += 1
-    if index >= len(text):
+found, rejected, index, decoder = [], [], 0, json.JSONDecoder()
+while True:
+    index = text.find("{", index)
+    if index < 0:
         break
     try:
-        value, index = decoder.raw_decode(text, index)
-        objects.append(value)
+        value, end = decoder.raw_decode(text, index)
     except json.JSONDecodeError:
-        break
-if objects:
+        index += 1
+        continue
+    problems = check(value, schema)
+    if problems:
+        rejected.append(problems)
+    else:
+        found.append(value)
+    index = end
+if found:
+    report = found[-1]
     (run / f"report-{round_}.json").write_text(
-        json.dumps(objects[-1], ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    label = "отчёт стажёра" if out.get("stopReason") == "end_turn" else "последнее сообщение стажёра (запуск не завершён — это не отчёт)"
+        json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    label = "отчёт стажёра" if out.get("stopReason") == "end_turn" else "отчёт найден, но запуск не завершён (stopReason не end_turn) — не принимать"
     print(f"{label}:")
-    print(json.dumps(objects[-1], ensure_ascii=False, indent=2))
+    print(json.dumps(report, ensure_ascii=False, indent=2))
 else:
-    print("отчёта нет; текст:", text[:800])
+    print("ОТЧЁТА НЕТ: в тексте нет JSON-объекта по схеме report-schema.json. Запуск не принят.")
+    for problems in rejected:
+        print("  отклонён объект:", "; ".join(problems[:3]))
+    print("текст:", text[:800])
 PY
     printf '\nизменения стажёра:\n'
     git -C "$run/worktree" diff --stat \
