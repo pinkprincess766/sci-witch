@@ -224,3 +224,42 @@ fn the_lockfile_reader_finds_the_dependencies_it_should() {
         );
     }
 }
+
+/// Attribution names the project by its public name. `sciwhisper` stays as
+/// the internal name of the crates and the binary (README says so), but the
+/// authors, the crate descriptions, NOTICE and the data licence are what a
+/// reader of a package or a distribution sees as "who made this".
+#[test]
+fn attribution_uses_the_public_name() {
+    let mut sources = vec![
+        "Cargo.toml".to_string(),
+        "NOTICE".to_string(),
+        "DATA_LICENSE.md".to_string(),
+    ];
+    for name in ["core", "asr", "cli", "eval", "grammar"] {
+        sources.push(format!("crates/sciwhisper-{name}/Cargo.toml"));
+    }
+    let mut stale = Vec::new();
+    for source in &sources {
+        let text = std::fs::read_to_string(root().join(source))
+            .unwrap_or_else(|error| panic!("{source}: {error}"));
+        // NOTICE: its header, up to the first rule line, is attribution.
+        let notice_header = source == "NOTICE";
+        for line in text.lines() {
+            if notice_header && line.starts_with("---") {
+                break;
+            }
+            let attribution = notice_header
+                || line.starts_with("authors")
+                || line.starts_with("description")
+                || line.starts_with("Авторство");
+            if attribution && line.contains("SciWhisper") {
+                stale.push(format!("{source}: {line}"));
+            }
+        }
+    }
+    assert!(
+        stale.is_empty(),
+        "attribution still uses the internal name SciWhisper: {stale:#?}"
+    );
+}

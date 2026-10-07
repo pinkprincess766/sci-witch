@@ -22,7 +22,7 @@ edition = "2021"
 # because that is the compiler the suite is run on.
 rust-version = "1.98"
 license = "Apache-2.0"
-authors = ["SciWhisper contributors"]
+authors = ["sci-witch contributors"]
 description = "Compiler from transcribed Russian scientific speech to a typed structure (research)"
 
 [workspace.dependencies]
