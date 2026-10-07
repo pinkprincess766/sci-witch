@@ -284,6 +284,17 @@ mod tests {
         assert_eq!(balance("H2 + H2 -> H2 + H2"), None);
     }
 
+    #[test]
+    fn two_independent_reactions_in_one_equation_abstain() {
+        // C + O2 -> CO2 and 2Na + Cl2 -> 2NaCl share no element, so any
+        // positive mix of the two balances: rank 4 over 6 species leaves a
+        // two-dimensional kernel, and no single answer is the right one.
+        assert_eq!(balance("C + O2 + Na + Cl2 -> CO2 + NaCl"), None);
+        // Each half on its own has a one-dimensional kernel and balances.
+        assert_eq!(balance("C + O2 -> CO2"), Some(vec![1, 1, 1]));
+        assert_eq!(balance("Na + Cl2 -> NaCl"), Some(vec![2, 1, 2]));
+    }
+
     fn charged(symbol: &str, charge: i32) -> Species {
         Species {
             charge: Some(charge),
