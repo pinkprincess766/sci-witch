@@ -1,0 +1,330 @@
+{
+  "cells": {
+    "ambiguous-v2": {
+      "math": {
+        "both_accept": 7,
+        "both_reject": 0,
+        "earley_only": 2,
+        "parser_only": 0,
+        "tokenize_fail": 49
+      },
+      "physics": {
+        "both_accept": 7,
+        "both_reject": 0,
+        "earley_only": 2,
+        "parser_only": 0,
+        "tokenize_fail": 49
+      }
+    },
+    "dev-seed-v3": {
+      "math": {
+        "both_accept": 36,
+        "both_reject": 7,
+        "earley_only": 3,
+        "parser_only": 0,
+        "tokenize_fail": 67
+      },
+      "physics": {
+        "both_accept": 56,
+        "both_reject": 7,
+        "earley_only": 3,
+        "parser_only": 0,
+        "tokenize_fail": 47
+      }
+    },
+    "nomenclature-v1": {
+      "math": {
+        "both_accept": 4,
+        "both_reject": 0,
+        "earley_only": 0,
+        "parser_only": 0,
+        "tokenize_fail": 49
+      },
+      "physics": {
+        "both_accept": 4,
+        "both_reject": 0,
+        "earley_only": 0,
+        "parser_only": 0,
+        "tokenize_fail": 49
+      }
+    },
+    "prose-negatives-v2": {
+      "math": {
+        "both_accept": 0,
+        "both_reject": 0,
+        "earley_only": 0,
+        "parser_only": 0,
+        "tokenize_fail": 180
+      },
+      "physics": {
+        "both_accept": 0,
+        "both_reject": 0,
+        "earley_only": 0,
+        "parser_only": 0,
+        "tokenize_fail": 180
+      }
+    }
+  },
+  "max_parses": 1000,
+  "most_parses": [
+    {
+      "corpus": "dev-seed-v3",
+      "count": 8,
+      "mode": "physics",
+      "text": "девять целых восемьдесят одна метра на секунду в квадрате"
+    },
+    {
+      "corpus": "dev-seed-v3",
+      "count": 6,
+      "mode": "physics",
+      "text": "интеграл пять ньютонов по два метра"
+    },
+    {
+      "corpus": "dev-seed-v3",
+      "count": 6,
+      "mode": "math",
+      "text": "интеграл эф дэ икс"
+    },
+    {
+      "corpus": "dev-seed-v3",
+      "count": 6,
+      "mode": "physics",
+      "text": "интеграл эф дэ икс"
+    },
+    {
+      "corpus": "dev-seed-v3",
+      "count": 6,
+      "mode": "physics",
+      "text": "производная десять метров по пять секунд"
+    },
+    {
+      "corpus": "dev-seed-v3",
+      "count": 4,
+      "mode": "physics",
+      "text": "пять вольт плюс три ампера"
+    },
+    {
+      "corpus": "dev-seed-v3",
+      "count": 4,
+      "mode": "physics",
+      "text": "три метра плюс четыре сантиметра"
+    },
+    {
+      "corpus": "dev-seed-v3",
+      "count": 4,
+      "mode": "physics",
+      "text": "три метра плюс четыре секунды"
+    },
+    {
+      "corpus": "ambiguous-v2",
+      "count": 3,
+      "mode": "math",
+      "text": "корень из икс плюс один"
+    },
+    {
+      "corpus": "ambiguous-v2",
+      "count": 3,
+      "mode": "physics",
+      "text": "корень из икс плюс один"
+    },
+    {
+      "corpus": "dev-seed-v3",
+      "count": 3,
+      "mode": "math",
+      "text": "корень из икс плюс один"
+    },
+    {
+      "corpus": "dev-seed-v3",
+      "count": 3,
+      "mode": "physics",
+      "text": "корень из икс плюс один"
+    },
+    {
+      "corpus": "ambiguous-v2",
+      "count": 3,
+      "mode": "math",
+      "text": "корень из икс плюс один равно два"
+    },
+    {
+      "corpus": "ambiguous-v2",
+      "count": 3,
+      "mode": "physics",
+      "text": "корень из икс плюс один равно два"
+    },
+    {
+      "corpus": "dev-seed-v3",
+      "count": 3,
+      "mode": "physics",
+      "text": "синус трёх метров"
+    },
+    {
+      "corpus": "dev-seed-v3",
+      "count": 2,
+      "mode": "math",
+      "text": "аш два о"
+    },
+    {
+      "corpus": "dev-seed-v3",
+      "count": 2,
+      "mode": "physics",
+      "text": "аш два о"
+    },
+    {
+      "corpus": "ambiguous-v2",
+      "count": 2,
+      "mode": "math",
+      "text": "аш два эс о четыре"
+    },
+    {
+      "corpus": "ambiguous-v2",
+      "count": 2,
+      "mode": "physics",
+      "text": "аш два эс о четыре"
+    },
+    {
+      "corpus": "dev-seed-v3",
+      "count": 2,
+      "mode": "math",
+      "text": "аш два эс о четыре"
+    },
+    {
+      "corpus": "dev-seed-v3",
+      "count": 2,
+      "mode": "physics",
+      "text": "аш два эс о четыре"
+    },
+    {
+      "corpus": "dev-seed-v3",
+      "count": 2,
+      "mode": "math",
+      "text": "два аш два о"
+    },
+    {
+      "corpus": "dev-seed-v3",
+      "count": 2,
+      "mode": "physics",
+      "text": "два аш два о"
+    },
+    {
+      "corpus": "dev-seed-v3",
+      "count": 2,
+      "mode": "physics",
+      "text": "два в степени три метра"
+    },
+    {
+      "corpus": "dev-seed-v3",
+      "count": 2,
+      "mode": "physics",
+      "text": "два моля"
+    },
+    {
+      "corpus": "ambiguous-v2",
+      "count": 2,
+      "mode": "math",
+      "text": "дельта же равно минус эн эф е"
+    },
+    {
+      "corpus": "ambiguous-v2",
+      "count": 2,
+      "mode": "physics",
+      "text": "дельта же равно минус эн эф е"
+    },
+    {
+      "corpus": "dev-seed-v3",
+      "count": 2,
+      "mode": "math",
+      "text": "дельта же равно минус эн эф е"
+    },
+    {
+      "corpus": "dev-seed-v3",
+      "count": 2,
+      "mode": "physics",
+      "text": "дельта же равно минус эн эф е"
+    },
+    {
+      "corpus": "dev-seed-v3",
+      "count": 2,
+      "mode": "physics",
+      "text": "десять джоулей"
+    }
+  ],
+  "most_parses_cap": 30,
+  "note": "Derivation-tree counts for Earley-accepted tokenisations of the start symbol (both_accept + earley_only). Dynamic programming on completed chart items; no packed forest. above_10 includes every count above 10 and every count that hit the cap. at_least_max is the subset that hit the cap, including nullable cycles. A count equal to max_parses is exact and is not at_least_max. most_parses keeps the highest counts; ties break by text, then corpus, then mode. Semantic constraints and special sequences are not enforced. Cell definitions match grammar-differential-v1.json.",
+  "parse_counts": {
+    "ambiguous-v2": {
+      "math": {
+        "above_10": 0,
+        "accepted": 9,
+        "at_least_max": 0,
+        "exact_1": 5,
+        "exact_2": 2,
+        "exact_3_to_10": 2
+      },
+      "physics": {
+        "above_10": 0,
+        "accepted": 9,
+        "at_least_max": 0,
+        "exact_1": 5,
+        "exact_2": 2,
+        "exact_3_to_10": 2
+      }
+    },
+    "dev-seed-v3": {
+      "math": {
+        "above_10": 0,
+        "accepted": 39,
+        "at_least_max": 0,
+        "exact_1": 31,
+        "exact_2": 6,
+        "exact_3_to_10": 2
+      },
+      "physics": {
+        "above_10": 0,
+        "accepted": 59,
+        "at_least_max": 0,
+        "exact_1": 31,
+        "exact_2": 19,
+        "exact_3_to_10": 9
+      }
+    },
+    "nomenclature-v1": {
+      "math": {
+        "above_10": 0,
+        "accepted": 4,
+        "at_least_max": 0,
+        "exact_1": 4,
+        "exact_2": 0,
+        "exact_3_to_10": 0
+      },
+      "physics": {
+        "above_10": 0,
+        "accepted": 4,
+        "at_least_max": 0,
+        "exact_1": 4,
+        "exact_2": 0,
+        "exact_3_to_10": 0
+      }
+    },
+    "prose-negatives-v2": {
+      "math": {
+        "above_10": 0,
+        "accepted": 0,
+        "at_least_max": 0,
+        "exact_1": 0,
+        "exact_2": 0,
+        "exact_3_to_10": 0
+      },
+      "physics": {
+        "above_10": 0,
+        "accepted": 0,
+        "at_least_max": 0,
+        "exact_1": 0,
+        "exact_2": 0,
+        "exact_3_to_10": 0
+      }
+    }
+  },
+  "start": "math_input",
+  "syntactic_literals": [],
+  "version": "grammar-differential-v2"
+}

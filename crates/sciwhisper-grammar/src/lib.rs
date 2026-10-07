@@ -10,9 +10,17 @@
 //! of the «семантические ограничения» section) are not checked. Special
 //! sequences `? … ?` are not checked either. The recogniser therefore
 //! accepts a superset of what the handwritten parser accepts.
+//!
+//! [`count_parses`] counts derivation trees of an accepted token string
+//! from the Earley chart. It is the ambiguity measure for the grammar
+//! report. It does not build a packed forest and it is not consulted by
+//! the product parser.
 
 pub mod earley;
 pub mod ebnf;
 
-pub use earley::{recognise, Recognition, MAX_ITEMS, MAX_TOKENS};
+pub use earley::{
+    count_parses, recognise, CountOutcome, ParseCount, Recognition, MAX_ITEMS, MAX_PARSES,
+    MAX_TOKENS,
+};
 pub use ebnf::{parse, Expr, Grammar, Rule};
