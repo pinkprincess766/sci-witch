@@ -207,6 +207,18 @@ fn arb_constructed() -> impl Strategy<Value = Constructed> {
         })
 }
 
+/// The same reaction over a disjoint set of elements: every symbol gets
+/// `prefix` in front, so it shares no row of the matrix with the original.
+fn rename_elements(parts: &mut [Part], prefix: &str) {
+    for part in parts {
+        match part {
+            Part::Atom { symbol, .. } => *symbol = format!("{prefix}{symbol}"),
+            Part::Group { inner, .. } => rename_elements(&mut inner.parts, prefix),
+            _ => {}
+        }
+    }
+}
+
 /// A fixed seed, and no failure file written into the source tree.
 ///
 /// proptest's defaults are a fresh random seed on every run and, on failure,
@@ -355,5 +367,24 @@ proptest! {
             before,
             describe(&equation)
         );
+    }
+
+    /// Two reactions on disjoint elements written as one equation have a
+    /// kernel of dimension two: each balance alone, and every positive mix
+    /// of them, conserves atoms. There is no single answer, so the balancer
+    /// must abstain rather than pick one.
+    #[test]
+    fn two_reactions_on_disjoint_elements_abstain(
+        first in arb_constructed(),
+        second in arb_constructed(),
+    ) {
+        let mut second = second.equation;
+        for species in second.left.iter_mut().chain(second.right.iter_mut()) {
+            rename_elements(&mut species.formula.parts, "B");
+        }
+        let mut joined = first.equation;
+        joined.left.extend(second.left);
+        joined.right.extend(second.right);
+        prop_assert_eq!(balance_equation(&joined), None, "{}", describe(&joined));
     }
 }
