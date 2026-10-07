@@ -135,6 +135,46 @@ pub fn recall_at_k(ranks: &[Option<usize>], k: usize) -> Proportion {
     proportion(hits, ranks.len())
 }
 
+/// Exact two-sided McNemar test for a paired comparison of two systems on
+/// the same examples. `b` counts examples only the first system got right,
+/// `c` those only the second got right; examples both got right or both got
+/// wrong carry no information about which is better and are not passed in.
+///
+/// Under the null hypothesis each of the `n = b + c` discordant examples is
+/// equally likely to fall either way, so `min(b, c)` is the lower tail of
+/// Binomial(n, 1/2). The binomial is symmetric, so the two-sided p-value is
+/// twice that tail, capped at 1:
+///
+/// `p = min(1, 2 · Σ_{k=0}^{min(b,c)} C(n, k) / 2^n)`.
+///
+/// With no discordant pairs (`b = c = 0`) the formula gives `min(1, 2) = 1`:
+/// no evidence either way, never a significant result.
+///
+/// The terms are summed in log space. `C(n, k)` alone overflows `u64` at
+/// `n = 68` and `f64` near `n = 1030`, and `2^-n` underflows soon after, so
+/// a direct sum turns into `inf / inf = NaN` at sizes a real comparison
+/// reaches. Each term follows from the previous one by
+/// `C(n, k + 1) = C(n, k) · (n − k) / (k + 1)`; for `k ≤ n / 2` the terms
+/// grow, so each new term is the larger one in the log-sum. The cost is
+/// `min(b, c)` steps. A p-value below the smallest positive `f64` comes
+/// back as `0.0`.
+#[cfg_attr(
+    not(test),
+    expect(dead_code, reason = "not yet wired into a report; tested below")
+)]
+pub fn mcnemar_exact(b: u64, c: u64) -> f64 {
+    let n = b as f64 + c as f64;
+    let tail = b.min(c);
+    let mut log_term = -n * std::f64::consts::LN_2;
+    let mut log_sum = log_term;
+    for k in 0..tail {
+        let k = k as f64;
+        log_term += ((n - k) / (k + 1.0)).ln();
+        log_sum = log_term + (log_sum - log_term).exp().ln_1p();
+    }
+    (std::f64::consts::LN_2 + log_sum).exp().min(1.0)
+}
+
 // ------------------------------------------------------------------ severity
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize)]
@@ -641,5 +681,53 @@ mod tests {
         // the two separable at all.
         assert_eq!(weights.severity_of("Group", "kind"), "S1");
         assert_eq!(weights.severity_of("Function", "kind"), "S2");
+    }
+    #[test]
+    fn mcnemar_exact_matches_hand_computed_binomial_tails() {
+        // n = 5, tail k = 0: 2 · 1/32.
+        assert!((mcnemar_exact(0, 5) - 0.0625).abs() < 1e-15);
+        // n = 6, tail k ≤ 1: 2 · (1 + 6)/64 = 7/32.
+        assert!((mcnemar_exact(1, 5) - 0.21875).abs() < 1e-15);
+        // n = 10, tail k ≤ 2: 2 · (1 + 10 + 45)/1024 = 7/64.
+        assert!((mcnemar_exact(2, 8) - 0.109375).abs() < 1e-15);
+        // n = 9, tail k ≤ 4 is exactly half of 2^9: 2 · 256/512 = 1.
+        assert!((mcnemar_exact(4, 5) - 1.0).abs() < 1e-15);
+    }
+
+    #[test]
+    fn mcnemar_exact_is_one_without_a_difference() {
+        assert_eq!(mcnemar_exact(0, 0), 1.0);
+        for b in [1, 2, 7, 40, 1000] {
+            assert_eq!(mcnemar_exact(b, b), 1.0, "b = c = {b}");
+        }
+    }
+
+    #[test]
+    fn mcnemar_exact_does_not_depend_on_which_system_is_first() {
+        for (b, c) in [(0, 5), (1, 5), (3, 11), (10, 30), (250, 300)] {
+            assert_eq!(mcnemar_exact(b, c), mcnemar_exact(c, b), "b = {b}, c = {c}");
+        }
+    }
+
+    #[test]
+    fn mcnemar_exact_stays_finite_where_a_direct_sum_overflows() {
+        // References from exact rational arithmetic (Python `fractions`,
+        // sum of `math.comb`) for the first two, and from `math.lgamma`
+        // terms for the third, which is too large to sum exactly quickly.
+        let cases = [
+            (10, 30, 0.002_221_433_773_229_364_3),
+            // C(2000, 500) ≈ 10^486 is past f64::MAX.
+            (500, 1500, 1.474_397_522_976_895e-115),
+            (1_000_000, 1_010_000, 1.753_968_557_555_584_7e-12),
+        ];
+        for (b, c, expected) in cases {
+            let p = mcnemar_exact(b, c);
+            assert!(p.is_finite(), "b = {b}, c = {c}: {p}");
+            let relative = (p - expected).abs() / expected;
+            assert!(relative < 1e-6, "b = {b}, c = {c}: {p} vs {expected}");
+        }
+        // 2 · 2^-2000 is below the smallest f64: zero, not NaN.
+        assert_eq!(mcnemar_exact(0, 2000), 0.0);
+        assert_eq!(mcnemar_exact(1_000_000, 1_000_000), 1.0);
     }
 }
