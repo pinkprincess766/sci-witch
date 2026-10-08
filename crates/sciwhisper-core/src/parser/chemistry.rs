@@ -24,11 +24,7 @@ pub fn parse_chemistry(words: &[String], lex: &Lexicon, nums: &NumberLex) -> Res
     }
     // Whisper inserts commas around «превращается в». A colon or a dash that
     // did not split two names is the same kind of pause and is dropped here.
-    let cleaned: Vec<String> = words
-        .iter()
-        .filter(|w| !matches!(w.as_str(), "," | ":" | "-" | "."))
-        .cloned()
-        .collect();
+    let cleaned = spoken_words(words);
     let words = &cleaned;
     if words.is_empty() {
         return Err(Error::Parse {
@@ -270,7 +266,7 @@ fn starts_a_species(lex: &Lexicon, words: &[String], i: usize) -> bool {
         .is_some_and(|(_, used)| starts_a_species(lex, words, i + used))
 }
 
-fn strip_conditions(words: &[String], lex: &Lexicon) -> (Vec<String>, Option<String>) {
+pub(crate) fn strip_conditions(words: &[String], lex: &Lexicon) -> (Vec<String>, Option<String>) {
     let speech = &lex.chemistry_speech;
     let mut out = Vec::new();
     let mut condition = None;
@@ -848,7 +844,7 @@ fn spelled_neighbour(lex: &Lexicon, words: &[String], i: usize) -> bool {
         .any(|(index, word)| index != i && spelling_evidence(lex, word.as_str()))
 }
 
-fn chemistry_element_at<'a>(
+pub(crate) fn chemistry_element_at<'a>(
     lex: &'a Lexicon,
     words: &[String],
     i: usize,
@@ -983,7 +979,7 @@ fn refused(refusal: Refusal) -> Error {
 /// letters for a dictated element («феррит Zn»), and because a bundle that
 /// understood «феррит цинка» but not «феррит Zn» would be inconsistent for
 /// no reason a user could see.
-fn element_by_word<'a>(lex: &'a Lexicon, word: &str) -> Option<&'a Element> {
+pub(crate) fn element_by_word<'a>(lex: &'a Lexicon, word: &str) -> Option<&'a Element> {
     if let Some(element) = lex.elements_by_name.get(word) {
         return Some(element);
     }
@@ -1372,4 +1368,14 @@ fn separator_splits_names(words: &[String], lex: &Lexicon) -> bool {
         }
     }
     (1..cleaned.len()).any(|index| comma_before[index] && !phrase[index - 1] && !phrase[index])
+}
+
+/// The words the chemistry parser reads: punctuation that Whisper scatters
+/// around connectives is dropped. Shared with the research token classes.
+pub(crate) fn spoken_words(words: &[String]) -> Vec<String> {
+    words
+        .iter()
+        .filter(|w| !matches!(w.as_str(), "," | ":" | "-" | "."))
+        .cloned()
+        .collect()
 }
