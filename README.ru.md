@@ -51,7 +51,7 @@
 
 **Живых дикторов записано: 0.** В каждом из четырёх бенчмарк-отчётов `split_audit.speakers` равно 0.
 
-**WER: не измерен.** В [`crates/sciwhisper-eval`](crates/sciwhisper-eval) нет метрики ошибок слов.
+**WER и CER: реализованы, но не измерены.** В [`crates/sciwhisper-eval/src/error_rate.rs`](crates/sciwhisper-eval/src/error_rate.rs) есть `word_error_rate`, `char_error_rate` и `latex_char_error_rate`. Ни один отчёт их не содержит, а живых записей, на которых их можно посчитать, нет.
 
 **Авторство.** Каждая запись бенчмарка — `handcrafted_text`, написанный автором парсера. Метки gold AST записаны вручную. Прохождение этих корпусов не измеряет живую речь, чужие формулировки, шум, акцент или задержку.
 

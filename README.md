@@ -51,7 +51,7 @@ Chemical nomenclature is the documented subset in [docs/compiler/CHEMISTRY_NOMEN
 
 **Live speakers recorded: 0.** Each of the four benchmark reports sets `split_audit.speakers` to 0.
 
-**WER: unmeasured.** [`crates/sciwhisper-eval`](crates/sciwhisper-eval) has no word-error metric.
+**WER and CER: implemented, not measured.** [`crates/sciwhisper-eval/src/error_rate.rs`](crates/sciwhisper-eval/src/error_rate.rs) has `word_error_rate`, `char_error_rate` and `latex_char_error_rate`. No report contains them, and there are no live recordings to run them on.
 
 **Authorship.** Every benchmark record is `handcrafted_text`, written by the author of the parser. Gold AST labels were written by hand. Passing these corpora does not measure live speech, other people's phrasing, noise, accent, or latency.
 
