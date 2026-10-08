@@ -1,8 +1,8 @@
 //! Candidate Lattice v1 — every structural reading one utterance supports.
 //!
-//! [`interpret`](crate::interpret) answers with one reading, and
-//! [`interpret_utterance`](crate::interpret_utterance) answers with one
-//! document. Both are decisions. This module answers a different question:
+//! [`interpret`](fn@crate::interpret) answers with one reading, and
+//! [`interpret_utterance`] answers with one document. Both are decisions.
+//! This module answers a different question:
 //! **what else could this have been?** It returns a typed, ordered,
 //! deduplicated set of readings, each carrying the reason it exists, so that a
 //! ranker can later be trained on real data instead of on the parser's own
