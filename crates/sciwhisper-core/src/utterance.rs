@@ -1,6 +1,6 @@
 //! Utterance-level interpretation: natural Russian speech → one document AST.
 //!
-//! [`interpret`](crate::interpret) answers a narrow question — "is this whole
+//! [`interpret`](fn@crate::interpret) answers a narrow question — "is this whole
 //! string one scientific construct?" — and it stays exactly as strict as it
 //! was. This module answers the question a person actually asks: "here is
 //! something I said out loud; write down the science in it."
@@ -44,7 +44,7 @@ pub const MAX_CORRECTIONS: usize = 4;
 /// rather than as prose that mentions something.
 ///
 /// The count is only half the test; the other half is the shape of the
-/// sentence, see [`holds_an_enumeration`]: the names come after a colon, or
+/// sentence, see `holds_an_enumeration`: the names come after a colon, or
 /// the sentence is nothing but names.
 ///
 /// Counting alone does not work: «Примеры: павликова кислота, уксусная

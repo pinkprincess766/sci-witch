@@ -107,7 +107,7 @@ pub const MAX_FUNCTION_ARGS: usize = 8;
 
 /// How many nested subexpressions one formula may contain.
 ///
-/// A level is one [`Parser::nested`] call, not a precedence function. The
+/// A level is one `Parser::nested` call, not a precedence function. The
 /// chain `parse_eq` … `parse_atom` is one expression. 64 is below
 /// `MAX_MATH_DEPTH` (128) in `validate.rs`, so checks and renderers never
 /// see a deeper tree, and it is more than any real dictation.
