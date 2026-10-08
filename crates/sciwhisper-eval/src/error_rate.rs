@@ -10,6 +10,8 @@
 //! normalised the same way, so normalisation is one named function per
 //! metric, and each says exactly what it changes.
 
+use sciwhisper_core::{render, Node, Renderer};
+
 /// Longest sequence, on either side, that [`edit_distance`] accepts.
 ///
 /// The alignment keeps one row of the dynamic-programming table, so memory
@@ -194,9 +196,24 @@ pub fn latex_char_error_rate(reference: &str, hypothesis: &str) -> Result<ErrorR
     edit_distance(&reference, &hypothesis).map(ErrorRate::from_counts)
 }
 
+/// [`latex_char_error_rate`] with the hypothesis taken from our own AST.
+///
+/// The hypothesis is `sciwhisper_core::render(node, Renderer::Latex)`, the
+/// same call the eval harness makes for its LaTeX output. A `Node::Text`
+/// renders as its raw text. Both strings then go through
+/// [`normalize_latex_spacing`], as in [`latex_char_error_rate`].
+pub fn latex_char_error_rate_of_node(
+    reference_latex: &str,
+    node: &Node,
+) -> Result<ErrorRate, TooLong> {
+    let hypothesis = render(node, Renderer::Latex);
+    latex_char_error_rate(reference_latex, &hypothesis)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sciwhisper_core::{interpret, Domain, InterpretOptions};
 
     fn chars(s: &str) -> Vec<char> {
         s.chars().collect()
@@ -336,6 +353,42 @@ mod tests {
         assert_eq!(normalize_latex_spacing(r"\~{n}"), r"\~{n}");
         assert_eq!(normalize_latex_spacing(r"a\:b\quad c"), r"a\:b\quadc");
         assert_eq!(normalize_latex_spacing("\\"), "\\");
+    }
+
+    fn parsed_maths(spoken: &str) -> Node {
+        let result = interpret(
+            spoken,
+            InterpretOptions {
+                domain: Domain::Mathematics,
+                allow_shortcuts: true,
+            },
+        );
+        assert!(
+            result.confidence > 0.0 && !matches!(result.ast, Node::Text(_)),
+            "{spoken:?} did not parse"
+        );
+        result.ast
+    }
+
+    #[test]
+    fn a_node_rendered_as_latex_matches_its_reference_up_to_spacing() {
+        let node = parsed_maths("икс в квадрате плюс один");
+        // The reference was written by hand after reading the renderer's
+        // output for this node, `x^{2} + 1`. It differs only in spacing, on
+        // purpose, to check that spacing is ignored.
+        let rate = latex_char_error_rate_of_node("x^{2}+1", &node).unwrap();
+        assert_eq!(rate.counts, counts(0, 0, 0, 7));
+        assert_eq!(rate.value, Some(0.0));
+    }
+
+    #[test]
+    fn one_changed_character_is_one_substitution_over_the_reference() {
+        let node = parsed_maths("икс в квадрате плюс один");
+        // `x^{3}+1` against the rendered `x^{2}+1`: one substitution over
+        // the 7 characters of the reference.
+        let rate = latex_char_error_rate_of_node("x^{3}+1", &node).unwrap();
+        assert_eq!(rate.counts, counts(1, 0, 0, 7));
+        assert_eq!(rate.value, Some(1.0 / 7.0));
     }
 
     #[test]
