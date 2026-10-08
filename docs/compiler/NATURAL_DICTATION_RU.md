@@ -40,8 +40,8 @@ interpret_utterance(text, UtteranceOptions { domain, mode, allow_shortcuts })
 
 * ядру — `sciwhisper_core::interpret_utterance`;
 * CLI — `sciwhisper format --mode mixed|scientific`;
-* конфигурации — поле `dictation` (`mixed` | `scientific`), которое читает приложение;
-* приложению — `compile_transcript_with(transcript, domain, mode)`.
+* конфигурации — поле `dictation` (`mixed` | `scientific`) читало снятое приложение (тег `app-0.5-final`); в коде его больше нет;
+* `compile_transcript_with(transcript, domain, mode)` — конвейер `sciwhisper-asr`, через который работают `transcribe` и `rec`.
 
 Переключатель режима в меню трея не понадобился: приложение снято 04.10.2026 (тег `app-0.5-final`). Режим задаётся флагом CLI `sciwhisper format --mode mixed|scientific`.
 

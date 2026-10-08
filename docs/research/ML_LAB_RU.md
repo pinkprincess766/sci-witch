@@ -30,7 +30,7 @@ cargo run -p sciwhisper-eval -- inspect-errors --report research/results/determi
 cargo run -p sciwhisper-eval -- compare --baseline research/results/deterministic-v2.json --candidate research/results/deterministic-v4.json
 ```
 
-Заполнение голосового корпуса из записей — отдельная команда приложения, а не лаборатории:
+Заполнение голосового корпуса из записей — отдельная команда CLI, а не лаборатории:
 
 ```bash
 cargo run -p sciwhisper-cli -- ingest --manifest research/data/voice-v1.manifest.jsonl \
@@ -326,8 +326,8 @@ dataset-invalid → ASR-first → router-first → candidate-first → rank-firs
 
 ### Что нашла эта проверка
 
-**Лаборатория и приложение выполняют разные декодеры.** `candidates.rs` вызывает
-`interpret`; `pipeline.rs` — тот код, который запускает пользователь, — вызывает
+**Лаборатория и путь диктовки выполняют разные декодеры.** `candidates.rs` вызывает
+`interpret`; `pipeline.rs` (`sciwhisper-asr`, команды `transcribe` и `rec`) вызывает
 `interpret_utterance` в режиме `MixedText`, заменяющий доказанные фрагменты **внутри**
 предложения. У замены фрагментов в лаборатории аналога нет вообще.
 
