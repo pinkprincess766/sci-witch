@@ -139,6 +139,88 @@ fn generate() -> String {
     {
         writeln!(out, "\\newcommand{{\\{macro_name}}}{{{total}}}").unwrap();
     }
+
+    // Parse-tree counts from grammar-differential-v2.json. Per corpus and mode
+    // the buckets (1, 2, 3-10, above 10) partition the accepted runs, and the
+    // accepted runs are the Earley-accepted cells of the same report. A wrong
+    // JSON field breaks one of these sums, so the assertions below catch it.
+    let v2 = report("grammar-differential-v2.json");
+    let parse_counts = v2
+        .pointer("/parse_counts")
+        .and_then(|c| c.as_object())
+        .expect("parse_counts");
+    let v2_cells = v2
+        .pointer("/cells")
+        .and_then(|c| c.as_object())
+        .expect("cells");
+    // Buckets in the order: accepted, exact_1, exact_2, exact_3_to_10,
+    // above_10, at_least_max.
+    let mut parse = [0u64; 6];
+    for (corpus, modes) in parse_counts {
+        for (mode, c) in modes.as_object().expect("modes") {
+            let accepted = int(c, "/accepted");
+            let (one, two) = (int(c, "/exact_1"), int(c, "/exact_2"));
+            let (three_ten, above) = (int(c, "/exact_3_to_10"), int(c, "/above_10"));
+            let at_cap = int(c, "/at_least_max");
+            assert_eq!(
+                one + two + three_ten + above,
+                accepted,
+                "{corpus} {mode}: parse buckets do not sum to accepted"
+            );
+            assert!(
+                at_cap <= above,
+                "{corpus} {mode}: at_least_max is above_10 by definition"
+            );
+            let cell = v2_cells
+                .get(corpus)
+                .and_then(|m| m.get(mode))
+                .unwrap_or_else(|| panic!("{corpus} {mode}: no cell"));
+            assert_eq!(
+                int(cell, "/both_accept") + int(cell, "/earley_only"),
+                accepted,
+                "{corpus} {mode}: accepted differs from the Earley-accepted cells"
+            );
+            for (total, value) in parse
+                .iter_mut()
+                .zip([accepted, one, two, three_ten, above, at_cap])
+            {
+                *total += value;
+            }
+        }
+    }
+    let [accepted, one, two, three_ten, above, at_cap] = parse;
+    // Every run in the report, the denominator of the grammar comparison.
+    let mut runs = 0u64;
+    for modes in v2_cells.values() {
+        for cell in modes.as_object().expect("modes").values() {
+            for name in names {
+                runs += int(cell, &format!("/{name}"));
+            }
+        }
+    }
+    let largest = v2
+        .pointer("/most_parses")
+        .and_then(|m| m.as_array())
+        .expect("most_parses")
+        .iter()
+        .map(|e| int(e, "/count"))
+        .max()
+        .expect("most_parses is empty");
+    let cap = int(&v2, "/max_parses");
+    assert!(largest <= cap, "most_parses count above max_parses");
+    for (macro_name, value) in [
+        ("ParseAccepted", accepted),
+        ("ParseOne", one),
+        ("ParseTwo", two),
+        ("ParseThreeToTen", three_ten),
+        ("ParseAboveTen", above),
+        ("ParseAtCap", at_cap),
+        ("ParseRuns", runs),
+        ("ParseLargest", largest),
+        ("ParseCap", cap),
+    ] {
+        writeln!(out, "\\newcommand{{\\{macro_name}}}{{{value}}}").unwrap();
+    }
     out
 }
 
