@@ -4,6 +4,14 @@
 //! where the quality is actually lost. It never modifies the application and
 //! never ships a model into it.
 
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "no report shows an alignment yet; tested in the module"
+    )
+)]
+mod align;
 mod candidates;
 mod canonical;
 mod distance;
