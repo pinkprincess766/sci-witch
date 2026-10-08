@@ -21,6 +21,7 @@
 //! support the statement that it cannot. [`Calibration::verdict`] says so
 //! in as many words, and says how many examples would be needed instead.
 
+use std::cmp::Ordering;
 use std::collections::BTreeMap;
 
 use serde::Serialize;
@@ -296,6 +297,106 @@ fn round(value: f64) -> f64 {
     (value * 10_000.0).round() / 10_000.0
 }
 
+/// Area under the risk–coverage curve over every coverage level.
+///
+/// Sort the examples by score, highest first. With the top `k` answered
+/// (`k = 1..=n`), the risk is the share of wrong answers among those `k`.
+/// The result is the mean of the `n` risks (Geifman & El-Yaniv, 2017). Lower
+/// is better: 0 when every answer is right, 1 when every answer is wrong, and
+/// a ranking that puts the wrong answers first pushes it up.
+///
+/// This uses every coverage level, not [`THRESHOLD_GRID`]. The grid is a set
+/// of reporting rows and says nothing about the area between them.
+///
+/// Ties: inside a block of equal scores the order is not known, so each
+/// coverage level inside the block gets its expected risk over a random
+/// order of the block: `j` answers into a block of `m` with `w` wrong add
+/// `j · w / m` errors. The result does not depend on the input order. This
+/// matters here: the manual parse levels take four values, so almost every
+/// example is in a tie.
+///
+/// `None` for empty input, lengths that differ, or any NaN score.
+#[cfg_attr(
+    not(test),
+    expect(dead_code, reason = "not yet wired into a report; tested below")
+)]
+pub fn aurc(scores: &[f64], correct: &[bool]) -> Option<f64> {
+    if scores.is_empty() || scores.len() != correct.len() || scores.iter().any(|s| s.is_nan()) {
+        return None;
+    }
+    let mut ranked: Vec<(f64, bool)> = scores
+        .iter()
+        .copied()
+        .zip(correct.iter().copied())
+        .collect();
+    // Highest score first. NaN was rejected above, so the fallback is
+    // unreachable; it only keeps this free of a panic path.
+    ranked.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(Ordering::Equal));
+
+    let mut answered = 0usize;
+    let mut wrong_before = 0usize;
+    let mut risk_sum = 0.0;
+    for block in ranked.chunk_by(|a, b| a.0 == b.0) {
+        let size = block.len();
+        let wrong = block.iter().filter(|(_, right)| !right).count();
+        for j in 1..=size {
+            let expected_wrong = wrong_before as f64 + (j * wrong) as f64 / size as f64;
+            risk_sum += expected_wrong / (answered + j) as f64;
+        }
+        answered += size;
+        wrong_before += wrong;
+    }
+    Some(risk_sum / ranked.len() as f64)
+}
+
+/// Lowest probability [`log_loss`] sees. It keeps `-ln 0` out of the sum: one
+/// certain prediction that is wrong would otherwise make the mean infinite.
+#[cfg_attr(
+    not(test),
+    expect(dead_code, reason = "not yet wired into a report; tested below")
+)]
+pub const LOG_LOSS_EPS: f64 = 1e-15;
+
+/// Log loss (cross-entropy) of a fitted model's probabilities.
+///
+/// For each example it takes `-ln p` if the answer was right and `-ln(1 - p)`
+/// if it was wrong, then averages. Lower is better; a constant `p = 0.5`
+/// scores `ln 2`.
+///
+/// Log loss is defined only for a probability. The compiler's `confidence` is
+/// a parse level (1.0, 0.95, 0.7, 0.0), not a probability (see `AGENTS.md`),
+/// so passing it here is a category error: the number would be read as a
+/// probability it is not. This function is for the output of a fitted model,
+/// as in question 2, model 2 (`research/protocol/question-2-calibration.md`).
+///
+/// Each `p` is clipped to `[LOG_LOSS_EPS, 1 - LOG_LOSS_EPS]` first, so a
+/// certain prediction that turns out wrong costs about 34.5, not infinity.
+///
+/// `None` for empty input, lengths that differ, or any probability outside
+/// `[0, 1]`, NaN included.
+#[cfg_attr(
+    not(test),
+    expect(dead_code, reason = "not yet wired into a report; tested below")
+)]
+pub fn log_loss(probabilities: &[f64], correct: &[bool]) -> Option<f64> {
+    if probabilities.is_empty() || probabilities.len() != correct.len() {
+        return None;
+    }
+    // A NaN fails the range check too, so it is rejected here.
+    if !probabilities.iter().all(|p| (0.0..=1.0).contains(p)) {
+        return None;
+    }
+    let total: f64 = probabilities
+        .iter()
+        .zip(correct)
+        .map(|(&p, &right)| {
+            let p = p.clamp(LOG_LOSS_EPS, 1.0 - LOG_LOSS_EPS);
+            -(if right { p } else { 1.0 - p }).ln()
+        })
+        .sum();
+    Some(total / probabilities.len() as f64)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -413,6 +514,145 @@ mod tests {
         let decisions: Vec<Decision> = (0..10).map(|_| decision(true, 0.7, false, true)).collect();
         let report = evaluate_decisions(&decisions, 0.9);
         assert!(!report.no_worse_than_configured.contains(&0.7));
+    }
+
+    fn close(actual: Option<f64>, expected: f64, tolerance: f64) -> bool {
+        actual.is_some_and(|value| (value - expected).abs() <= tolerance)
+    }
+
+    /// Hand values: scores 0.9, 0.8, 0.7, 0.6 with answers right, wrong,
+    /// right, wrong. Risks at k = 1..4 are 0/1, 1/2, 1/3, 2/4, so
+    /// AURC = (0 + 1/2 + 1/3 + 1/2) / 4 = 1/3.
+    #[test]
+    fn aurc_matches_hand_computed_risks() {
+        let scores = [0.9, 0.8, 0.7, 0.6];
+        let correct = [true, false, true, false];
+        assert!(close(aurc(&scores, &correct), 1.0 / 3.0, 1e-12));
+    }
+
+    #[test]
+    fn aurc_is_zero_when_every_answer_is_right() {
+        let scores = [0.9, 0.5, 0.1];
+        assert_eq!(aurc(&scores, &[true, true, true]), Some(0.0));
+    }
+
+    #[test]
+    fn aurc_is_one_when_every_answer_is_wrong() {
+        let scores = [0.9, 0.5, 0.1];
+        assert!(close(aurc(&scores, &[false, false, false]), 1.0, 1e-12));
+    }
+
+    /// Perfect ranking (right answers scored higher): risks 0, 0, 1/3, 2/4,
+    /// so AURC = (5/6) / 4 = 5/24.
+    /// Reversed ranking (same answers, scores flipped): risks 1, 1, 2/3, 2/4,
+    /// so AURC = (19/6) / 4 = 19/24.
+    /// An implementation that ignores the scores gives 5/24 for both, and
+    /// fails the second assertion.
+    #[test]
+    fn aurc_punishes_a_ranking_that_puts_wrong_answers_first() {
+        let correct = [true, true, false, false];
+        let perfect = [0.9, 0.8, 0.7, 0.6];
+        let reversed = [0.6, 0.7, 0.8, 0.9];
+        let good = aurc(&perfect, &correct).unwrap();
+        let bad = aurc(&reversed, &correct).unwrap();
+        assert!(close(Some(good), 5.0 / 24.0, 1e-12), "{good}");
+        assert!(close(Some(bad), 19.0 / 24.0, 1e-12), "{bad}");
+        assert!(bad > good);
+    }
+
+    /// Ties take the expected risk over a random order of the block. Four
+    /// scores of 0.5 with two wrong: every risk inside the block is 1/2, so
+    /// AURC = 1/2 in either input order. [0.5, 0.9, 0.5] with answers wrong,
+    /// right, right: 0.9 first (risk 0), then the tied pair with one wrong:
+    /// (0 + 1/2)/2 = 1/4 and 1/3, so AURC = (0 + 1/4 + 1/3)/3 = 7/36 — the
+    /// mean of the two orders, 5/18 and 1/9. A rule that kept input order
+    /// would give 5/18 for one order and 1/9 for the other.
+    #[test]
+    fn aurc_ties_do_not_depend_on_input_order() {
+        let flat = [0.5, 0.5, 0.5, 0.5];
+        assert!(close(aurc(&flat, &[true, false, true, false]), 0.5, 1e-12));
+        assert!(close(aurc(&flat, &[false, true, false, true]), 0.5, 1e-12));
+        let one = aurc(&[0.5, 0.9, 0.5], &[false, true, true]).unwrap();
+        let other = aurc(&[0.5, 0.9, 0.5], &[true, true, false]).unwrap();
+        assert!(close(Some(one), 7.0 / 36.0, 1e-12), "{one}");
+        assert!(close(Some(other), 7.0 / 36.0, 1e-12), "{other}");
+    }
+
+    #[test]
+    fn aurc_is_none_for_bad_input() {
+        assert_eq!(aurc(&[], &[]), None);
+        assert_eq!(aurc(&[0.5], &[]), None);
+        assert_eq!(aurc(&[0.5, 0.4], &[true]), None);
+        assert_eq!(aurc(&[f64::NAN, 0.4], &[true, false]), None);
+    }
+
+    /// p = 0.5 everywhere: every term is -ln 0.5 = ln 2, whatever the answer.
+    #[test]
+    fn log_loss_of_a_coin_is_ln_2() {
+        let p = [0.5, 0.5, 0.5];
+        let loss = log_loss(&p, &[true, false, true]).unwrap();
+        assert!((loss - std::f64::consts::LN_2).abs() < 1e-12, "{loss}");
+    }
+
+    /// Right at p = 0.9 costs -ln 0.9. Wrong at p = 0.9 costs -ln 0.1.
+    #[test]
+    fn log_loss_takes_minus_ln_p_for_right_and_minus_ln_one_minus_p_for_wrong() {
+        let right = log_loss(&[0.9], &[true]).unwrap();
+        assert!((right - (-(0.9f64.ln()))).abs() < 1e-12, "{right}");
+        let wrong = log_loss(&[0.9], &[false]).unwrap();
+        assert!((wrong - (-(0.1f64.ln()))).abs() < 1e-12, "{wrong}");
+        // Mean of the two: (-ln 0.9 - ln 0.1) / 2 = 1.2039728...
+        let mean = log_loss(&[0.9, 0.9], &[true, false]).unwrap();
+        assert!((mean - 1.203_972_804_325_936).abs() < 1e-12, "{mean}");
+    }
+
+    /// p = 0 for a right answer would be -ln 0 = infinity. The clip makes it
+    /// -ln(1e-15) = 15 ln 10 = 34.5387...; it is finite and equal to that.
+    /// p = 0 for a wrong answer is -ln(1 - 1e-15), about 1e-15.
+    /// p = 1 with the roles swapped. There the complement is
+    /// `1 - (1 - 1e-15)` in f64, which is 9.99e-16 and not exactly 1e-15
+    /// (the nearest double to 1 - 1e-15 is off by one ulp of 1.1e-16). So
+    /// that case is compared with the same expression, and with 15 ln 10 to
+    /// within 0.1%.
+    #[test]
+    fn log_loss_clips_at_zero_and_one() {
+        let big = 15.0 * 10.0f64.ln();
+        let at_zero_right = log_loss(&[0.0], &[true]).unwrap();
+        assert!(at_zero_right.is_finite());
+        assert!((at_zero_right - big).abs() < 1e-9, "{at_zero_right}");
+
+        let at_zero_wrong = log_loss(&[0.0], &[false]).unwrap();
+        assert!(at_zero_wrong.abs() < 1e-14, "{at_zero_wrong}");
+
+        let at_one_right = log_loss(&[1.0], &[true]).unwrap();
+        assert!(at_one_right.abs() < 1e-14, "{at_one_right}");
+
+        let at_one_wrong = log_loss(&[1.0], &[false]).unwrap();
+        let clipped_complement = 1.0 - (1.0 - LOG_LOSS_EPS);
+        assert!(at_one_wrong.is_finite());
+        assert!(
+            (at_one_wrong + clipped_complement.ln()).abs() < 1e-12,
+            "{at_one_wrong}"
+        );
+        assert!((at_one_wrong - big).abs() / big < 1e-3, "{at_one_wrong}");
+    }
+
+    /// The clip does not touch values inside the range: p = 1e-12 is used as
+    /// it is, and -ln(1e-12) = 27.631...
+    #[test]
+    fn log_loss_leaves_probabilities_inside_the_clip_alone() {
+        let loss = log_loss(&[1e-12], &[true]).unwrap();
+        assert!((loss - 27.631_021_115_928_547).abs() < 1e-9, "{loss}");
+    }
+
+    #[test]
+    fn log_loss_is_none_for_invalid_input() {
+        assert_eq!(log_loss(&[], &[]), None);
+        assert_eq!(log_loss(&[0.5], &[]), None);
+        assert_eq!(log_loss(&[0.5, 0.4], &[true]), None);
+        assert_eq!(log_loss(&[-0.1], &[true]), None);
+        assert_eq!(log_loss(&[1.1], &[false]), None);
+        assert_eq!(log_loss(&[f64::NAN], &[true]), None);
     }
 
     /// The test-only entry point, so the curve can be exercised without
