@@ -336,6 +336,25 @@ mod tests {
         }
     }
 
+    /// The command that runs a script from [`fake_backend`]. On Unix it is
+    /// `/bin/sh script`, not the script itself: executing a file this test
+    /// binary has just written fails with ETXTBSY («Text file busy») when a
+    /// parallel test forks while the write handle is still open, and the
+    /// child inherits it. `sh` only reads the file. The process tree is the
+    /// same one the shebang would start.
+    fn backend_command(script: &Path) -> Command {
+        #[cfg(windows)]
+        {
+            Command::new(script)
+        }
+        #[cfg(not(windows))]
+        {
+            let mut command = Command::new("/bin/sh");
+            command.arg(script);
+            command
+        }
+    }
+
     fn limits(seconds: u64, cap: usize) -> Limits {
         Limits {
             timeout: Duration::from_secs(seconds),
@@ -347,7 +366,7 @@ mod tests {
     fn a_successful_run_returns_its_output() {
         let dir = tempfile::tempdir().unwrap();
         let script = fake_backend(dir.path(), "ok", "echo hello\nexit 0\n");
-        let finished = run(Command::new(&script), limits(30, MAX_OUTPUT_BYTES)).unwrap();
+        let finished = run(backend_command(&script), limits(30, MAX_OUTPUT_BYTES)).unwrap();
         assert!(finished.success);
         assert_eq!(finished.code, Some(0));
         assert!(finished.stdout.contains("hello"), "{:?}", finished.stdout);
@@ -358,7 +377,7 @@ mod tests {
     fn a_nonzero_exit_code_is_reported_with_its_message() {
         let dir = tempfile::tempdir().unwrap();
         let script = fake_backend(dir.path(), "bad", "echo failure detail 1>&2\nexit 3\n");
-        let finished = run(Command::new(&script), limits(30, MAX_OUTPUT_BYTES)).unwrap();
+        let finished = run(backend_command(&script), limits(30, MAX_OUTPUT_BYTES)).unwrap();
         assert!(!finished.success);
         assert_eq!(finished.code, Some(3));
         assert!(finished.tail(2).contains("failure detail"), "{finished:?}");
@@ -386,7 +405,7 @@ mod tests {
         let body = "sleep 60\n";
         let script = fake_backend(dir.path(), "slow", body);
         let started = Instant::now();
-        let error = run(Command::new(&script), limits(1, MAX_OUTPUT_BYTES))
+        let error = run(backend_command(&script), limits(1, MAX_OUTPUT_BYTES))
             .expect_err("the deadline must be enforced");
         assert!(
             matches!(error, Error::BackendTimedOut { seconds: 1 }),
@@ -407,7 +426,7 @@ mod tests {
         #[cfg(not(windows))]
         let body = "i=0\nwhile [ $i -lt 4000 ]; do echo aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa; i=$((i+1)); done\nexit 0\n";
         let script = fake_backend(dir.path(), "loud", body);
-        let finished = run(Command::new(&script), limits(60, 4096)).unwrap();
+        let finished = run(backend_command(&script), limits(60, 4096)).unwrap();
         assert!(finished.truncated, "the ceiling must be reported");
         assert!(
             finished.stdout.len() <= 4096,
@@ -425,7 +444,7 @@ mod tests {
         let body = "printf '%s' \"$1\"\nexit 0\n";
         let script = fake_backend(dir.path(), "echo1", body);
         let odd = "C:\\Мои документы\\запись 1.wav";
-        let mut command = Command::new(&script);
+        let mut command = backend_command(&script);
         command.arg(odd);
         let finished = run(command, limits(30, MAX_OUTPUT_BYTES)).unwrap();
         assert!(
@@ -451,7 +470,7 @@ sleep 30
         let dir = tempfile::tempdir().unwrap();
         let script = fake_backend(dir.path(), "tree", HANGS_WITH_A_CHILD);
         let marker = dir.path().join("alive.txt");
-        let mut command = Command::new(&script);
+        let mut command = backend_command(&script);
         command.arg(&marker);
 
         let started = Instant::now();
@@ -492,7 +511,7 @@ exit 0
         let dir = tempfile::tempdir().unwrap();
         let script = fake_backend(dir.path(), "linger", EXITS_LEAVING_A_CHILD);
         let started = Instant::now();
-        let finished = run(Command::new(&script), limits(30, MAX_OUTPUT_BYTES))
+        let finished = run(backend_command(&script), limits(30, MAX_OUTPUT_BYTES))
             .expect("the process itself exited cleanly");
         assert!(finished.success);
         // Collecting output is bounded, so the inherited pipe cannot hold the
