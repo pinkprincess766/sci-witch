@@ -12,16 +12,39 @@
 //! anchor-only destinations (`https://…`, `mailto:…`, `#section`). The
 //! `#fragment` of a file link is not checked, only that the file exists.
 //!
+//! A second check covers repository paths written as inline code, such as
+//! `` `crates/sciwhisper-eval/src/gate.rs:42` ``. Those are not links, so
+//! nothing renders them as dead, yet they go stale the same way when a file
+//! moves. A code span counts as a path when it starts with one of
+//! `PATH_ROOTS` and is not a pattern or a template. Stale paths in files that
+//! must not be edited (the changelog, the backlog, the migration map, and
+//! `research/`, which is pinned by SHA-256 manifests) are listed in
+//! `KNOWN_STALE_PATHS` instead, one entry per span.
+//!
 //! The scan also refuses to pass vacuously: it must see a minimum number of
 //! files and links, so a walker that silently finds nothing is a failure,
 //! not a pass.
 
+use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 /// A repository with fewer Markdown files than this has been walked wrongly.
 const MIN_MARKDOWN_FILES: usize = 30;
 /// A repository with fewer relative links than this has been parsed wrongly.
 const MIN_CHECKED_LINKS: usize = 100;
+/// A repository with fewer repository paths in code spans than this has been
+/// parsed wrongly.
+const MIN_CHECKED_CODE_PATHS: usize = 100;
+/// Top-level directories that a repository path in a code span starts with.
+const PATH_ROOTS: [&str; 7] = [
+    "crates/",
+    "docs/",
+    "research/",
+    "scripts/",
+    "paper/",
+    ".github/",
+    "packaging/",
+];
 
 fn root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
@@ -76,11 +99,13 @@ fn strip_fences(text: &str) -> String {
     out
 }
 
-/// Drops inline code spans: a backtick run closes at the next run of the
+/// Splits inline code spans out of `text`: returns the text without them and
+/// the content of each span. A backtick run closes at the next run of the
 /// same length. An unclosed run is literal text.
-fn strip_inline_code(text: &str) -> String {
+fn split_inline_code(text: &str) -> (String, Vec<String>) {
     let chars: Vec<char> = text.chars().collect();
     let mut out = String::with_capacity(text.len());
+    let mut spans = Vec::new();
     let mut i = 0;
     while i < chars.len() {
         if chars[i] != '`' {
@@ -93,6 +118,7 @@ fn strip_inline_code(text: &str) -> String {
             i += 1;
         }
         let len = i - start;
+        let content_start = i;
         let mut j = i;
         let mut closed = None;
         while j < chars.len() {
@@ -102,7 +128,7 @@ fn strip_inline_code(text: &str) -> String {
                     j += 1;
                 }
                 if j - run_start == len {
-                    closed = Some(j);
+                    closed = Some((run_start, j));
                     break;
                 }
             } else {
@@ -110,17 +136,20 @@ fn strip_inline_code(text: &str) -> String {
             }
         }
         match closed {
-            Some(end) => i = end,
+            Some((content_end, end)) => {
+                spans.push(chars[content_start..content_end].iter().collect());
+                i = end;
+            }
             None => out.extend(std::iter::repeat_n('`', len)),
         }
     }
-    out
+    (out, spans)
 }
 
 /// Destinations of inline links `[..](dest)` in `text`, after code is
 /// removed. Parentheses inside a destination must balance.
 fn link_destinations(markdown: &str) -> Vec<String> {
-    let text = strip_inline_code(&strip_fences(markdown));
+    let text = split_inline_code(&strip_fences(markdown)).0;
     let chars: Vec<char> = text.chars().collect();
     let mut found = Vec::new();
     let mut i = 0;
@@ -224,6 +253,18 @@ fn check_file(repo_root: &Path, file: &Path) -> (Vec<String>, usize) {
     (broken, checked)
 }
 
+/// A file's path relative to the repository, always with `/`: the report
+/// reads the same on every platform, and Windows' `\` made the expected text
+/// differ there.
+fn shown(repo_root: &Path, file: &Path) -> String {
+    file.strip_prefix(repo_root)
+        .unwrap_or(file)
+        .components()
+        .map(|part| part.as_os_str().to_string_lossy().into_owned())
+        .collect::<Vec<_>>()
+        .join("/")
+}
+
 fn check_tree(repo_root: &Path) -> (Vec<String>, usize, usize) {
     let mut files = Vec::new();
     collect_markdown(repo_root, &mut files);
@@ -233,19 +274,269 @@ fn check_tree(repo_root: &Path) -> (Vec<String>, usize, usize) {
         let (broken, n) = check_file(repo_root, file);
         checked += n;
         for destination in broken {
-            // Always with `/`: the report reads the same on every platform,
-            // and Windows' `\` made the expected text differ there.
-            let shown = file
-                .strip_prefix(repo_root)
-                .unwrap_or(file)
-                .components()
-                .map(|part| part.as_os_str().to_string_lossy().into_owned())
-                .collect::<Vec<_>>()
-                .join("/");
-            problems.push(format!("{shown}: ({destination})"));
+            problems.push(format!("{}: ({destination})", shown(repo_root, file)));
         }
     }
     (problems, files.len(), checked)
+}
+
+/// Whether a code span names a repository path: it starts with one of
+/// `PATH_ROOTS` and is not a glob, a placeholder, a range or prose.
+fn is_repo_path(span: &str) -> bool {
+    PATH_ROOTS.iter().any(|prefix| span.starts_with(prefix))
+        && !span.contains("...")
+        && !span
+            .chars()
+            .any(|c| c.is_whitespace() || matches!(c, '*' | '<' | '>' | '{' | '…'))
+}
+
+/// `path:12` and `path:12:3` name a place in a file: the position is dropped
+/// before the path is looked up.
+fn strip_position(span: &str) -> &str {
+    let mut path = span;
+    for _ in 0..2 {
+        match path.rsplit_once(':') {
+            Some((head, digits))
+                if !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit()) =>
+            {
+                path = head;
+            }
+            _ => break,
+        }
+    }
+    path
+}
+
+/// The code spans of one Markdown text that name a repository path, as
+/// written.
+fn repo_path_spans(markdown: &str) -> Vec<String> {
+    split_inline_code(&strip_fences(markdown))
+        .1
+        .into_iter()
+        .filter(|span| is_repo_path(span))
+        .collect()
+}
+
+/// Repository paths in code spans that do not exist, as `file: `span``,
+/// sorted, plus the number of files and path spans checked.
+///
+/// A pair `(file, span)` in `allowed` is skipped. An entry that no longer
+/// misses is reported too, so the list cannot keep old entries alive.
+fn check_code_paths(repo_root: &Path, allowed: &[(&str, &str)]) -> (Vec<String>, usize, usize) {
+    let mut files = Vec::new();
+    collect_markdown(repo_root, &mut files);
+    let mut misses = BTreeSet::new();
+    let mut checked = 0;
+    for file in &files {
+        let text =
+            std::fs::read_to_string(file).unwrap_or_else(|e| panic!("{}: {e}", file.display()));
+        for span in repo_path_spans(&text) {
+            checked += 1;
+            if !repo_root.join(strip_position(&span)).exists() {
+                misses.insert((shown(repo_root, file), span));
+            }
+        }
+    }
+    let mut problems = Vec::new();
+    let mut used = vec![false; allowed.len()];
+    for (file, span) in &misses {
+        match allowed.iter().position(|(f, s)| f == file && s == span) {
+            Some(i) => used[i] = true,
+            None => problems.push(format!("{file}: `{span}`")),
+        }
+    }
+    for (i, (file, span)) in allowed.iter().enumerate() {
+        if !used[i] {
+            problems.push(format!(
+                "allow-list entry no longer misses: {file}: `{span}`"
+            ));
+        }
+    }
+    problems.sort();
+    (problems, files.len(), checked)
+}
+
+/// Whether a scan that found `checked` repository paths in code spans saw
+/// enough of them to have walked the repository.
+fn saw_enough_code_paths(checked: usize) -> bool {
+    checked >= MIN_CHECKED_CODE_PATHS
+}
+
+/// Stale paths that stay as they are, as `(file, span)`. Each entry says why
+/// it is not fixed. Only for files that are not edited on purpose: the
+/// history in CHANGELOG.md, the backlog, the migration map in
+/// docs/development/README.md, and text that states a file is absent.
+const KNOWN_STALE_PATHS: &[(&str, &str)] = &[
+    // CHANGELOG: release notes name the file as it was at that release.
+    ("CHANGELOG.md", ".github/workflows/release.yml"),
+    // CHANGELOG: removed with the voice app (tag app-0.5-final).
+    ("CHANGELOG.md", "docs/images/"),
+    // CHANGELOG: removed with the voice app (tag app-0.5-final).
+    ("CHANGELOG.md", "docs/process/AUTO_UPDATE_RU.md"),
+    // CHANGELOG: removed with the voice app (tag app-0.5-final).
+    ("CHANGELOG.md", "docs/user/USAGE_RU.md"),
+    // CHANGELOG: removed with the voice app (tag app-0.5-final).
+    ("CHANGELOG.md", "packaging/branding"),
+    // CHANGELOG: removed with the voice app (tag app-0.5-final).
+    ("CHANGELOG.md", "packaging/linux"),
+    // CHANGELOG: removed with the voice app (tag app-0.5-final).
+    ("CHANGELOG.md", "packaging/macos"),
+    // CHANGELOG: removed with the voice app (tag app-0.5-final).
+    ("CHANGELOG.md", "packaging/windows"),
+    // CHANGELOG: deleted from the Python runtime, which is not in the product.
+    ("CHANGELOG.md", "scripts/whisperd.py"),
+    // README: states that this file is absent from the tree.
+    ("README.md", "research/results/voice-v1.json"),
+    // README.ru: states that this file is absent from the tree.
+    ("README.ru.md", "research/results/voice-v1.json"),
+    // BACKLOG: the planned report of an open item; it was never created.
+    (
+        "docs/process/BACKLOG_RU.md",
+        "research/results/pcfg-v1.json",
+    ),
+    // Plan: a removed file, named as removed.
+    (
+        "docs/research/sci-witch-plan.md",
+        "docs/images/si-witch-recording.gif",
+    ),
+    // Plan: a removed directory, named as removed.
+    ("docs/research/sci-witch-plan.md", "docs/images"),
+    // Plan: a planned script that was never created.
+    ("docs/research/sci-witch-plan.md", "scripts/reproduce.sh"),
+    // Migration map: the old path, removed with the voice app.
+    (
+        "docs/development/README.md",
+        ".github/workflows/release.yml",
+    ),
+    // Migration map: the old path, removed with the voice app.
+    ("docs/development/README.md", "crates/sciwhisper-shell/"),
+    // Migration map: the old path, removed with the voice app.
+    ("docs/development/README.md", "crates/sciwhisper-update/"),
+    // Migration map: the old path, moved to docs/compiler/.
+    (
+        "docs/development/README.md",
+        "docs/development/ARCHITECTURE_RU.md",
+    ),
+    // Migration map: the old path, removed with the voice app.
+    (
+        "docs/development/README.md",
+        "docs/development/AUTO_UPDATE_RU.md",
+    ),
+    // Migration map: the old path, moved to docs/compiler/.
+    (
+        "docs/development/README.md",
+        "docs/development/BALANCE_KERNEL_RU.md",
+    ),
+    // Migration map: the old path, moved to docs/compiler/.
+    (
+        "docs/development/README.md",
+        "docs/development/CANDIDATE_LATTICE_RU.md",
+    ),
+    // Migration map: the old path, moved to docs/compiler/.
+    (
+        "docs/development/README.md",
+        "docs/development/CHEMISTRY_NOMENCLATURE_RU.md",
+    ),
+    // Migration map: the old path, moved to docs/compiler/.
+    (
+        "docs/development/README.md",
+        "docs/development/COMPILER_CONTRACT_RU.md",
+    ),
+    // Migration map: the old path, moved to docs/compiler/.
+    (
+        "docs/development/README.md",
+        "docs/development/FORMAL_GUARANTEES_RU.md",
+    ),
+    // Migration map: the old path, moved to docs/compiler/.
+    (
+        "docs/development/README.md",
+        "docs/development/GRAMMAR_RU.md",
+    ),
+    // Migration map: the old path, moved to docs/compiler/.
+    (
+        "docs/development/README.md",
+        "docs/development/IUPAC_SOURCES.md",
+    ),
+    // Migration map: the old path, moved to docs/compiler/.
+    (
+        "docs/development/README.md",
+        "docs/development/MATHEMATICS_RU.md",
+    ),
+    // Migration map: the old path, moved to docs/research/.
+    (
+        "docs/development/README.md",
+        "docs/development/ML_LAB_RU.md",
+    ),
+    // Migration map: the old path, moved to docs/research/.
+    (
+        "docs/development/README.md",
+        "docs/development/ML_RESEARCH_RU.md",
+    ),
+    // Migration map: the old path, moved to docs/compiler/.
+    (
+        "docs/development/README.md",
+        "docs/development/NATURAL_DICTATION_RU.md",
+    ),
+    // Migration map: the old path, moved to docs/process/.
+    (
+        "docs/development/README.md",
+        "docs/development/PAIR_WORKFLOW_RU.md",
+    ),
+    // Migration map: the old path, removed with the voice app.
+    (
+        "docs/development/README.md",
+        "docs/development/RELEASE_CHECKLIST.md",
+    ),
+    // Migration map: the old path, moved to docs/compiler/.
+    (
+        "docs/development/README.md",
+        "docs/development/SPECIFICATION_RU.md",
+    ),
+    // Migration map: the old path, moved to docs/decisions/.
+    ("docs/development/README.md", "docs/development/decisions/"),
+    // Migration map: the old path, moved to docs/research/.
+    (
+        "docs/development/README.md",
+        "docs/development/sci-witch-plan.md",
+    ),
+    // Migration map: the old path, removed with the voice app.
+    ("docs/development/README.md", "docs/images/"),
+    // Migration map: the old path, removed with the voice app.
+    (
+        "docs/development/README.md",
+        "docs/process/AUTO_UPDATE_RU.md",
+    ),
+    // Migration map: the old path, removed with the voice app.
+    (
+        "docs/development/README.md",
+        "docs/process/RELEASE_CHECKLIST.md",
+    ),
+    // Migration map: the old path, removed with the voice app.
+    ("docs/development/README.md", "docs/user/USAGE_RU.md"),
+    // Migration map: the old path, removed with the voice app.
+    ("docs/development/README.md", "packaging/branding/"),
+    // Migration map: the old path, removed with the voice app.
+    ("docs/development/README.md", "packaging/linux/"),
+    // Migration map: the old path, removed with the voice app.
+    ("docs/development/README.md", "packaging/macos/"),
+    // Migration map: the old path, removed with the voice app.
+    ("docs/development/README.md", "packaging/windows/"),
+];
+
+#[test]
+fn every_repository_path_in_code_spans_exists() {
+    let (problems, files, checked) = check_code_paths(&root(), KNOWN_STALE_PATHS);
+    println!("{checked} repository paths in code spans checked in {files} Markdown files");
+    assert!(
+        saw_enough_code_paths(checked),
+        "only {checked} repository paths in code spans found (expected at least {MIN_CHECKED_CODE_PATHS}): the scan is broken"
+    );
+    assert!(
+        problems.is_empty(),
+        "{} stale repository path(s) in code spans among {checked} in {files} files:\n  {}",
+        problems.len(),
+        problems.join("\n  ")
+    );
 }
 
 #[test]
@@ -370,4 +661,97 @@ fn percent_encoded_paths_are_decoded() {
     let (problems, _, checked) = check_tree(dir.path());
     assert!(problems.is_empty(), "{problems:?}");
     assert_eq!(checked, 1);
+}
+
+// --- repository paths in code spans -------------------------------------
+
+#[test]
+fn a_missing_code_path_is_reported_and_the_list_is_sorted() {
+    let dir = tempfile::tempdir().unwrap();
+    write(
+        &dir.path().join("b.md"),
+        "`docs/zeta.md` and `crates/alpha.rs`\n",
+    );
+    write(&dir.path().join("a.md"), "`docs/nope.md`\n");
+    write(&dir.path().join("docs/real.md"), "x\n");
+    let (problems, files, checked) = check_code_paths(dir.path(), &[]);
+    assert_eq!((files, checked), (3, 3));
+    assert_eq!(
+        problems,
+        vec![
+            "a.md: `docs/nope.md`".to_string(),
+            "b.md: `crates/alpha.rs`".to_string(),
+            "b.md: `docs/zeta.md`".to_string(),
+        ]
+    );
+}
+
+#[test]
+fn an_existing_file_or_directory_passes_with_or_without_a_position() {
+    let dir = tempfile::tempdir().unwrap();
+    write(
+        &dir.path().join("a.md"),
+        "`crates/x/src/lib.rs` `crates/x/src/lib.rs:42` `crates/x/src/lib.rs:42:7` `docs/` `docs/sub`\n",
+    );
+    write(&dir.path().join("crates/x/src/lib.rs"), "x\n");
+    write(&dir.path().join("docs/sub/y.md"), "x\n");
+    let (problems, _, checked) = check_code_paths(dir.path(), &[]);
+    assert!(problems.is_empty(), "{problems:?}");
+    assert_eq!(checked, 5);
+}
+
+#[test]
+fn a_position_is_dropped_before_the_lookup_but_a_missing_file_stays_missing() {
+    let dir = tempfile::tempdir().unwrap();
+    write(&dir.path().join("a.md"), "`docs/gone.md:3:9`\n");
+    let (problems, _, _) = check_code_paths(dir.path(), &[]);
+    assert_eq!(problems, vec!["a.md: `docs/gone.md:3:9`".to_string()]);
+}
+
+#[test]
+fn globs_templates_ranges_prose_and_other_roots_are_not_paths() {
+    let md = "`research/results/*.json` `research/data/<corpus_id>.jsonl` \
+              `research/{a,b}.json` `docs/…` `docs/...` `docs/a b.md` \
+              `src/main.rs` `Cargo.toml` `crates` `my/docs/a.md`\n";
+    assert_eq!(repo_path_spans(md), Vec::<String>::new());
+}
+
+#[test]
+fn code_spans_in_fences_are_not_checked_and_double_ticks_are_read() {
+    let md = "```\n`docs/fenced.md`\n```\n``docs/double.md:4`` and `docs/single.md`\n";
+    assert_eq!(
+        repo_path_spans(md),
+        vec!["docs/double.md:4".to_string(), "docs/single.md".to_string()]
+    );
+}
+
+#[test]
+fn an_allowed_miss_is_skipped_and_its_neighbour_is_not() {
+    let dir = tempfile::tempdir().unwrap();
+    write(&dir.path().join("a.md"), "`docs/old.md` `docs/other.md`\n");
+    let (problems, _, checked) = check_code_paths(dir.path(), &[("a.md", "docs/old.md")]);
+    assert_eq!(problems, vec!["a.md: `docs/other.md`".to_string()]);
+    assert_eq!(checked, 2);
+}
+
+#[test]
+fn an_allow_list_entry_that_no_longer_misses_is_reported() {
+    let dir = tempfile::tempdir().unwrap();
+    write(&dir.path().join("a.md"), "`docs/here.md`\n");
+    write(&dir.path().join("docs/here.md"), "x\n");
+    let allowed = [("a.md", "docs/here.md"), ("a.md", "docs/gone.md")];
+    let (problems, _, _) = check_code_paths(dir.path(), &allowed);
+    assert_eq!(
+        problems,
+        vec![
+            "allow-list entry no longer misses: a.md: `docs/gone.md`".to_string(),
+            "allow-list entry no longer misses: a.md: `docs/here.md`".to_string(),
+        ]
+    );
+}
+
+#[test]
+fn the_code_path_floor_is_exactly_the_minimum() {
+    assert!(!saw_enough_code_paths(MIN_CHECKED_CODE_PATHS - 1));
+    assert!(saw_enough_code_paths(MIN_CHECKED_CODE_PATHS));
 }
