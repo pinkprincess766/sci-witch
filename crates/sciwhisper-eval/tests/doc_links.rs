@@ -64,7 +64,10 @@ fn collect_markdown(dir: &Path, found: &mut Vec<PathBuf>) {
         let name = entry.file_name().to_string_lossy().into_owned();
         let kind = entry.file_type().expect("file type");
         if kind.is_dir() {
-            if !is_skipped_dir(&name) {
+            // A directory with its own `.git` is another checkout, such as an
+            // agent's worktree under `.claude/worktrees/`: its documents are
+            // not this tree's.
+            if !is_skipped_dir(&name) && !path.join(".git").exists() {
                 collect_markdown(&path, found);
             }
         } else if kind.is_file() && name.ends_with(".md") {
@@ -754,4 +757,22 @@ fn an_allow_list_entry_that_no_longer_misses_is_reported() {
 fn the_code_path_floor_is_exactly_the_minimum() {
     assert!(!saw_enough_code_paths(MIN_CHECKED_CODE_PATHS - 1));
     assert!(saw_enough_code_paths(MIN_CHECKED_CODE_PATHS));
+}
+
+#[test]
+fn a_nested_checkout_is_not_scanned() {
+    let root = tempfile::tempdir().unwrap();
+    std::fs::write(root.path().join("top.md"), "x").unwrap();
+    let worktree = root.path().join(".claude/worktrees/agent");
+    std::fs::create_dir_all(&worktree).unwrap();
+    // A worktree has a `.git` file, a clone a `.git` directory.
+    std::fs::write(worktree.join(".git"), "gitdir: elsewhere").unwrap();
+    std::fs::write(worktree.join("AGENTS.md"), "x").unwrap();
+    let plain = root.path().join("docs");
+    std::fs::create_dir_all(&plain).unwrap();
+    std::fs::write(plain.join("note.md"), "x").unwrap();
+    let mut found = Vec::new();
+    collect_markdown(root.path(), &mut found);
+    let found: Vec<String> = found.iter().map(|f| shown(root.path(), f)).collect();
+    assert_eq!(found, ["docs/note.md", "top.md"]);
 }
