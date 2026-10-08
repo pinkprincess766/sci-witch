@@ -1051,6 +1051,44 @@ mod tests {
             CountOutcome::Counted(ParseCount::Exact(1))
         );
     }
+
+    // The three tests below run the counter at the token limit. The repeat
+    // test recurses about once per token, so these check the test thread's
+    // stack and the run time at the largest input the recogniser accepts.
+
+    #[test]
+    fn a_repeat_at_max_tokens_has_one_parse() {
+        // The literal 256 is deliberate. Built from MAX_TOKENS, the input
+        // would shrink along with the constant and the test could not fail.
+        let src = "s = { X } ;";
+        let tokens = vec!["X"; 256];
+        assert_eq!(counted(src, "s", &tokens), ParseCount::Exact(1));
+    }
+
+    #[test]
+    fn a_left_recursive_list_at_max_tokens_has_one_parse() {
+        // Operands and PLUS alternate, so the token count is always odd.
+        // 256 is unreachable; 128 operands (255 tokens) is the longest that fits.
+        let src = "e = e PLUS t | t ; t = A ;";
+        let tokens = plus_operands(128);
+        assert_eq!(tokens.len(), MAX_TOKENS - 1);
+        assert_eq!(counted(src, "e", &tokens), ParseCount::Exact(1));
+    }
+
+    #[test]
+    fn ambiguous_addition_at_max_tokens_is_at_least_max() {
+        // 128 operands, 255 tokens. The count is C_127, far above MAX_PARSES,
+        // so the answer is AtLeastMax. The chart is not capped here: it holds
+        // 25,025 items (measured), well under MAX_ITEMS = 1_000_000, so
+        // TooManyItems cannot be the outcome at this length.
+        let src = "e = e PLUS e | A ;";
+        let tokens = plus_operands(128);
+        assert_eq!(tokens.len(), MAX_TOKENS - 1);
+        assert_eq!(
+            count_parses(&g(src), "e", &tokens),
+            CountOutcome::Counted(ParseCount::AtLeastMax)
+        );
+    }
 }
 
 /// `count_parses` against a second counter that shares nothing with it but
