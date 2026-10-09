@@ -12,6 +12,14 @@
     )
 )]
 mod align;
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "no report uses the calibration features yet; tested in the module"
+    )
+)]
+mod calibration_features;
 mod candidates;
 mod canonical;
 mod distance;
