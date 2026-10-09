@@ -1,0 +1,162 @@
+{
+  "cells": {
+    "ambiguous-v2": {
+      "both_accept": 10,
+      "both_reject": 1,
+      "earley_only": 0,
+      "parser_only": 0,
+      "tokenize_fail": 47
+    },
+    "dev-seed-v3": {
+      "both_accept": 29,
+      "both_reject": 0,
+      "earley_only": 2,
+      "parser_only": 0,
+      "tokenize_fail": 82
+    },
+    "nomenclature-v1": {
+      "both_accept": 22,
+      "both_reject": 3,
+      "earley_only": 7,
+      "parser_only": 0,
+      "tokenize_fail": 21
+    },
+    "prose-negatives-v2": {
+      "both_accept": 0,
+      "both_reject": 0,
+      "earley_only": 0,
+      "parser_only": 0,
+      "tokenize_fail": 180
+    }
+  },
+  "earley_only": [
+    {
+      "corpus": "dev-seed-v3",
+      "furthest": null,
+      "kind": "earley_only",
+      "text": "феррит бария",
+      "tokens": [
+        "CLASS_WORD",
+        "ELEMENT_BY_WORD"
+      ]
+    },
+    {
+      "corpus": "dev-seed-v3",
+      "furthest": null,
+      "kind": "earley_only",
+      "text": "гидроксид",
+      "tokens": [
+        "ANION_CLASS"
+      ]
+    },
+    {
+      "corpus": "nomenclature-v1",
+      "furthest": null,
+      "kind": "earley_only",
+      "text": "феррит бария",
+      "tokens": [
+        "CLASS_WORD",
+        "ELEMENT_BY_WORD"
+      ]
+    },
+    {
+      "corpus": "nomenclature-v1",
+      "furthest": null,
+      "kind": "earley_only",
+      "text": "феррит меди",
+      "tokens": [
+        "CLASS_WORD",
+        "ELEMENT_BY_WORD"
+      ]
+    },
+    {
+      "corpus": "nomenclature-v1",
+      "furthest": null,
+      "kind": "earley_only",
+      "text": "гексацианоуглерод калия",
+      "tokens": [
+        "ANIONIC_COMPLEX_WORD",
+        "ELEMENT_BY_WORD"
+      ]
+    },
+    {
+      "corpus": "nomenclature-v1",
+      "furthest": null,
+      "kind": "earley_only",
+      "text": "гексацианокупрат натрия",
+      "tokens": [
+        "ANIONIC_COMPLEX_WORD",
+        "ELEMENT_BY_WORD"
+      ]
+    },
+    {
+      "corpus": "nomenclature-v1",
+      "furthest": null,
+      "kind": "earley_only",
+      "text": "метен",
+      "tokens": [
+        "HYDROCARBON_WORD"
+      ]
+    },
+    {
+      "corpus": "nomenclature-v1",
+      "furthest": null,
+      "kind": "earley_only",
+      "text": "метин",
+      "tokens": [
+        "HYDROCARBON_WORD"
+      ]
+    },
+    {
+      "corpus": "nomenclature-v1",
+      "furthest": null,
+      "kind": "earley_only",
+      "text": "эф икс",
+      "tokens": [
+        "ELEMENT_WORD",
+        "LETTER_NAME"
+      ]
+    }
+  ],
+  "max_parses": 1000,
+  "note": "Grammar: docs/grammar/chem.ebnf, terminals from sciwhisper_core::research::chem_token_classes. Parser accepts when interpret(Domain::Chemistry) gives a Node::Chemical with confidence above 0. The recogniser does not enforce the semantic section (Х1-Х11) or special sequences; it accepts a superset. parse_counts: derivation trees of Earley-accepted phrases (both_accept + earley_only); above_10 includes every count that hit the cap, at_least_max is the subset that hit it.",
+  "parse_counts": {
+    "ambiguous-v2": {
+      "above_10": 0,
+      "accepted": 10,
+      "at_least_max": 0,
+      "exact_1": 7,
+      "exact_2": 0,
+      "exact_3_to_10": 3
+    },
+    "dev-seed-v3": {
+      "above_10": 0,
+      "accepted": 31,
+      "at_least_max": 0,
+      "exact_1": 30,
+      "exact_2": 1,
+      "exact_3_to_10": 0
+    },
+    "nomenclature-v1": {
+      "above_10": 0,
+      "accepted": 29,
+      "at_least_max": 0,
+      "exact_1": 27,
+      "exact_2": 0,
+      "exact_3_to_10": 2
+    },
+    "prose-negatives-v2": {
+      "above_10": 0,
+      "accepted": 0,
+      "at_least_max": 0,
+      "exact_1": 0,
+      "exact_2": 0,
+      "exact_3_to_10": 0
+    }
+  },
+  "parser_only": [],
+  "start": "chem_input",
+  "syntactic_literals": [],
+  "tokenize_fail_parser_accepts": [],
+  "version": "grammar-differential-chem-v1"
+}
