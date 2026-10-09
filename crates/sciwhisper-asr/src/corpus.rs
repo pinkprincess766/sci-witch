@@ -31,6 +31,35 @@ pub struct AudioFacts {
     pub has_speech: bool,
 }
 
+/// The format every corpus recording must have, `research/protocol/voice-v1.md`.
+pub const REQUIRED_SAMPLE_RATE_HZ: u32 = 16_000;
+pub const REQUIRED_CHANNELS: u16 = 1;
+pub const REQUIRED_BITS_PER_SAMPLE: u16 = 16;
+
+/// Refuses a WAV header that is not 16-bit integer PCM, mono, 16 kHz.
+/// The message names what the header says, so the person knows what to convert.
+pub fn check_format(spec: hound::WavSpec, path: &Path) -> Result<()> {
+    if spec.sample_format == hound::SampleFormat::Int
+        && spec.sample_rate == REQUIRED_SAMPLE_RATE_HZ
+        && spec.channels == REQUIRED_CHANNELS
+        && spec.bits_per_sample == REQUIRED_BITS_PER_SAMPLE
+    {
+        return Ok(());
+    }
+    let format = match spec.sample_format {
+        hound::SampleFormat::Int => "PCM",
+        hound::SampleFormat::Float => "float",
+    };
+    Err(Error::Audio(format!(
+        "{}: формат WAV не подходит. Найдено: {} Гц, каналов: {}, {} бит, {}. Нужно: {REQUIRED_SAMPLE_RATE_HZ} Гц, каналов: {REQUIRED_CHANNELS}, {REQUIRED_BITS_PER_SAMPLE} бит, PCM без сжатия.",
+        path.display(),
+        spec.sample_rate,
+        spec.channels,
+        spec.bits_per_sample,
+        format
+    )))
+}
+
 /// Reads `path` and measures it. WAV only: a research corpus that stores
 /// lossy audio cannot tell a codec artefact from a recognition error.
 pub fn describe_wav(path: &Path) -> Result<AudioFacts> {
@@ -47,14 +76,9 @@ pub fn describe_wav(path: &Path) -> Result<AudioFacts> {
     }
     let reader = hound::WavReader::open(path).map_err(|e| Error::Audio(e.to_string()))?;
     let spec = reader.spec();
+    check_format(spec, path)?;
     let frames = reader.duration() as f64;
     drop(reader);
-    if spec.sample_rate == 0 {
-        return Err(Error::Audio(format!(
-            "{} declares a sample rate of zero",
-            path.display()
-        )));
-    }
 
     let sha256 = model::sha256_file(path).map_err(|e| Error::Audio(e.to_string()))?;
     let (samples, hz) = capture::read_wav_samples_for_corpus(path)?;
@@ -64,7 +88,7 @@ pub fn describe_wav(path: &Path) -> Result<AudioFacts> {
         sha256,
         duration_secs: frames / f64::from(spec.sample_rate),
         sample_rate_hz: spec.sample_rate,
-        channels: u32::from(spec.channels.max(1)),
+        channels: u32::from(spec.channels),
         snr_db: speech
             .has_speech()
             .then(|| f64::from(speech.snr_db()))
@@ -155,5 +179,45 @@ mod tests {
         std::fs::write(&path, b"not really an mp3").unwrap();
         let error = describe_wav(&path).unwrap_err().to_string();
         assert!(error.contains("WAV"), "{error}");
+    }
+
+    fn write_format(
+        dir: &Path,
+        name: &str,
+        sample_rate: u32,
+        channels: u16,
+        bits: u16,
+    ) -> std::path::PathBuf {
+        let path = dir.join(name);
+        let spec = hound::WavSpec {
+            channels,
+            sample_rate,
+            bits_per_sample: bits,
+            sample_format: hound::SampleFormat::Int,
+        };
+        let mut writer = hound::WavWriter::create(&path, spec).unwrap();
+        for _ in 0..sample_rate * u32::from(channels) {
+            writer.write_sample(0i32).unwrap();
+        }
+        writer.finalize().unwrap();
+        path
+    }
+
+    #[test]
+    fn only_16_bit_mono_16_khz_pcm_is_described() {
+        let dir = tempfile::tempdir().unwrap();
+        let ok = write_format(dir.path(), "ok.wav", 16_000, 1, 16);
+        assert!(describe_wav(&ok).is_ok());
+        for (name, rate, channels, bits, found) in [
+            ("rate.wav", 44_100, 1, 16, "44100 Гц"),
+            ("stereo.wav", 16_000, 2, 16, "каналов: 2"),
+            ("depth.wav", 16_000, 1, 24, "24 бит"),
+            ("eight.wav", 16_000, 1, 8, "8 бит"),
+        ] {
+            let path = write_format(dir.path(), name, rate, channels, bits);
+            let error = describe_wav(&path).unwrap_err().to_string();
+            assert!(error.contains(found), "{error}");
+            assert!(error.contains("16000 Гц"), "{error}");
+        }
     }
 }

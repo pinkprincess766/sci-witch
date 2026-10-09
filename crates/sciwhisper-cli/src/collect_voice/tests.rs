@@ -17,19 +17,65 @@ fn plan_for_test() -> Plan {
 }
 
 fn wav(dir: &std::path::Path) -> std::path::PathBuf {
-    let path = dir.join("test.wav");
+    wav_with(dir, "test.wav", 16000, 1, 16)
+}
+
+fn wav_with(
+    dir: &std::path::Path,
+    name: &str,
+    sample_rate: u32,
+    channels: u16,
+    bits: u16,
+) -> std::path::PathBuf {
+    let path = dir.join(name);
     let spec = hound::WavSpec {
-        channels: 1,
-        sample_rate: 16000,
-        bits_per_sample: 16,
+        channels,
+        sample_rate,
+        bits_per_sample: bits,
         sample_format: hound::SampleFormat::Int,
     };
     let mut writer = hound::WavWriter::create(&path, spec).unwrap();
-    for _ in 0..16000 {
-        writer.write_sample(0i16).unwrap();
+    for _ in 0..sample_rate * u32::from(channels) {
+        writer.write_sample(0i32).unwrap();
     }
     writer.finalize().unwrap();
     path
+}
+
+#[test]
+fn only_16_bit_mono_16_khz_takes_are_accepted() {
+    let dir = tempfile::tempdir().unwrap();
+    let p = plan_for_test();
+    let s = Session::create(&dir.path().join("session"), p.clone()).unwrap();
+    let text = &p.tasks[0].human_transcript;
+    for (name, rate, channels, bits, found) in [
+        ("rate.wav", 44_100, 1, 16, "44100 Гц"),
+        ("stereo.wav", 16_000, 2, 16, "каналов: 2"),
+        ("depth.wav", 16_000, 1, 24, "24 бит"),
+    ] {
+        let path = wav_with(dir.path(), name, rate, channels, bits);
+        let error = s.accept(0, &path, text, "Mic").expect_err("refused");
+        assert!(error.contains(found), "{error}");
+    }
+    assert!(s.takes().unwrap().is_empty());
+    s.accept(0, &wav(dir.path()), text, "Mic").unwrap();
+    assert_eq!(s.takes().unwrap().len(), 1);
+}
+
+#[test]
+fn a_take_replaced_by_another_format_is_refused_on_resume_and_export() {
+    let dir = tempfile::tempdir().unwrap();
+    let p = plan_for_test();
+    let s = Session::create(&dir.path().join("session"), p.clone()).unwrap();
+    s.accept(0, &wav(dir.path()), &p.tasks[0].human_transcript, "Mic")
+        .unwrap();
+    let stereo = wav_with(dir.path(), "stereo.wav", 16000, 2, 16);
+    fs::copy(stereo, s.root.join("takes/0000/audio.wav")).unwrap();
+    let error = s.takes().err().expect("resume refused");
+    assert!(error.contains("каналов: 2"), "{error}");
+    let out = dir.path().join("export");
+    assert!(s.export(&out).is_err());
+    assert!(!out.exists());
 }
 
 #[test]

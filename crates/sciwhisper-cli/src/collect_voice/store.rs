@@ -5,7 +5,9 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 
-use sciwhisper_asr::corpus::describe_wav;
+use sciwhisper_asr::corpus::{
+    check_format, describe_wav, REQUIRED_CHANNELS, REQUIRED_SAMPLE_RATE_HZ,
+};
 use sciwhisper_eval::schema::{AudioSource, Consent, Dataset, Provenance, Record, Split};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -240,13 +242,8 @@ fn directory(path: &Path) -> Result<()> {
 
 fn check_pcm(path: &Path) -> Result<()> {
     let reader = hound::WavReader::open(path).map_err(err)?;
-    let spec = reader.spec();
-    if spec.sample_format != hound::SampleFormat::Int
-        || spec.bits_per_sample != 16
-        || spec.channels != 1
-        || spec.sample_rate != 16000
-        || !(1600..=960000).contains(&reader.duration())
-    {
+    check_format(reader.spec(), path).map_err(err)?;
+    if !(1600..=960000).contains(&reader.duration()) {
         return Err("Нужен PCM16 моно WAV 16 кГц продолжительностью 0,1–60 секунд".into());
     }
     Ok(())
@@ -394,8 +391,8 @@ impl Session {
         fs::copy(wav, stage.path().join("audio.wav")).map_err(err)?;
         check_pcm(&stage.path().join("audio.wav"))?;
         let facts = describe_wav(&stage.path().join("audio.wav")).map_err(err)?;
-        if facts.sample_rate_hz != 16000
-            || facts.channels != 1
+        if facts.sample_rate_hz != REQUIRED_SAMPLE_RATE_HZ
+            || facts.channels != u32::from(REQUIRED_CHANNELS)
             || !(0.1..=60.0).contains(&facts.duration_secs)
         {
             return Err("Нужен моно WAV 16 кГц продолжительностью 0,1–60 секунд".into());
