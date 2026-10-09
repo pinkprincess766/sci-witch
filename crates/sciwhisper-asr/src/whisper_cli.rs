@@ -5,6 +5,7 @@
 //! only outside a bundle a Python `openai-whisper`. The scientific parser
 //! never reads Whisper's string as a formula.
 
+use std::ffi::OsString;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -158,22 +159,7 @@ fn transcribe_cpp(
     let out_base = tmp.path().join("out");
     let model = resolve_cpp_model(eng, &eng.info.model)?;
     let mut cmd = Command::new(&eng.info.binary);
-    // Every value goes in as its own argument, so spaces and Cyrillic in the
-    // model or audio path survive untouched.
-    cmd.arg("-m")
-        .arg(&model)
-        .arg("-f")
-        .arg(audio)
-        .arg("-l")
-        .arg(&opts.language)
-        .arg("-otxt")
-        .arg("-of")
-        .arg(&out_base)
-        .arg("-nt")
-        .arg("-np");
-    if !opts.initial_prompt.is_empty() {
-        cmd.arg("--prompt").arg(&opts.initial_prompt);
-    }
+    cmd.args(cpp_args(&model, audio, &out_base, opts));
     let out = process::run(cmd, eng.limits)?;
     if !out.success {
         // The backend ran and refused. Its own last words are more useful to
@@ -202,6 +188,37 @@ fn transcribe_cpp(
         language: Some(opts.language.clone()),
         segments: vec![],
     })
+}
+
+/// The whisper.cpp command line for one recording. Every value goes in as its
+/// own argument, so spaces and Cyrillic in the model or audio path survive
+/// untouched.
+fn cpp_args(
+    model: &Path,
+    audio: &Path,
+    out_base: &Path,
+    opts: &TranscribeOptions,
+) -> Vec<OsString> {
+    let mut args: Vec<OsString> = vec![
+        "-m".into(),
+        model.into(),
+        "-f".into(),
+        audio.into(),
+        "-l".into(),
+        opts.language.clone().into(),
+        "-otxt".into(),
+        "-of".into(),
+        out_base.into(),
+        "-nt".into(),
+        "-np".into(),
+    ];
+    args.push("--temperature".into());
+    args.push(opts.temperature.to_string().into());
+    if !opts.initial_prompt.is_empty() {
+        args.push("--prompt".into());
+        args.push(opts.initial_prompt.clone().into());
+    }
+    args
 }
 
 #[derive(Deserialize)]
@@ -436,6 +453,7 @@ pub fn doctor_verified() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::ffi::OsStr;
 
     #[test]
     fn parses_openai_json_transcript() {
@@ -481,5 +499,114 @@ mod tests {
         let err = ensure_openai_model_cached("sciwhisper-model-that-does-not-exist")
             .expect_err("unknown model must not trigger a download");
         assert!(matches!(err, Error::LocalModelMissing { .. }));
+    }
+
+    fn opts_with_temperature(temperature: f32) -> TranscribeOptions {
+        TranscribeOptions {
+            initial_prompt: String::new(),
+            temperature,
+            ..TranscribeOptions::default()
+        }
+    }
+
+    fn osv(list: &[&str]) -> Vec<OsString> {
+        list.iter().map(OsString::from).collect()
+    }
+
+    /// The value that follows `flag`, if the flag is there.
+    fn flag_value<'a>(args: &'a [OsString], flag: &str) -> Option<&'a OsStr> {
+        args.windows(2)
+            .find(|pair| pair[0] == flag)
+            .map(|pair| pair[1].as_os_str())
+    }
+
+    #[test]
+    fn whisper_cpp_gets_the_full_command_line_written_out() {
+        let args = cpp_args(
+            Path::new("/m/ggml-base.bin"),
+            Path::new("/a/x.wav"),
+            Path::new("/o/out"),
+            &opts_with_temperature(0.6),
+        );
+        assert_eq!(
+            args,
+            osv(&[
+                "-m",
+                "/m/ggml-base.bin",
+                "-f",
+                "/a/x.wav",
+                "-l",
+                "ru",
+                "-otxt",
+                "-of",
+                "/o/out",
+                "-nt",
+                "-np",
+                "--temperature",
+                "0.6",
+            ])
+        );
+    }
+
+    #[test]
+    fn temperature_zero_is_passed_as_zero() {
+        let args = cpp_args(
+            Path::new("/m/ggml-base.bin"),
+            Path::new("/a/x.wav"),
+            Path::new("/o/out"),
+            &opts_with_temperature(0.0),
+        );
+        assert_eq!(flag_value(&args, "--temperature"), Some(OsStr::new("0")));
+    }
+
+    #[test]
+    fn temperature_above_zero_is_passed_as_given() {
+        let args = cpp_args(
+            Path::new("/m/ggml-base.bin"),
+            Path::new("/a/x.wav"),
+            Path::new("/o/out"),
+            &opts_with_temperature(0.6),
+        );
+        assert_eq!(flag_value(&args, "--temperature"), Some(OsStr::new("0.6")));
+    }
+
+    #[test]
+    fn paths_with_spaces_and_cyrillic_stay_one_argument_each() {
+        let model = Path::new("/Users/Иван Петров/модели/ggml-base.bin");
+        let audio = Path::new("/Users/Иван Петров/записи/проба 1.wav");
+        let args = cpp_args(
+            model,
+            audio,
+            Path::new("/tmp/out"),
+            &opts_with_temperature(0.0),
+        );
+        assert_eq!(flag_value(&args, "-m"), Some(model.as_os_str()));
+        assert_eq!(flag_value(&args, "-f"), Some(audio.as_os_str()));
+        // 11 fixed arguments plus `--temperature 0`. A split path adds entries.
+        assert_eq!(args.len(), 13, "{args:?}");
+    }
+
+    #[test]
+    fn prompt_is_passed_only_when_non_empty() {
+        let mut opts = opts_with_temperature(0.0);
+        let without = cpp_args(
+            Path::new("/m/ggml-base.bin"),
+            Path::new("/a/x.wav"),
+            Path::new("/o/out"),
+            &opts,
+        );
+        assert_eq!(flag_value(&without, "--prompt"), None);
+
+        opts.initial_prompt = "гидроксид меди два".into();
+        let with = cpp_args(
+            Path::new("/m/ggml-base.bin"),
+            Path::new("/a/x.wav"),
+            Path::new("/o/out"),
+            &opts,
+        );
+        assert_eq!(
+            flag_value(&with, "--prompt"),
+            Some(OsStr::new("гидроксид меди два"))
+        );
     }
 }
