@@ -388,3 +388,40 @@ proptest! {
         prop_assert_eq!(balance_equation(&joined), None, "{}", describe(&joined));
     }
 }
+
+/// Atom counts in the millions, still inside the region where overflow is
+/// proven impossible (`docs/compiler/BALANCE_KERNEL_RU.md`): the product of
+/// the two row norms is below 2^42. The balancer must give the exact answer,
+/// in debug and in release.
+#[test]
+fn large_counts_inside_the_proven_region_still_balance_exactly() {
+    const LIMIT: u128 = (1 << 42) - 1;
+    let (u, v): (u32, u32) = (1_103_680, 7);
+    let species = |e0: u32, e1: u32| {
+        Species::new(Formula {
+            parts: vec![
+                Part::Atom {
+                    symbol: "E0".to_string(),
+                    count: e0,
+                },
+                Part::Atom {
+                    symbol: "E1".to_string(),
+                    count: e1,
+                },
+            ],
+        })
+    };
+    let (r0, r1) = (2 * u + 3 * v, 2 * v + 3 * u);
+    let equation = Equation {
+        left: vec![species(u, v), species(v, u)],
+        arrow: Arrow::Forward,
+        right: vec![species(r0, r1)],
+        condition: None,
+    };
+    // The matrix is 2 x 3, so the Hadamard bound takes the two largest of the
+    // three column norms. Columns are (u, v), (v, u) and (r0, r1).
+    let col_sq = |a: u32, b: u32| u128::from(a).pow(2) + u128::from(b).pow(2);
+    let bound_sq = col_sq(r0, r1) * col_sq(u, v);
+    assert!(bound_sq <= LIMIT * LIMIT, "premise of the test");
+    assert_eq!(balance_equation(&equation), Some(vec![2, 3, 1]));
+}
