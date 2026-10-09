@@ -294,6 +294,20 @@ mod tests {
         writer.finalize().unwrap();
     }
 
+    fn wav_with(path: &Path, sample_rate: u32, channels: u16, bits: u16) {
+        let spec = hound::WavSpec {
+            channels,
+            sample_rate,
+            bits_per_sample: bits,
+            sample_format: hound::SampleFormat::Int,
+        };
+        let mut writer = hound::WavWriter::create(path, spec).unwrap();
+        for _ in 0..sample_rate * u32::from(channels) {
+            writer.write_sample(0i32).unwrap();
+        }
+        writer.finalize().unwrap();
+    }
+
     const CONSENT: &str = r#"{"granted":true,"statement_id":"consent-ru-v1","date":"2026-09-05"}"#;
 
     fn manifest_line(overrides: &str, audio: &str) -> String {
@@ -416,6 +430,22 @@ mod tests {
         std::fs::write(&options.manifest, manifest).unwrap();
         let error = run(options_ref(&options), &mut |_| Ok(String::new())).unwrap_err();
         assert!(error.contains("has no audio"), "{error}");
+    }
+
+    #[test]
+    fn a_recording_outside_the_corpus_format_is_refused_and_nothing_is_written() {
+        let (dir, options) = setup(true, &full_audio(), "");
+        let audio = dir.path().join("audio/spk01-0001.wav");
+        for (sample_rate, channels, bits, found) in [
+            (44_100, 1, 16, "44100 Гц"),
+            (16_000, 2, 16, "каналов: 2"),
+            (16_000, 1, 24, "24 бит"),
+        ] {
+            wav_with(&audio, sample_rate, channels, bits);
+            let error = run(options_ref(&options), &mut |_| Ok("вода".into())).unwrap_err();
+            assert!(error.contains(found), "{error}");
+            assert!(!options.output.exists(), "no output on a refused recording");
+        }
     }
 
     #[test]
