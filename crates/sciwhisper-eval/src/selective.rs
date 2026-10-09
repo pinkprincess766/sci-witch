@@ -397,6 +397,107 @@ pub fn log_loss(probabilities: &[f64], correct: &[bool]) -> Option<f64> {
     Some(total / probabilities.len() as f64)
 }
 
+/// Brier score of a fitted model's probabilities: the mean of `(p - y)^2`,
+/// with `y` 1 for a right answer and 0 for a wrong one. Lower is better; a
+/// constant `p = 0.5` scores 0.25, and a perfect 0/1 model scores 0.
+///
+/// Like [`log_loss`], this is for a probability. The compiler's `confidence`
+/// is a parse level, not a probability (see `AGENTS.md`), so it does not go
+/// here.
+///
+/// `None` for empty input, lengths that differ, or any probability outside
+/// `[0, 1]`, NaN included.
+#[cfg_attr(
+    not(test),
+    expect(dead_code, reason = "not yet wired into a report; tested below")
+)]
+pub fn brier_score(probabilities: &[f64], correct: &[bool]) -> Option<f64> {
+    if probabilities.is_empty() || probabilities.len() != correct.len() {
+        return None;
+    }
+    // A NaN fails the range check too, so it is rejected here.
+    if !probabilities.iter().all(|p| (0.0..=1.0).contains(p)) {
+        return None;
+    }
+    let total: f64 = probabilities
+        .iter()
+        .zip(correct)
+        .map(|(&p, &right)| {
+            let outcome = f64::from(u8::from(right));
+            (p - outcome).powi(2)
+        })
+        .sum();
+    Some(total / probabilities.len() as f64)
+}
+
+/// Upper limit on the bin count of [`expected_calibration_error`]. The bins
+/// are allocated up front, so an unbounded count would be an unbounded
+/// allocation.
+#[cfg_attr(
+    not(test),
+    expect(dead_code, reason = "not yet wired into a report; tested below")
+)]
+pub const MAX_ECE_BINS: usize = 100;
+
+/// Expected calibration error of a fitted model's probabilities, over
+/// `bins` equal-width bins on `[0, 1]`.
+///
+/// A probability `p` goes to bin `min(floor(p · bins), bins − 1)`, so `p = 1`
+/// lands in the last bin, not in a bin of its own. Each non-empty bin adds
+/// `(n_b / N) · |accuracy_b − mean p_b|`: the gap between how often the bin
+/// was right and what it predicted, weighted by how many examples it holds.
+/// Lower is better; 0 means every bin is calibrated.
+///
+/// The estimate is biased, and its value depends on `bins`: the same
+/// predictions give different numbers with 10 bins and with 20. Report it
+/// with [`brier_score`] and [`log_loss`], not alone.
+///
+/// Like [`log_loss`], this is for a fitted model's probability. The compiler's
+/// `confidence` is a parse level, not a probability (see `AGENTS.md`).
+///
+/// `None` for empty input, lengths that differ, any probability outside
+/// `[0, 1]` (NaN included), or `bins` outside `1..=MAX_ECE_BINS`.
+#[cfg_attr(
+    not(test),
+    expect(dead_code, reason = "not yet wired into a report; tested below")
+)]
+pub fn expected_calibration_error(
+    probabilities: &[f64],
+    correct: &[bool],
+    bins: usize,
+) -> Option<f64> {
+    if probabilities.is_empty() || probabilities.len() != correct.len() {
+        return None;
+    }
+    // A NaN fails the range check too, so it is rejected here.
+    if !probabilities.iter().all(|p| (0.0..=1.0).contains(p)) {
+        return None;
+    }
+    if bins == 0 || bins > MAX_ECE_BINS {
+        return None;
+    }
+    let mut count = vec![0usize; bins];
+    let mut sum_p = vec![0.0f64; bins];
+    let mut right = vec![0usize; bins];
+    for (&p, &is_right) in probabilities.iter().zip(correct) {
+        let bin = ((p * bins as f64).floor() as usize).min(bins - 1);
+        count[bin] += 1;
+        sum_p[bin] += p;
+        right[bin] += usize::from(is_right);
+    }
+    let total = probabilities.len() as f64;
+    let ece = (0..bins)
+        .filter(|&bin| count[bin] > 0)
+        .map(|bin| {
+            let weight = count[bin] as f64 / total;
+            let accuracy = right[bin] as f64 / count[bin] as f64;
+            let mean_p = sum_p[bin] / count[bin] as f64;
+            weight * (accuracy - mean_p).abs()
+        })
+        .sum();
+    Some(ece)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -653,6 +754,91 @@ mod tests {
         assert_eq!(log_loss(&[-0.1], &[true]), None);
         assert_eq!(log_loss(&[1.1], &[false]), None);
         assert_eq!(log_loss(&[f64::NAN], &[true]), None);
+    }
+
+    /// p = 0.5 everywhere: every term is (0.5 - y)^2 = 0.25, right or wrong.
+    #[test]
+    fn brier_of_a_coin_is_one_quarter() {
+        let brier = brier_score(&[0.5, 0.5, 0.5, 0.5], &[true, false, true, false]).unwrap();
+        assert!((brier - 0.25).abs() < 1e-12, "{brier}");
+    }
+
+    /// p = 0.9 right costs (0.9 - 1)^2 = 0.01. p = 0.2 wrong costs
+    /// (0.2 - 0)^2 = 0.04. Mean: (0.01 + 0.04) / 2 = 0.025.
+    #[test]
+    fn brier_takes_the_squared_gap_to_the_outcome() {
+        let brier = brier_score(&[0.9, 0.2], &[true, false]).unwrap();
+        assert!((brier - 0.025).abs() < 1e-12, "{brier}");
+    }
+
+    /// Certain and right, or certain and wrong: both at the ends of [0, 1]
+    /// are accepted, and both score 0.
+    #[test]
+    fn brier_of_perfect_predictions_is_zero() {
+        assert_eq!(brier_score(&[1.0, 0.0], &[true, false]), Some(0.0));
+    }
+
+    #[test]
+    fn brier_is_none_for_invalid_input() {
+        assert_eq!(brier_score(&[], &[]), None);
+        assert_eq!(brier_score(&[0.5], &[]), None);
+        assert_eq!(brier_score(&[0.5, 0.4], &[true]), None);
+        assert_eq!(brier_score(&[-0.1], &[true]), None);
+        assert_eq!(brier_score(&[1.1], &[false]), None);
+        assert_eq!(brier_score(&[f64::NAN], &[true]), None);
+    }
+
+    /// Four predictions in two bins: [0, 0.5) and [0.5, 1].
+    /// Bin 0 holds p = 0.25, right: n = 1, accuracy 1, mean p 0.25, gap 0.75.
+    /// Bin 1 holds p = 0.75 wrong, 0.5 right, 1.0 right: n = 3, accuracy 2/3,
+    /// mean p 0.75, gap 1/12.
+    /// ECE = (1/4)(0.75) + (3/4)(1/12) = 0.1875 + 0.0625 = 0.25.
+    /// An unweighted mean over the two bins would give (0.75 + 1/12) / 2 = 5/12.
+    #[test]
+    fn ece_weights_each_bin_by_its_share_of_the_examples() {
+        let p = [0.25, 0.75, 0.5, 1.0];
+        let right = [true, false, true, true];
+        let ece = expected_calibration_error(&p, &right, 2).unwrap();
+        assert!((ece - 0.25).abs() < 1e-12, "{ece}");
+    }
+
+    /// p = 1 belongs to the last bin. With two bins, 0.75 and 1.0 share bin 1:
+    /// n = 2, accuracy 1/2, mean p 7/8, so ECE = 1 · |1/2 − 7/8| = 3/8.
+    /// Without the clamp, p = 1 indexes bin 2 of 2 and panics.
+    #[test]
+    fn ece_puts_probability_one_in_the_last_bin() {
+        let ece = expected_calibration_error(&[0.75, 1.0], &[true, false], 2).unwrap();
+        assert!((ece - 0.375).abs() < 1e-12, "{ece}");
+    }
+
+    /// Empty bins are skipped. Of four bins only bin 0 is used: p = 0.1 and
+    /// 0.2, both right, n = 2, accuracy 1, mean p 0.15, so ECE = 0.85. Without
+    /// the skip, an empty bin divides 0 by 0 and the sum becomes NaN.
+    #[test]
+    fn ece_skips_empty_bins() {
+        let ece = expected_calibration_error(&[0.1, 0.2], &[true, true], 4).unwrap();
+        assert!((ece - 0.85).abs() < 1e-12, "{ece}");
+    }
+
+    /// The bin count is accepted from 1 to 100 and refused at 0 and 101.
+    #[test]
+    fn ece_bin_count_has_a_limit_on_both_sides() {
+        let p = [0.5, 0.9];
+        let right = [true, false];
+        assert!(expected_calibration_error(&p, &right, 1).is_some());
+        assert!(expected_calibration_error(&p, &right, 100).is_some());
+        assert_eq!(expected_calibration_error(&p, &right, 101), None);
+        assert_eq!(expected_calibration_error(&p, &right, 0), None);
+    }
+
+    #[test]
+    fn ece_is_none_for_invalid_input() {
+        assert_eq!(expected_calibration_error(&[], &[], 10), None);
+        assert_eq!(expected_calibration_error(&[0.5], &[], 10), None);
+        assert_eq!(expected_calibration_error(&[0.5, 0.4], &[true], 10), None);
+        assert_eq!(expected_calibration_error(&[-0.1], &[true], 10), None);
+        assert_eq!(expected_calibration_error(&[1.1], &[false], 10), None);
+        assert_eq!(expected_calibration_error(&[f64::NAN], &[true], 10), None);
     }
 
     /// The test-only entry point, so the curve can be exercised without
