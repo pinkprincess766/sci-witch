@@ -182,3 +182,9 @@ cargo run -p sciwhisper-eval -- seal \
 - Не объявляет `dev-seed-v2` тестом живой речи.
 - Не разрешает дообучить словарь на этих фразах и заново измерить тот же
   test.
+
+## Пометки после регистрации
+
+Правила выше не меняются. Здесь только факты о коде, которые изменились после того, как файл записан.
+
+- 09.10.2026. Раздел «Что попадёт в отчёт» называл следующими задачами WER и кластерный бутстрэп. Оба теперь есть в коде: `word_error_rate` и `char_error_rate` в `crates/sciwhisper-eval/src/error_rate.rs`, выравнивание `align_words` в `crates/sciwhisper-eval/src/align.rs`, `cluster_bootstrap_proportion` в `crates/sciwhisper-eval/src/metrics.rs`. Ни один отчёт их пока не вызывает, записей нет (`speakers = 0`), поэтому отчёт voice-v1 по-прежнему не готов.
