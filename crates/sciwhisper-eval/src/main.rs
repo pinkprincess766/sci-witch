@@ -247,8 +247,10 @@ fn run() -> Result<ExitCode, String> {
     let cli = Cli::parse();
     match cli.command {
         Command::ValidateDataset { dataset } => {
-            let (corpus, _) = load(&dataset)?;
+            // The whole file: hygiene covers pending records too.
+            let (corpus, _) = load_all(&dataset)?;
             let audit = audit_splits(&corpus);
+            let pending = corpus.records.iter().filter(|r| r.is_pending()).count();
             let versions: Vec<String> = corpus
                 .schema_versions()
                 .into_iter()
@@ -272,6 +274,11 @@ fn run() -> Result<ExitCode, String> {
             }
             for (provenance, count) in corpus.provenance_counts() {
                 println!("  provenance {provenance:<7} {count} records");
+            }
+            if pending > 0 {
+                println!(
+                    "  pending references {pending} (awaiting a human transcript; not scored)"
+                );
             }
             // Zero speakers is the normal state of a text corpus, and it is
             // the reason ASR-first reads N/A — worth printing, not hiding.
@@ -319,7 +326,7 @@ fn run() -> Result<ExitCode, String> {
             output,
             quiet,
         } => {
-            let (corpus, bytes) = load(&dataset)?;
+            let (corpus, pending_ids, bytes) = load(&dataset)?;
             let selected = filter(&corpus, split)?;
             let config = EvalConfig {
                 k,
@@ -331,6 +338,7 @@ fn run() -> Result<ExitCode, String> {
             };
             let report = build_report(&Inputs {
                 dataset: &corpus,
+                pending_ids: &pending_ids,
                 dataset_path: &dataset,
                 dataset_bytes: &bytes,
                 selected,
@@ -355,7 +363,7 @@ fn run() -> Result<ExitCode, String> {
             split,
             policy,
         } => {
-            let (corpus, _) = load(&dataset)?;
+            let (corpus, _, _) = load(&dataset)?;
             let selected = filter(&corpus, split)?;
             let config = EvalConfig {
                 domain_policy: policy.into(),
@@ -540,7 +548,7 @@ fn run() -> Result<ExitCode, String> {
             split,
             output,
         } => {
-            let (corpus, _) = load(&dataset)?;
+            let (corpus, _, _) = load(&dataset)?;
             let selected = filter(&corpus, split)?;
             let mut lines = Vec::new();
             for record in &selected {
@@ -674,12 +682,34 @@ fn run() -> Result<ExitCode, String> {
     }
 }
 
-fn load(path: &Path) -> Result<(Dataset, Vec<u8>), String> {
+fn read_text(path: &Path) -> Result<(String, Vec<u8>), String> {
     let bytes = std::fs::read(path).map_err(|error| format!("{}: {error}", display(path)))?;
     let text = String::from_utf8(bytes.clone())
         .map_err(|error| format!("{}: not UTF-8: {error}", display(path)))?;
+    Ok((text, bytes))
+}
+
+/// The whole file, pending records included. Only the hygiene checks use it.
+fn load_all(path: &Path) -> Result<(Dataset, Vec<u8>), String> {
+    let (text, bytes) = read_text(path)?;
     let corpus = Dataset::parse_jsonl(&text).map_err(|error| error.to_string())?;
     Ok((corpus, bytes))
+}
+
+/// The one place pending records leave the evaluation: everything past this
+/// call sees scored records only. Returns the scored dataset and the ids of
+/// the pending records.
+fn scored_corpus(text: &str) -> Result<(Dataset, Vec<String>), String> {
+    let corpus = Dataset::parse_jsonl(text).map_err(|error| error.to_string())?;
+    Ok(corpus.without_pending())
+}
+
+/// [`scored_corpus`] for a file, with the bytes (the digest covers the
+/// whole file, pending records included).
+fn load(path: &Path) -> Result<(Dataset, Vec<String>, Vec<u8>), String> {
+    let (text, bytes) = read_text(path)?;
+    let (scored, pending_ids) = scored_corpus(&text)?;
+    Ok((scored, pending_ids, bytes))
 }
 
 fn filter(corpus: &Dataset, split: SplitArg) -> Result<Vec<&schema::Record>, String> {
@@ -717,6 +747,7 @@ mod tests {
         let path = PathBuf::from("/somewhere/absolute/dev-seed-v1.jsonl");
         let report = build_report(&Inputs {
             dataset: &corpus,
+            pending_ids: &[],
             dataset_path: &path,
             dataset_bytes: corpus_text.as_bytes(),
             selected: corpus.records.iter().collect(),
@@ -742,6 +773,7 @@ mod tests {
         let build = || {
             build_report(&Inputs {
                 dataset: &corpus,
+                pending_ids: &[],
                 dataset_path: &path,
                 dataset_bytes: corpus_text.as_bytes(),
                 selected: corpus.records.iter().collect(),
@@ -753,5 +785,93 @@ mod tests {
         let first = crate::report::without_timing(&build()).unwrap();
         let second = crate::report::without_timing(&build()).unwrap();
         assert_eq!(first, second);
+    }
+
+    const WATER: &str = r#"{"dataset_schema_version":1,"id":"chem-water-001-a","family_id":"chem-water-001","provenance":"handcrafted_text","human_transcript":"вода","asr_hypotheses":[],"target_domain":"chemistry","target_action":"ast","target_ast":{"Chemical":{"Species":{"coefficient":1,"formula":{"parts":[{"Atom":{"symbol":"H","count":2}},{"Atom":{"symbol":"O","count":1}}]},"charge":null,"marker":null}}},"split":"train","tags":["formula"],"speaker_id":null}"#;
+    const PATIENCE: &str = r#"{"dataset_schema_version":1,"id":"plain-001-a","family_id":"plain-001","provenance":"handcrafted_text","human_transcript":"предел терпения","asr_hypotheses":[],"target_domain":"plain","target_action":"raw","target_ast":null,"split":"train","tags":["raw"],"speaker_id":null}"#;
+    /// A free task before anyone has typed the transcript: no text at all.
+    const PENDING_TEXT: &str = r#"{"dataset_schema_version":1,"id":"free-001-a","family_id":"free-001","provenance":"handcrafted_text","human_transcript":"","reference_status":"pending","asr_hypotheses":[],"target_domain":"plain","target_action":"raw","target_ast":null,"split":"train","tags":[],"speaker_id":null}"#;
+    /// The same after recording: it has audio and an ASR hypothesis, but
+    /// still no reference. If it were scored, "вода" would be a chemistry hit.
+    const PENDING_VOICE: &str = r#"{"dataset_schema_version":2,"id":"free-002-a","family_id":"free-002","provenance":"real_audio","human_transcript":"","reference_status":"pending","asr_hypotheses":[{"text":"вода"}],"audio":{"file":"audio/spk01-0001.wav","sha256":"0000000000000000000000000000000000000000000000000000000000000000","duration_secs":1.5,"sample_rate_hz":16000,"channels":1,"consent":{"granted":true,"statement_id":"consent-ru-v2","date":"2026-10-01"}},"target_domain":"chemistry","target_action":"ast","target_ast":{"Chemical":{"Species":{"coefficient":1,"formula":{"parts":[{"Atom":{"symbol":"H","count":2}},{"Atom":{"symbol":"O","count":1}}]},"charge":null,"marker":null}}},"split":"train","tags":[],"speaker_id":"spk01"}"#;
+
+    fn report_of(text: &str) -> report::Report {
+        let (corpus, pending_ids) = scored_corpus(text).expect("corpus loads");
+        let selected = filter(&corpus, SplitArg::All).expect("something to score");
+        build_report(&Inputs {
+            dataset: &corpus,
+            pending_ids: &pending_ids,
+            dataset_path: &PathBuf::from("free-test.jsonl"),
+            dataset_bytes: text.as_bytes(),
+            selected,
+            split_filter: "all".into(),
+            config: EvalConfig::default(),
+        })
+        .expect("report builds")
+    }
+
+    /// Everything but the file digest (the bytes differ by the pending lines)
+    /// and the pending block itself.
+    fn sections(report: &report::Report) -> serde_json::Value {
+        let mut value = report::without_timing(report).unwrap();
+        value["dataset"].as_object_mut().unwrap().remove("sha256");
+        value.as_object_mut().unwrap().remove("pending_references");
+        value
+    }
+
+    #[test]
+    fn pending_records_change_no_metric_and_are_listed() {
+        let read = [WATER, PATIENCE].join("\n");
+        let mixed = [WATER, PENDING_TEXT, PATIENCE, PENDING_VOICE].join("\n");
+        let with_pending = report_of(&mixed);
+        let without = report_of(&read);
+        assert_eq!(sections(&with_pending), sections(&without));
+        assert_eq!(with_pending.metrics.examples, 2);
+        let pending = with_pending.pending_references.as_ref().expect("listed");
+        assert_eq!(pending.count, 2);
+        assert_eq!(pending.ids, ["free-001-a", "free-002-a"]);
+        assert_eq!(pending.note, report::PENDING_REFERENCES_NOTE);
+        let json = serde_json::to_value(&with_pending).unwrap();
+        assert_eq!(json["pending_references"]["count"], 2);
+        assert!(human_table(&with_pending).contains("pending references: 2"));
+    }
+
+    #[test]
+    fn a_corpus_without_pending_records_has_no_pending_block() {
+        let report = report_of(&[WATER, PATIENCE].join("\n"));
+        assert!(report.pending_references.is_none());
+        let json = serde_json::to_value(&report).unwrap();
+        assert!(json.get("pending_references").is_none());
+        assert!(!human_table(&report).contains("pending"));
+    }
+
+    /// 0 of 0 must not read as a pass: a corpus with nothing but pending
+    /// records has nothing to score, and says so.
+    #[test]
+    fn a_corpus_of_only_pending_records_is_refused() {
+        let (scored, pending_ids) =
+            scored_corpus(&[PENDING_TEXT, PENDING_VOICE].join("\n")).unwrap();
+        assert_eq!(pending_ids.len(), 2);
+        let error = filter(&scored, SplitArg::All).expect_err("nothing to score");
+        assert!(error.contains("selects no records"), "{error}");
+    }
+
+    /// The harness itself refuses a pending record, so a caller that skips
+    /// `scored_corpus` gets an error and not a quiet 0-for-1.
+    #[test]
+    fn build_report_refuses_a_pending_record() {
+        let text = [WATER, PENDING_VOICE].join("\n");
+        let corpus = Dataset::parse_jsonl(&text).unwrap();
+        let error = build_report(&Inputs {
+            dataset: &corpus,
+            pending_ids: &[],
+            dataset_path: &PathBuf::from("free-test.jsonl"),
+            dataset_bytes: text.as_bytes(),
+            selected: corpus.records.iter().collect(),
+            split_filter: "all".into(),
+            config: EvalConfig::default(),
+        })
+        .expect_err("pending must not be scored");
+        assert!(error.contains("free-002-a"), "{error}");
     }
 }

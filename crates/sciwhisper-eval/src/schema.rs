@@ -244,6 +244,12 @@ impl Record {
             .map(|hypothesis| hypothesis.text.as_str())
             .unwrap_or(&self.human_transcript)
     }
+
+    /// Whether the reference is still to be written. Such a record has
+    /// nothing to be scored against, whatever else it carries.
+    pub fn is_pending(&self) -> bool {
+        self.reference_status == Some(ReferenceStatus::Pending)
+    }
 }
 
 #[derive(Debug)]
@@ -356,6 +362,16 @@ impl Dataset {
             });
         }
         Ok(Dataset { records })
+    }
+
+    /// Splits off the records whose reference is still pending and returns
+    /// the rest with the pending ids, in file order. Every metric reads the
+    /// returned dataset only, so none of them can score a missing reference.
+    pub fn without_pending(self) -> (Dataset, Vec<String>) {
+        let (pending, scored): (Vec<Record>, Vec<Record>) =
+            self.records.into_iter().partition(Record::is_pending);
+        let ids = pending.into_iter().map(|record| record.id).collect();
+        (Dataset { records: scored }, ids)
     }
 
     pub fn split_counts(&self) -> BTreeMap<&'static str, usize> {
