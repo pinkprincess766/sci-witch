@@ -1,0 +1,100 @@
+{
+  "schema_version": 1,
+  "manifest": {
+    "script": {
+      "path": "research/asr/whisper_hypotheses.py",
+      "sha256": "b472253dc00053af235ec1f3924c1e3e4fe6c907a0bf1d83a603f490fd78e5fb"
+    },
+    "python_version": "3.14.6",
+    "torch_version": "2.12.1",
+    "whisper_version": "20250625",
+    "model": {
+      "name": "base",
+      "file": "base.pt",
+      "sha256": "ed3a0b6b1c0edf879ad9b11b1af5a0e6ab5db9205f891f668f8b0e6c6326e34e"
+    },
+    "mode": "greedy",
+    "temperature": 0.0,
+    "best_of": null,
+    "beam_size": null,
+    "seed": null,
+    "device": "cpu",
+    "fp16": false,
+    "language_requested": "ru",
+    "audio": {
+      "path": "research/voice-samples/synthetic/quadratic.caf",
+      "sha256": "b09f69b162400bcda5205446f37446c0d485d255aee49ed02dd16f613487d00f"
+    },
+    "sample_rate_hz": 16000,
+    "audio_duration_s": 2.957375
+  },
+  "language": "ru",
+  "hypotheses": [
+    {
+      "text": "x² плюс 2x-3 равно нулю.",
+      "tokens": [
+        {
+          "id": 2031,
+          "text": " x",
+          "logprob": -0.7607821226119995
+        },
+        {
+          "id": 27643,
+          "text": "²",
+          "logprob": -0.9333428144454956
+        },
+        {
+          "id": 43342,
+          "text": " плюс",
+          "logprob": -0.8076148629188538
+        },
+        {
+          "id": 568,
+          "text": " 2",
+          "logprob": -0.03263646364212036
+        },
+        {
+          "id": 87,
+          "text": "x",
+          "logprob": -0.4825901687145233
+        },
+        {
+          "id": 12,
+          "text": "-",
+          "logprob": -0.9312586784362793
+        },
+        {
+          "id": 18,
+          "text": "3",
+          "logprob": -0.06556276232004166
+        },
+        {
+          "id": 27354,
+          "text": " равно",
+          "logprob": -0.11886773258447647
+        },
+        {
+          "id": 13087,
+          "text": " ну",
+          "logprob": -0.6523553729057312
+        },
+        {
+          "id": 6578,
+          "text": "лю",
+          "logprob": -0.06253418326377869
+        },
+        {
+          "id": 13,
+          "text": ".",
+          "logprob": -0.2397218495607376
+        }
+      ],
+      "eot_logprob": -0.0043243709951639175,
+      "sum_logprob": -5.091591382399201,
+      "mean_logprob": -0.4624788192185489,
+      "min_logprob": -0.9333428144454956,
+      "window_avg_logprob": -0.42429951826731366,
+      "no_speech_prob": 0.03609554469585419
+    }
+  ]
+}

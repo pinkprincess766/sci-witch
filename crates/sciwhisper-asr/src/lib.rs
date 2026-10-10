@@ -6,6 +6,7 @@ pub mod capture;
 pub mod corpus;
 pub mod engine;
 pub mod error;
+pub mod hypotheses;
 pub mod model;
 pub mod pipeline;
 pub mod process;
