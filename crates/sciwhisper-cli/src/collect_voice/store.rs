@@ -8,13 +8,21 @@ use std::path::{Path, PathBuf};
 use sciwhisper_asr::corpus::{
     check_format, describe_wav, REQUIRED_CHANNELS, REQUIRED_SAMPLE_RATE_HZ,
 };
-use sciwhisper_eval::schema::{AudioSource, Consent, Dataset, Provenance, Record, Split};
+use sciwhisper_eval::schema::{
+    AudioSource, Consent, Dataset, Provenance, Record, ReferenceStatus, Split,
+};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 pub const CONSENT_LOCAL_TEXT: &str = "Согласие voice-local-v1\nЯ разрешаю sci-witch сохранять короткие записи моего голоса и подтверждённый мною текст для локальной проверки качества. Голос может позволить узнать меня: код диктора не делает его анонимным. Записи, сведения о микрофоне и обстановке остаются в выбранной папке. Экспорт создаёт ещё одну локальную копию, без отправки и разрешения на публикацию. Для передачи другим людям нужно отдельное согласие. Команда revoke удаляет записи этой сессии; ранее экспортированные или переданные копии нужно удалить отдельно. Автоматическое обучение не выполняется.\n";
 const LIMIT: u64 = 8 * 1024 * 1024;
 pub const MAX_TASKS: usize = 1000;
+/// Longest card text a free task may show, in bytes.
+pub const MAX_CARD_BYTES: usize = 1024;
+/// Typed to confirm a read task: the speaker said the phrase exactly.
+pub const CONFIRM_EXACT_WORD: &str = "ТОЧНО";
+/// Typed to confirm a free task: the take is usable. There is no text to match.
+pub const CONFIRM_USABLE_WORD: &str = "ДА";
 pub const CONSENT_LOCAL_ID: &str = "voice-local-v1";
 pub const CONSENT_V2_ID: &str = "consent-ru-v2";
 /// The repo's text of the form the speaker signs; its bytes are hashed at recording time.
@@ -85,6 +93,31 @@ impl ConsentKind {
     }
 }
 
+/// What the speaker must confirm after listening to a take.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Confirmation {
+    /// Read task: the phrase on the screen was said exactly.
+    ExactText,
+    /// Free task: the take answers the card and is usable.
+    Usable,
+}
+
+impl Confirmation {
+    pub fn question(self) -> String {
+        match self {
+            Self::ExactText => format!("Вы произнесли именно этот текст целиком? Введите {CONFIRM_EXACT_WORD}. При оговорке используйте r."),
+            Self::Usable => format!("Запись годится: вы ответили на карточку своими словами, голос слышно, посторонних нет? Введите {CONFIRM_USABLE_WORD}; иначе r — перезаписать."),
+        }
+    }
+    pub fn accepts(self, answer: &str) -> bool {
+        answer
+            == match self {
+                Self::ExactText => CONFIRM_EXACT_WORD,
+                Self::Usable => CONFIRM_USABLE_WORD,
+            }
+    }
+}
+
 pub type Result<T> = std::result::Result<T, String>;
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -99,9 +132,33 @@ pub struct Plan {
     pub source_sha256: String,
     pub environment: String,
     pub tasks: Vec<Record>,
+    /// Card text by task id. A task listed here is a free task: its
+    /// `human_transcript` is empty and `reference_status` is `pending`.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub cards: BTreeMap<String, String>,
 }
 
 impl Plan {
+    pub fn is_free(&self, idx: usize) -> bool {
+        self.tasks
+            .get(idx)
+            .is_some_and(|task| self.cards.contains_key(&task.id))
+    }
+    /// What the speaker sees: the phrase to read, or the card to answer.
+    pub fn shown(&self, idx: usize) -> String {
+        let task = &self.tasks[idx];
+        match self.cards.get(&task.id) {
+            Some(card) => format!("Карточка: {card}"),
+            None => task.human_transcript.clone(),
+        }
+    }
+    pub fn confirmation(&self, idx: usize) -> Confirmation {
+        if self.is_free(idx) {
+            Confirmation::Usable
+        } else {
+            Confirmation::ExactText
+        }
+    }
     pub fn consent_kind(&self) -> Result<ConsentKind> {
         ConsentKind::from_id(&self.consent.statement_id)
             .ok_or_else(|| "Неизвестное заявление о согласии".into())
@@ -222,8 +279,85 @@ fn validate_plan(plan: &Plan) -> Result<()> {
         {
             return Err("Задания должны быть текстовыми и принадлежать одному split".into());
         }
+        // A card marks a free task and nothing else does: both ways round.
+        let card = plan.cards.get(&task.id);
+        let pending = task.reference_status == Some(ReferenceStatus::Pending);
+        if card.is_some() != pending || (pending && !task.human_transcript.is_empty()) {
+            return Err(
+                "Свободное задание: карточка, пустая расшифровка и статус pending идут вместе"
+                    .into(),
+            );
+        }
+        if let Some(card) = card {
+            check_card(card)?;
+        }
+    }
+    if !plan
+        .cards
+        .keys()
+        .all(|id| plan.tasks.iter().any(|t| &t.id == id))
+    {
+        return Err("Карточка относится к заданию, которого нет в плане".into());
     }
     Ok(())
+}
+
+fn check_card(card: &str) -> Result<()> {
+    if card.trim().is_empty() || card.len() > MAX_CARD_BYTES || card.chars().any(char::is_control) {
+        return Err(format!(
+            "Карточка: непустой текст без управляющих символов, не длиннее {MAX_CARD_BYTES} байт"
+        ));
+    }
+    Ok(())
+}
+
+/// Splits the author's plan into plain corpus lines plus the cards of its
+/// free tasks. A free task has `"delivery": "free"` and a `card`; it must not
+/// bring a `human_transcript` (a person writes it after the recording) or a
+/// `reference_status` (the collector sets `pending`). `"scripted"` and no
+/// field both mean a read task. Line numbers are kept.
+fn split_free_tasks(text: &str) -> Result<(String, BTreeMap<String, String>)> {
+    let mut cards = BTreeMap::new();
+    let mut lines = Vec::new();
+    for (number, line) in text.lines().enumerate() {
+        let Ok(serde_json::Value::Object(mut task)) = serde_json::from_str(line) else {
+            lines.push(line.to_owned()); // the corpus parser reports it
+            continue;
+        };
+        let id = task
+            .get("id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("?")
+            .to_owned();
+        let refuse = |why: &str| Err(format!("Строка {}, задание {id}: {why}", number + 1));
+        if task.contains_key("reference_status") {
+            return refuse("reference_status задаёт сборщик, не план");
+        }
+        let card = task.remove("card");
+        match task.remove("delivery").as_ref().map(|v| v.as_str()) {
+            None | Some(Some("scripted")) => {
+                if card.is_some() {
+                    return refuse("карточка бывает только у delivery: free");
+                }
+                lines.push(line.to_owned());
+            }
+            Some(Some("free")) => {
+                if task.contains_key("human_transcript") {
+                    return refuse("у свободного задания нет human_transcript: его заполняет разметка после записи");
+                }
+                let Some(card) = card.as_ref().and_then(|v| v.as_str()) else {
+                    return refuse("у свободного задания нужна карточка (card)");
+                };
+                check_card(card)?;
+                task.insert("human_transcript".into(), "".into());
+                task.insert("reference_status".into(), "pending".into());
+                cards.insert(id, card.to_owned());
+                lines.push(serde_json::to_string(&task).map_err(err)?);
+            }
+            Some(_) => return refuse("delivery: scripted или free"),
+        }
+    }
+    Ok((lines.join("\n"), cards))
 }
 
 pub fn plan(
@@ -238,7 +372,8 @@ pub fn plan(
     if source.len() as u64 > LIMIT {
         return Err("План слишком велик".into());
     }
-    let dataset = Dataset::parse_jsonl(text).map_err(err)?;
+    let (corpus, cards) = split_free_tasks(text)?;
+    let dataset = Dataset::parse_jsonl(&corpus).map_err(err)?;
     let mut families = BTreeMap::new();
     for record in &dataset.records {
         if families
@@ -248,6 +383,11 @@ pub fn plan(
             return Err("Семейство заданий пересекает split".into());
         }
     }
+    let tasks: Vec<Record> = dataset
+        .records
+        .into_iter()
+        .filter(|r| r.split == split)
+        .collect();
     let plan = Plan {
         schema_version: 1,
         // An opaque uniqueness token, not an identity or authentication key.
@@ -273,11 +413,11 @@ pub fn plan(
         consent_sha256: digest(consent.text().as_bytes()),
         source_sha256: digest(source),
         environment,
-        tasks: dataset
-            .records
+        cards: cards
             .into_iter()
-            .filter(|r| r.split == split)
+            .filter(|(id, _)| tasks.iter().any(|t| &t.id == id))
             .collect(),
+        tasks,
     };
     validate_plan(&plan)?;
     Ok(plan)

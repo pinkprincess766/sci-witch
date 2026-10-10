@@ -189,6 +189,23 @@ fn prepare(line: &str, number: usize, root: &Path) -> Result<Prepared, String> {
             return Err(format!("{id}: missing '{field}'"));
         }
     }
+    // A free-speech take is `pending`: its transcript is written by hand later
+    // and passes through here untouched. Nothing else may be empty.
+    let status = record.get("reference_status").map(Value::as_str);
+    if !matches!(status, None | Some(Some("pending" | "final"))) {
+        return Err(format!(
+            "{id}: reference_status must be \"pending\" or \"final\""
+        ));
+    }
+    if record["human_transcript"]
+        .as_str()
+        .is_some_and(|t| t.trim().is_empty())
+        && status != Some(Some("pending"))
+    {
+        return Err(format!(
+            "{id}: an empty human_transcript needs reference_status \"pending\""
+        ));
+    }
     let provenance = record
         .get("provenance")
         .and_then(Value::as_str)

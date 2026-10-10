@@ -11,7 +11,7 @@ use std::sync::mpsc;
 
 use clap::{Args as ClapArgs, Subcommand, ValueEnum};
 use sciwhisper_eval::schema::Split;
-use store::{err, ConsentKind, Result, Session};
+use store::{err, Confirmation, ConsentKind, Result, Session};
 
 #[derive(ClapArgs)]
 pub struct Args {
@@ -184,10 +184,8 @@ pub fn run(args: Args) -> Result<()> {
                 kind.notice(),
                 plan.tasks.len(),
                 session.display(),
-                plan.tasks
-                    .iter()
-                    .take(4)
-                    .map(|r| r.human_transcript.as_str())
+                (0..plan.tasks.len().min(4))
+                    .map(|i| plan.shown(i))
                     .collect::<Vec<_>>()
                     .join("; ")
             );
@@ -291,7 +289,7 @@ fn collect(session: &Session, console: &Console, mic: Option<String>, seconds: u
                 "\nЗадание {}/{}: {}",
                 idx + 1,
                 session.plan.tasks.len(),
-                task.human_transcript
+                session.plan.shown(idx)
             );
             match console
                 .ask("Enter — запись; s — пропустить; q — сохранить прогресс и выйти.")?
@@ -318,8 +316,11 @@ fn collect(session: &Session, console: &Console, mic: Option<String>, seconds: u
                     "p" => match audio::playback(wav.path()) { Ok(()) => played = true, Err(e) => eprintln!("{e}") },
                     "a" if !played => println!("Сначала прослушайте запись командой p."),
                     "a" => {
-                        println!("Подтверждаемый текст: {}", task.human_transcript);
-                        if console.ask("Вы произнесли именно этот текст целиком? Введите ТОЧНО. При оговорке используйте r.")? == "ТОЧНО" {
+                        let confirmation = session.plan.confirmation(idx);
+                        if confirmation == Confirmation::ExactText {
+                            println!("Подтверждаемый текст: {}", task.human_transcript);
+                        }
+                        if confirmation.accepts(&console.ask(&confirmation.question())?) {
                             session.accept(idx, wav.path(), &task.human_transcript, &mic)?;
                             println!("Запись подтверждена.");
                             break;
