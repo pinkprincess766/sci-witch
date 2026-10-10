@@ -56,6 +56,19 @@ pub struct DatasetInfo {
     pub counts_by_provenance: BTreeMap<String, usize>,
 }
 
+/// Free voice tasks that have a recording but no human transcript yet.
+/// They are in no metric; this block only says they exist. Written only when
+/// there is at least one, so a corpus without them reports as before.
+#[derive(Clone, Debug, Serialize)]
+pub struct PendingReferences {
+    pub count: usize,
+    pub ids: Vec<String>,
+    pub note: &'static str,
+}
+
+pub const PENDING_REFERENCES_NOTE: &str =
+    "free voice tasks awaiting a human transcript; not in any metric";
+
 #[derive(Clone, Debug, Serialize)]
 pub struct ConfigInfo {
     pub baseline_id: &'static str,
@@ -219,7 +232,10 @@ pub struct Report {
     pub canonical_schema_version: u32,
     pub severity_schema_version: u32,
     pub program: ProgramInfo,
+    /// Counts, splits and audit below describe the scored records only.
     pub dataset: DatasetInfo,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pending_references: Option<PendingReferences>,
     pub config: ConfigInfo,
     pub split_audit: SplitAudit,
     pub metrics: Metrics,
@@ -253,7 +269,10 @@ pub struct Report {
 }
 
 pub struct Inputs<'a> {
+    /// Scored records only: pending ones are split off at load
+    /// (`Dataset::without_pending`) and arrive as `pending_ids`.
     pub dataset: &'a Dataset,
+    pub pending_ids: &'a [String],
     pub dataset_path: &'a Path,
     pub dataset_bytes: &'a [u8],
     pub selected: Vec<&'a Record>,
@@ -263,6 +282,20 @@ pub struct Inputs<'a> {
 
 pub fn build_report(inputs: &Inputs<'_>) -> Result<Report, String> {
     let config = &inputs.config;
+    // Pending records are split off at load. One that got here would be
+    // scored against an empty transcript, so refuse rather than count it.
+    if let Some(record) = inputs
+        .dataset
+        .records
+        .iter()
+        .chain(inputs.selected.iter().copied())
+        .find(|record| record.is_pending())
+    {
+        return Err(format!(
+            "record '{}' has a pending reference and cannot be scored",
+            record.id
+        ));
+    }
     let mut outcomes: Vec<ExampleOutcome> = Vec::new();
     for record in &inputs.selected {
         let mut outcome = evaluate_record(record, config)?;
@@ -332,6 +365,11 @@ pub fn build_report(inputs: &Inputs<'_>) -> Result<Report, String> {
             counts_by_action: to_string_map(inputs.dataset.action_counts()),
             counts_by_provenance: to_string_map(inputs.dataset.provenance_counts()),
         },
+        pending_references: (!inputs.pending_ids.is_empty()).then(|| PendingReferences {
+            count: inputs.pending_ids.len(),
+            ids: inputs.pending_ids.to_vec(),
+            note: PENDING_REFERENCES_NOTE,
+        }),
         config: ConfigInfo {
             baseline_id: BASELINE_ID,
             k: config.k,
@@ -716,6 +754,12 @@ pub fn human_table(report: &Report) -> String {
         report.dataset.families,
         &report.dataset.sha256[..12]
     ));
+    if let Some(pending) = &report.pending_references {
+        out.push_str(&format!(
+            "pending references: {} free voice tasks, not in any metric\n",
+            pending.count
+        ));
+    }
     out.push_str(&format!(
         "baseline {}  split {}  K={}  threshold {}  policy {}\n\n",
         report.config.baseline_id,
@@ -969,6 +1013,7 @@ mod tests {
         let selected: Vec<&Record> = corpus.records.iter().collect();
         build_report(&Inputs {
             dataset: &corpus,
+            pending_ids: &[],
             dataset_path: &path,
             dataset_bytes: text.as_bytes(),
             selected,

@@ -1339,6 +1339,30 @@ mod compiler_gates {
         assert!(outcome.admits_release(), "{outcome}");
     }
 
+    /// Reports for corpora without pending voice tasks carry no
+    /// `pending_references` key, and the gate reads the same numbers either
+    /// way: the block is information, not a count it pools.
+    #[test]
+    fn the_pending_references_block_does_not_move_the_gate() {
+        let published = published(&[
+            "deterministic-v7.json",
+            "ambiguous-auto-v3.json",
+            "nomenclature-v2.json",
+            "prose-negatives-v2.json",
+        ]);
+        for report in &published {
+            assert!(report.get("pending_references").is_none());
+        }
+        let before = evaluate_benchmark(&file(), &published).unwrap();
+        let mut annotated = published.clone();
+        for report in &mut annotated {
+            report["pending_references"] = json!({ "count": 1, "ids": ["free-001-a"] });
+        }
+        let after = evaluate_benchmark(&file(), &annotated).unwrap();
+        assert!(before.admits_release(), "{before}");
+        assert_eq!(before.to_string(), after.to_string());
+    }
+
     /// The reports judged under v1 still pass the profile they were judged by.
     #[test]
     fn the_retired_profile_still_admits_its_own_reports() {
