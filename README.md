@@ -11,7 +11,7 @@ The compiler's contract is [docs/compiler/COMPILER_CONTRACT_RU.md](docs/compiler
 | # | Question | Status | Still untested on |
 |---|---|---|---|
 | 1 | Does selecting among *K* Whisper hypotheses by a combined ASR + grammar score raise AST exact match on live speakers, relative to top-1 Whisper plus the current parser (`interpret_utterance`)? | Open. The procedure is written in [research/protocol/question-1-nbest.md](research/protocol/question-1-nbest.md); there is no run. Temperature, seeds and the λ grid are still blank, so a frozen-test run is not allowed. | Live speakers, Whisper *N*-best lists, word error rate, a PCFG score. |
-| 2 | Does a fitted confidence model (ASR and grammar features) give lower risk at the same coverage than the four hand-set parse levels 1.0 / 0.95 / 0.7 / 0.0 with insert threshold 0.9? | Open. The procedure is written in [research/protocol/question-2-calibration.md](research/protocol/question-2-calibration.md); there is no run. | Live speakers, and any corpus with at least `MIN_ERRORS_TO_FIT` (20) errors among answered items ([`crates/sciwhisper-eval/src/selective.rs`](crates/sciwhisper-eval/src/selective.rs)). On `dev-seed-v3`, `selective_prediction.calibration.errors` is 1 ([research/results/deterministic-v6.json](research/results/deterministic-v6.json)). |
+| 2 | Does a fitted confidence model (ASR and grammar features) give lower risk at the same coverage than the four hand-set parse levels 1.0 / 0.95 / 0.7 / 0.0 with insert threshold 0.9? | Open. The procedure is written in [research/protocol/question-2-calibration.md](research/protocol/question-2-calibration.md); there is no run. | Live speakers, and any corpus with at least `MIN_ERRORS_TO_FIT` (20) errors among answered items ([`crates/sciwhisper-eval/src/selective.rs`](crates/sciwhisper-eval/src/selective.rs)). On `dev-seed-v3`, `selective_prediction.calibration.errors` is 1 ([research/results/deterministic-v7.json](research/results/deterministic-v7.json)). |
 | 3 | Can it be guaranteed that ordinary speech is left as words — that a substance name inside a sentence is not replaced by a formula (severity S4 in [research/schema/severity-v1.json](research/schema/severity-v1.json))? | Preliminary answer on author-written text: observed S4 count 0 and false-rewrite numerator 0 on the four benchmark corpora, with the Wilson upper bounds in the table below. | Live speakers, other authors' phrasing, recognizer output. The prose corpus is a floor on the author's own traps ([research/data/prose-negatives-v1.manifest.json](research/data/prose-negatives-v1.manifest.json)). |
 
 Question 1 and question 2 are stated in [docs/research/sci-witch-plan.md](docs/research/sci-witch-plan.md) (постановка №1, постановка №2). Question 3 is the safety claim the compiler gates already judge on text ([research/schema/compiler-gates-v1.json](research/schema/compiler-gates-v1.json)).
@@ -61,15 +61,15 @@ In each report, `user_path.false_scientific_rewrite_rate` has the same numerator
 
 | Corpus | Records | Metric | Value | 95% Wilson interval | Source |
 |---|---:|---|---|---|---|
-| `dev-seed-v3` | 113 | `metrics.ast_exact_match` | 112/113 | [0.951, 0.999] | [research/results/deterministic-v6.json](research/results/deterministic-v6.json) |
+| `dev-seed-v3` | 113 | `metrics.ast_exact_match` | 112/113 | [0.951, 0.999] | [research/results/deterministic-v7.json](research/results/deterministic-v7.json) |
 | `dev-seed-v3` | 113 | `metrics.false_scientific_rewrite_rate` | 0/29 | [0.0, 0.117]; `zero_count_upper95` 0.099 | same |
 | `dev-seed-v3` | 113 | `severity.count_by_severity.S4` | 0 | | same |
 | `dev-seed-v3` | 113 | `split_audit.speakers` | 0 | | same |
-| `ambiguous-v2` | 58 | `metrics.ast_exact_match` | 36/58 | [0.492, 0.735] | [research/results/ambiguous-auto-v2.json](research/results/ambiguous-auto-v2.json) |
+| `ambiguous-v2` | 58 | `metrics.ast_exact_match` | 36/58 | [0.492, 0.735] | [research/results/ambiguous-auto-v3.json](research/results/ambiguous-auto-v3.json) |
 | `ambiguous-v2` | 58 | `metrics.false_scientific_rewrite_rate` | 0/20 | [0.0, 0.162]; `zero_count_upper95` 0.140 | same |
 | `ambiguous-v2` | 58 | `severity.count_by_severity.S4` | 0 | | same |
 | `ambiguous-v2` | 58 | `split_audit.speakers` | 0 | | same |
-| `nomenclature-v1` | 53 | `metrics.ast_exact_match` | 53/53 | [0.932, 1.0] | [research/results/nomenclature-v1.json](research/results/nomenclature-v1.json) |
+| `nomenclature-v1` | 53 | `metrics.ast_exact_match` | 53/53 | [0.932, 1.0] | [research/results/nomenclature-v2.json](research/results/nomenclature-v2.json) |
 | `nomenclature-v1` | 53 | `metrics.false_scientific_rewrite_rate` | 0/27 | [0.0, 0.125]; `zero_count_upper95` 0.106 | same |
 | `nomenclature-v1` | 53 | `severity.count_by_severity.S4` | 0 | | same |
 | `nomenclature-v1` | 53 | `split_audit.speakers` | 0 | | same |
@@ -80,7 +80,7 @@ In each report, `user_path.false_scientific_rewrite_rate` has the same numerator
 
 Exact values are in the JSON report linked in the last column.
 
-The compiler-gate profile `compiler-v2` ([research/schema/compiler-gates-v2.json](research/schema/compiler-gates-v2.json)) pools the four reports into one sample before judging: counts are summed, proportions re-divided from the sums. Ordinary-speech denominators of `metrics.false_scientific_rewrite_rate` are 29 + 20 + 27 + 180 = 256 ([research/results/deterministic-v6.json](research/results/deterministic-v6.json), [research/results/ambiguous-auto-v2.json](research/results/ambiguous-auto-v2.json), [research/results/nomenclature-v1.json](research/results/nomenclature-v1.json), [research/results/prose-negatives-v2.json](research/results/prose-negatives-v2.json)); false scientific rewrites 0/256. The one-sided 95% upper bound at zero observations is 0.0117, rounded up (`1 − 0.05^(1/n)` with n = 256). All six checks passed: the five gates declared in the `gates` array of `compiler-gates-v2.json`, and the benchmark-coverage check that the code adds (`BENCHMARK_GATE_ID` in [`crates/sciwhisper-eval/src/gate.rs`](crates/sciwhisper-eval/src/gate.rs)). These 256 sentences were written for this project, by the author of the parser and the agents working on it; the bound applies to this set, not to live speech. The previous profile, `compiler-v1` ([research/schema/compiler-gates-v1.json](research/schema/compiler-gates-v1.json)), pinned `prose-negatives-v1` instead and is kept unchanged.
+The compiler-gate profile `compiler-v2` ([research/schema/compiler-gates-v2.json](research/schema/compiler-gates-v2.json)) pools the four reports into one sample before judging: counts are summed, proportions re-divided from the sums. Ordinary-speech denominators of `metrics.false_scientific_rewrite_rate` are 29 + 20 + 27 + 180 = 256 ([research/results/deterministic-v7.json](research/results/deterministic-v7.json), [research/results/ambiguous-auto-v3.json](research/results/ambiguous-auto-v3.json), [research/results/nomenclature-v2.json](research/results/nomenclature-v2.json), [research/results/prose-negatives-v2.json](research/results/prose-negatives-v2.json)); false scientific rewrites 0/256. The one-sided 95% upper bound at zero observations is 0.0117, rounded up (`1 − 0.05^(1/n)` with n = 256). All six checks passed: the five gates declared in the `gates` array of `compiler-gates-v2.json`, and the benchmark-coverage check that the code adds (`BENCHMARK_GATE_ID` in [`crates/sciwhisper-eval/src/gate.rs`](crates/sciwhisper-eval/src/gate.rs)). These 256 sentences were written for this project, by the author of the parser and the agents working on it; the bound applies to this set, not to live speech. The previous profile, `compiler-v1` ([research/schema/compiler-gates-v1.json](research/schema/compiler-gates-v1.json)), pinned `prose-negatives-v1` instead and is kept unchanged.
 
 `dev-seed-v3` is the main development seed (chemistry, mathematics, physics, and ordinary-speech RAW items). `ambiguous-v2` is a deliberately adversarial set; its rate is not comparable with `dev-seed-v3` as an overall figure ([research/data/ambiguous-v2.manifest.json](research/data/ambiguous-v2.manifest.json)). `nomenclature-v1` covers the documented nomenclature subset. `prose-negatives-v1` is ordinary scientific prose whose gold is the sentence itself; AST exact match 146/146 on that corpus is the sentences being left alone.
 
@@ -155,9 +155,9 @@ Compiler gates, the default profile of `gate`:
 
 ```bash
 cargo run -p sciwhisper-eval --locked -- gate \
-  --report research/results/deterministic-v6.json \
-  --report research/results/ambiguous-auto-v2.json \
-  --report research/results/nomenclature-v1.json \
+  --report research/results/deterministic-v7.json \
+  --report research/results/ambiguous-auto-v3.json \
+  --report research/results/nomenclature-v2.json \
   --report research/results/prose-negatives-v2.json
 ```
 

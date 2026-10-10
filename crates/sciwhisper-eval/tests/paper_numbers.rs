@@ -41,9 +41,9 @@ fn upper(x: f64) -> String {
 /// The benchmark of `research/schema/compiler-gates-v2.json`, in its order,
 /// with the macro prefix each report gets in the paper.
 const BENCHMARK: [(&str, &str); 4] = [
-    ("DevSeed", "deterministic-v6.json"),
-    ("Ambiguous", "ambiguous-auto-v2.json"),
-    ("Nomenclature", "nomenclature-v1.json"),
+    ("DevSeed", "deterministic-v7.json"),
+    ("Ambiguous", "ambiguous-auto-v3.json"),
+    ("Nomenclature", "nomenclature-v2.json"),
     ("Prose", "prose-negatives-v2.json"),
 ];
 

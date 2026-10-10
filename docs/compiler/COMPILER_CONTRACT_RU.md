@@ -270,9 +270,9 @@
 
 ```bash
 cargo run -p sciwhisper-eval -- gate \
-  --report research/results/deterministic-v6.json \
-  --report research/results/ambiguous-auto-v2.json \
-  --report research/results/nomenclature-v1.json \
+  --report research/results/deterministic-v7.json \
+  --report research/results/ambiguous-auto-v3.json \
+  --report research/results/nomenclature-v2.json \
   --report research/results/prose-negatives-v2.json
 ```
 
