@@ -112,7 +112,11 @@
 - версии записываются в манифест;
 - оценка ASR — сумма логарифмов по текстовым токенам и EOT, пересчитанная принудительной подачей.
 
-Правила записаны в [`question-1-nbest.md`](../../research/protocol/question-1-nbest.md).
+Для вопроса 2:
+- логарифмы токенов берутся из Python-API, min и mean считаются по текстовым токенам;
+- `avg_logprob` уверенностью участка не служит, разве что грубым признаком под именем `window_avg_logprob`.
+
+Правила записаны в [`question-1-nbest.md`](../../research/protocol/question-1-nbest.md) и [`question-2-calibration.md`](../../research/protocol/question-2-calibration.md).
 
 ## Что не проверено
 
