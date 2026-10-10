@@ -44,10 +44,13 @@ research/
     ├── deterministic-v2.json      # dev-seed-v1, исторический прогон 0.3
     ├── deterministic-v4.json      # dev-seed-v2, report schema 4
     ├── deterministic-v5.json      # dev-seed-v2, report schema 5
-    ├── deterministic-v6.json      # dev-seed-v3, текущий отчёт
+    ├── deterministic-v6.json      # dev-seed-v3, с Brier и ECE по уровням разбора (см. CHANGELOG, 2026-10-10)
+    ├── deterministic-v7.json      # dev-seed-v3, текущий отчёт
     ├── ambiguous-auto-v1.json     # ambiguous-v1
-    ├── ambiguous-auto-v2.json     # ambiguous-v2, текущий отчёт
-    ├── nomenclature-v1.json       # nomenclature-v1
+    ├── ambiguous-auto-v2.json     # ambiguous-v2, с Brier и ECE по уровням разбора
+    ├── ambiguous-auto-v3.json     # ambiguous-v2, текущий отчёт
+    ├── nomenclature-v1.json       # nomenclature-v1, с Brier и ECE по уровням разбора
+    ├── nomenclature-v2.json       # nomenclature-v1, текущий отчёт
     ├── prose-negatives-v1.json    # prose-negatives-v1
     ├── prose-negatives-v2.json    # prose-negatives-v2
     ├── lattice-v1.json            # решётка кандидатов на ambiguous-v1
@@ -121,7 +124,7 @@ FOLLOW, LL(1)-конфликты) лежит не здесь, а в [`docs/gramm
 
 ## Текущие измерения
 
-На `dev-seed-v3` ([`deterministic-v6.json`](results/deterministic-v6.json))
+На `dev-seed-v3` ([`deterministic-v7.json`](results/deterministic-v7.json))
 детерминированное ядро даёт 112/113 exact match; единственная ошибка —
 безопасный отказ на неоднозначной границе корня (`math-root-atom-001-a`).
 Пользовательский `MixedText` путь совпадает с ожидаемым документом в 113/113

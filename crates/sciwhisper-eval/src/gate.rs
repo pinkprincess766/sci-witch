@@ -1330,9 +1330,9 @@ mod compiler_gates {
     #[test]
     fn the_published_benchmark_reports_pass() {
         let reports = published(&[
-            "deterministic-v6.json",
-            "ambiguous-auto-v2.json",
-            "nomenclature-v1.json",
+            "deterministic-v7.json",
+            "ambiguous-auto-v3.json",
+            "nomenclature-v2.json",
             "prose-negatives-v2.json",
         ]);
         let outcome = evaluate_benchmark(&file(), &reports).unwrap();
@@ -1359,9 +1359,9 @@ mod compiler_gates {
     #[test]
     fn the_old_prose_report_cannot_stand_in_for_the_new_one() {
         let reports = published(&[
-            "deterministic-v6.json",
-            "ambiguous-auto-v2.json",
-            "nomenclature-v1.json",
+            "deterministic-v7.json",
+            "ambiguous-auto-v3.json",
+            "nomenclature-v2.json",
             "prose-negatives-v1.json",
         ]);
         let refused = match evaluate_benchmark(&file(), &reports) {
