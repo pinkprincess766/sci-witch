@@ -1,7 +1,8 @@
 use super::store::*;
-use super::{Action, Args, Partition};
+use super::{Action, Args, ConsentChoice, Partition};
 use clap::Parser;
 use sciwhisper_eval::schema::{Dataset, Split};
+use sha2::Digest;
 use std::fs;
 
 #[derive(Parser)]
@@ -10,7 +11,7 @@ struct Cli {
     args: Args,
 }
 
-fn plan_for_test() -> Plan {
+fn plan_with_consent(consent: ConsentKind) -> Plan {
     let source = include_bytes!("../../../../research/data/dev-seed-v2.jsonl");
     let mut p = plan(
         source,
@@ -18,10 +19,26 @@ fn plan_for_test() -> Plan {
         "spk01".into(),
         "2026-09-12".into(),
         "quiet_room".into(),
+        consent,
     )
     .unwrap();
     p.tasks.truncate(2);
     p
+}
+
+fn plan_for_test() -> Plan {
+    plan_with_consent(ConsentKind::RuV2)
+}
+
+/// SHA-256 of the consent document as it is in the repo, read at test time.
+fn repo_consent_v2_sha256() -> (Vec<u8>, String) {
+    let path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../research/data/consent-ru-v2.md"
+    );
+    let bytes = fs::read(path).unwrap();
+    let hash = format!("{:x}", sha2::Sha256::digest(&bytes));
+    (bytes, hash)
 }
 
 fn wav(dir: &std::path::Path) -> std::path::PathBuf {
@@ -341,6 +358,7 @@ fn speaker_codes_are_spk_and_two_digits_from_01_to_99() {
             id.into(),
             "2026-09-12".into(),
             "quiet_room".into(),
+            ConsentKind::RuV2,
         )
         .is_ok()
     };
@@ -370,6 +388,8 @@ fn start_with_split(split: &str) -> std::result::Result<Action, clap::Error> {
         "spk01",
         "--split",
         split,
+        "--consent",
+        "consent-ru-v2",
         "--date",
         "2026-09-12",
         "--environment",
@@ -392,4 +412,187 @@ fn cli_split_is_dev_holdout_with_underscore_and_no_dashed_alias() {
         .err()
         .expect("dev-holdout must be refused");
     assert_eq!(error.kind(), clap::error::ErrorKind::InvalidValue);
+}
+
+#[test]
+fn a_v2_session_stores_the_id_and_the_sha256_of_the_repo_consent_document() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("session");
+    let (document, expected_sha256) = repo_consent_v2_sha256();
+    let session = Session::create(&path, plan_with_consent(ConsentKind::RuV2)).unwrap();
+    assert_eq!(session.plan.consent.statement_id, "consent-ru-v2");
+    assert_eq!(session.plan.consent_sha256, expected_sha256);
+    assert_eq!(fs::read(path.join("consent.txt")).unwrap(), document);
+    drop(session);
+    let stored: serde_json::Value =
+        serde_json::from_slice(&fs::read(path.join("session.json")).unwrap()).unwrap();
+    assert_eq!(stored["consent"]["statement_id"], "consent-ru-v2");
+    assert_eq!(stored["consent_sha256"], expected_sha256.as_str());
+    assert!(Session::open(&path).is_ok());
+}
+
+#[test]
+fn a_local_session_stores_voice_local_v1_and_the_hash_of_its_own_text() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("session");
+    let session = Session::create(&path, plan_with_consent(ConsentKind::LocalV1)).unwrap();
+    assert_eq!(session.plan.consent.statement_id, "voice-local-v1");
+    assert_eq!(
+        session.plan.consent_sha256,
+        format!("{:x}", sha2::Sha256::digest(CONSENT_LOCAL_TEXT.as_bytes()))
+    );
+    assert_ne!(session.plan.consent_sha256, repo_consent_v2_sha256().1);
+    assert_eq!(
+        fs::read(path.join("consent.txt")).unwrap(),
+        CONSENT_LOCAL_TEXT.as_bytes()
+    );
+}
+
+#[test]
+fn a_session_whose_statement_and_text_disagree_is_refused() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("session");
+    // v2 id with the hash of the short local text, and the other way round.
+    let mut p = plan_with_consent(ConsentKind::LocalV1);
+    p.consent.statement_id = "consent-ru-v2".into();
+    assert!(Session::create(&path, p).is_err());
+    let mut p = plan_with_consent(ConsentKind::RuV2);
+    p.consent.statement_id = "voice-local-v1".into();
+    assert!(Session::create(&path, p).is_err());
+    // Any other id is not a statement this collector knows.
+    for id in ["consent-ru-v1", "consent-ru-v3", ""] {
+        let mut p = plan_with_consent(ConsentKind::RuV2);
+        p.consent.statement_id = id.into();
+        assert!(Session::create(&path, p).is_err(), "{id:?} must be refused");
+    }
+    assert!(!path.exists());
+    // A v2 session whose consent.txt is no longer the repo document does not reopen.
+    drop(Session::create(&path, plan_for_test()).unwrap());
+    fs::write(path.join("consent.txt"), CONSENT_LOCAL_TEXT).unwrap();
+    assert!(Session::open(&path).is_err());
+}
+
+#[test]
+fn each_consent_accepts_only_its_own_confirmation_word() {
+    for word in ["СОГЛАСНА", "СОГЛАСЕН"] {
+        assert!(ConsentKind::LocalV1.accepts(word));
+        assert!(
+            !ConsentKind::RuV2.accepts(word),
+            "{word} must not confirm v2"
+        );
+    }
+    assert!(ConsentKind::RuV2.accepts("ПОДПИСАНО"));
+    for word in ["ПОДПИСАНО", "", "подписано", "ДА", "ПОДПИСАНО "] {
+        assert!(!ConsentKind::LocalV1.accepts(word), "{word:?}");
+    }
+    for word in ["", "подписано", "ДА", "ПОДПИСАНО "] {
+        assert!(!ConsentKind::RuV2.accepts(word), "{word:?}");
+    }
+}
+
+#[test]
+fn the_terminal_says_which_document_and_that_local_is_local_only() {
+    let v2 = ConsentKind::RuV2.notice();
+    assert!(v2.contains("research/data/consent-ru-v2.md"), "{v2}");
+    assert!(v2.contains(&repo_consent_v2_sha256().1), "{v2}");
+    let local = ConsentKind::LocalV1.notice();
+    assert!(
+        local.contains("ТОЛЬКО ЛОКАЛЬНЫЙ") && local.contains("consent-ru-v2"),
+        "{local}"
+    );
+}
+
+#[test]
+fn consent_ids_match_what_ingest_refuses() {
+    assert_eq!(CONSENT_LOCAL_ID, crate::ingest::LOCAL_ONLY_STATEMENT_ID);
+    assert_eq!(ConsentKind::LocalV1.id(), CONSENT_LOCAL_ID);
+    assert_eq!(ConsentKind::RuV2.id(), CONSENT_V2_ID);
+}
+
+#[test]
+fn the_export_names_the_consent_and_ingest_refuses_only_the_local_one() {
+    let dir = tempfile::tempdir().unwrap();
+    let wave = wav(dir.path());
+    for (kind, id, scope, accepted) in [
+        (ConsentKind::LocalV1, "voice-local-v1", "local_only", false),
+        (
+            ConsentKind::RuV2,
+            "consent-ru-v2",
+            "publication_after_legal_review",
+            true,
+        ),
+    ] {
+        let p = plan_with_consent(kind);
+        let session = Session::create(&dir.path().join(format!("s-{id}")), p.clone()).unwrap();
+        session
+            .accept(0, &wave, &p.tasks[0].human_transcript, "Mic")
+            .unwrap();
+        let out = dir.path().join(format!("pack-{id}"));
+        session.export(&out).unwrap();
+        let pack: serde_json::Value =
+            serde_json::from_slice(&fs::read(out.join("pack.json")).unwrap()).unwrap();
+        assert_eq!(pack["scope"], scope);
+        assert_eq!(pack["consent_statement_id"], id);
+        assert_eq!(pack["consent_sha256"], p.consent_sha256.as_str());
+        let measured = out.join("measured.jsonl");
+        let result = crate::ingest::run(
+            crate::ingest::IngestOptions {
+                manifest: out.join("dataset.jsonl"),
+                output: measured.clone(),
+                describe_only: true,
+            },
+            &mut |_| panic!("collection must not invoke ASR"),
+        );
+        assert_eq!(result.is_ok(), accepted, "{id}: {result:?}");
+        if let Err(error) = result {
+            assert!(error.contains("consent-ru-v2"), "{error}");
+            assert!(!measured.exists());
+        }
+    }
+}
+
+#[test]
+fn cli_start_without_consent_is_refused_and_both_ids_parse() {
+    let start = |extra: &[&str]| {
+        let mut argv = vec![
+            "sciwhisper",
+            "start",
+            "--session",
+            "s",
+            "--speaker",
+            "spk01",
+            "--split",
+            "train",
+            "--date",
+            "2026-09-12",
+            "--environment",
+            "quiet_room",
+        ];
+        argv.extend_from_slice(extra);
+        Cli::try_parse_from(argv).map(|cli| cli.args.action)
+    };
+    let error = start(&[]).err().expect("--consent is required");
+    assert_eq!(
+        error.kind(),
+        clap::error::ErrorKind::MissingRequiredArgument
+    );
+    assert!(error.to_string().contains("--consent"), "{error}");
+    let error = start(&["--consent", "consent-ru-v1"])
+        .err()
+        .expect("unknown id");
+    assert_eq!(error.kind(), clap::error::ErrorKind::InvalidValue);
+    assert!(matches!(
+        start(&["--consent", "consent-ru-v2"]).unwrap(),
+        Action::Start {
+            consent: ConsentChoice::RuV2,
+            ..
+        }
+    ));
+    assert!(matches!(
+        start(&["--consent", "voice-local-v1"]).unwrap(),
+        Action::Start {
+            consent: ConsentChoice::LocalV1,
+            ..
+        }
+    ));
 }

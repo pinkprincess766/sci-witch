@@ -20,6 +20,8 @@ use serde_json::{Map, Value};
 /// Schema version in which the audio block exists. Records written here
 /// declare it, because they now carry one.
 const AUDIO_SCHEMA_VERSION: u64 = 2;
+/// Consent written by `collect-voice start --consent voice-local-v1`; local use only.
+pub(crate) const LOCAL_ONLY_STATEMENT_ID: &str = "voice-local-v1";
 
 pub struct IngestOptions {
     pub manifest: PathBuf,
@@ -235,10 +237,8 @@ fn prepare(line: &str, number: usize, root: &Path) -> Result<Prepared, String> {
             .and_then(Value::as_object)
             .ok_or_else(|| format!("{id}: a recording of a person needs a consent block"))?;
         let granted = consent.get("granted").and_then(Value::as_bool) == Some(true);
-        let named = consent
-            .get("statement_id")
-            .and_then(Value::as_str)
-            .is_some_and(|value| !value.trim().is_empty());
+        let statement_id = consent.get("statement_id").and_then(Value::as_str);
+        let named = statement_id.is_some_and(|value| !value.trim().is_empty());
         let dated = consent
             .get("date")
             .and_then(Value::as_str)
@@ -246,6 +246,11 @@ fn prepare(line: &str, number: usize, root: &Path) -> Result<Prepared, String> {
         if !(granted && named && dated) {
             return Err(format!(
                 "{id}: consent must be granted, name the statement the speaker agreed to, and carry a date"
+            ));
+        }
+        if statement_id.map(str::trim) == Some(LOCAL_ONLY_STATEMENT_ID) {
+            return Err(format!(
+                "{id}: согласие {LOCAL_ONLY_STATEMENT_ID} разрешает только локальное использование; запись нужно повторить с согласием consent-ru-v2"
             ));
         }
     }
@@ -411,6 +416,42 @@ mod tests {
             "nothing may be transcribed before consent is checked"
         );
         assert!(!options.output.exists(), "no output on a refused manifest");
+    }
+
+    fn audio_with_statement(statement_id: &str) -> String {
+        format!(
+            r#"{{"file":"audio/spk01-0001.wav","consent":{{"granted":true,"statement_id":"{statement_id}","date":"2026-09-05"}}}}"#
+        )
+    }
+
+    #[test]
+    fn local_only_consent_is_refused_before_any_audio_is_read() {
+        let (_dir, options) = setup(true, &audio_with_statement("voice-local-v1"), "");
+        let mut called = false;
+        let error = run(options_ref(&options), &mut |_| {
+            called = true;
+            Ok("вода".into())
+        })
+        .unwrap_err();
+        assert!(
+            error.contains("только локальное") && error.contains("consent-ru-v2"),
+            "{error}"
+        );
+        assert!(
+            !called,
+            "nothing may be transcribed before consent is checked"
+        );
+        assert!(!options.output.exists(), "no output on a refused manifest");
+    }
+
+    #[test]
+    fn consent_ru_v2_is_accepted() {
+        let (_dir, options) = setup(true, &audio_with_statement("consent-ru-v2"), "");
+        run(options_ref(&options), &mut |_| Ok("вода".into())).unwrap();
+        assert_eq!(
+            read_out(&options)["audio"]["consent"]["statement_id"],
+            serde_json::json!("consent-ru-v2")
+        );
     }
 
     #[test]
