@@ -111,12 +111,10 @@ fn validate_plan(plan: &Plan) -> Result<()> {
     {
         return Err("Неизвестная версия сессии или неподтверждённое согласие".into());
     }
-    let id = &plan.speaker_id;
-    if !id.starts_with("spk-")
-        || !(8..=40).contains(&id.len())
-        || !id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
-    {
-        return Err("Код диктора: spk- и 4–36 латинских букв/цифр; используйте один код для одного человека".into());
+    // Protocol voice-v1: spk01…spk05; spk00 is refused, spk01…spk99 accepted.
+    let digits = plan.speaker_id.strip_prefix("spk").unwrap_or("");
+    if digits.len() != 2 || !digits.bytes().all(|b| b.is_ascii_digit()) || digits == "00" {
+        return Err("Код диктора: spk и две цифры, от spk01 до spk99; используйте один код для одного человека".into());
     }
     if plan.environment.trim().is_empty()
         || plan.environment.len() > 200

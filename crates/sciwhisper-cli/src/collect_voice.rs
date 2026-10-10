@@ -23,6 +23,7 @@ pub struct Args {
 enum Partition {
     Train,
     Validation,
+    #[value(name = "dev_holdout")]
     DevHoldout,
 }
 impl From<Partition> for Split {
@@ -41,7 +42,7 @@ enum Action {
     Start {
         #[arg(long)]
         session: PathBuf,
-        /// Stable pseudonym, e.g. spk-a7b9. Reuse for the same speaker.
+        /// Stable pseudonym spk01–spk99, e.g. spk01. Reuse for the same speaker.
         #[arg(long)]
         speaker: String,
         /// Assign each speaker to exactly one split across all sessions.

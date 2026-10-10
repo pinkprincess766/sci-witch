@@ -1,13 +1,21 @@
 use super::store::*;
+use super::{Action, Args, Partition};
+use clap::Parser;
 use sciwhisper_eval::schema::{Dataset, Split};
 use std::fs;
+
+#[derive(Parser)]
+struct Cli {
+    #[command(flatten)]
+    args: Args,
+}
 
 fn plan_for_test() -> Plan {
     let source = include_bytes!("../../../../research/data/dev-seed-v2.jsonl");
     let mut p = plan(
         source,
         Split::Train,
-        "spk-test123".into(),
+        "spk01".into(),
         "2026-09-12".into(),
         "quiet_room".into(),
     )
@@ -103,7 +111,7 @@ fn session_resumes_and_exports_the_exact_author_target_and_real_audio() {
     let record = &dataset.records[0];
     assert_eq!(record.target_ast, target);
     assert_eq!(record.family_id, p.tasks[0].family_id);
-    assert_eq!(record.speaker_id.as_deref(), Some("spk-test123"));
+    assert_eq!(record.speaker_id.as_deref(), Some("spk01"));
     assert_eq!(record.split, Split::Train);
     assert!(record.asr_hypotheses.is_empty());
     assert_eq!(record.audio.as_ref().unwrap().duration_secs, 1.0);
@@ -321,4 +329,67 @@ fn symlink_audio_never_reads_or_deletes_an_external_file() {
     assert!(s.takes().is_err());
     assert!(s.revoke().is_err());
     assert!(original.exists());
+}
+
+#[test]
+fn speaker_codes_are_spk_and_two_digits_from_01_to_99() {
+    let source = include_bytes!("../../../../research/data/dev-seed-v2.jsonl");
+    let accepted = |id: &str| {
+        plan(
+            source,
+            Split::Train,
+            id.into(),
+            "2026-09-12".into(),
+            "quiet_room".into(),
+        )
+        .is_ok()
+    };
+    for id in ["spk01", "spk05", "spk99"] {
+        assert!(accepted(id), "{id} must be accepted");
+    }
+    for id in [
+        "spk00",
+        "spk1",
+        "spk001",
+        "spk-a7b9",
+        "SPK01",
+        "spk0a",
+        "spk-test123",
+    ] {
+        assert!(!accepted(id), "{id} must be refused");
+    }
+}
+
+fn start_with_split(split: &str) -> std::result::Result<Action, clap::Error> {
+    Cli::try_parse_from([
+        "sciwhisper",
+        "start",
+        "--session",
+        "my-session",
+        "--speaker",
+        "spk01",
+        "--split",
+        split,
+        "--date",
+        "2026-09-12",
+        "--environment",
+        "quiet_room",
+    ])
+    .map(|cli| cli.args.action)
+}
+
+#[test]
+fn cli_split_is_dev_holdout_with_underscore_and_no_dashed_alias() {
+    let action = start_with_split("dev_holdout").expect("dev_holdout is the CLI value");
+    assert!(matches!(
+        action,
+        Action::Start {
+            split: Partition::DevHoldout,
+            ..
+        }
+    ));
+    let error = start_with_split("dev-holdout")
+        .err()
+        .expect("dev-holdout must be refused");
+    assert_eq!(error.kind(), clap::error::ErrorKind::InvalidValue);
 }
