@@ -24,6 +24,18 @@ pub const SUPPORTED_DATASET_SCHEMA_VERSIONS: [u32; 2] = [1, 2];
 /// The version in which recordings became representable.
 pub const AUDIO_SCHEMA_VERSION: u32 = 2;
 
+/// Consent id of a collector session that may only be used locally. A
+/// recording under it never belongs in a corpus; `ingest` refuses it too.
+pub const LOCAL_ONLY_CONSENT_ID: &str = "voice-local-v1";
+
+/// Speaker code of protocol voice-v1: `spk` and two digits, `spk01`..`spk99`.
+/// The collector (`collect-voice start --speaker`) calls this same function,
+/// so the corpus and the collector cannot disagree on the format.
+pub fn is_voice_speaker_id(id: &str) -> bool {
+    let digits = id.strip_prefix("spk").unwrap_or("");
+    digits.len() == 2 && digits.bytes().all(|b| b.is_ascii_digit()) && digits != "00"
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Provenance {
@@ -247,6 +259,13 @@ impl Dataset {
     /// Parses a JSONL corpus. Blank lines are skipped; everything else must
     /// be a valid record, and the whole file is rejected on the first fault.
     pub fn parse_jsonl(text: &str) -> Result<Dataset, SchemaError> {
+        Self::parse_jsonl_scoped(text, false)
+    }
+
+    /// [`Dataset::parse_jsonl`] with one switch: `allow_local_only` also
+    /// accepts `voice-local-v1` consent. Only the collector's own checks of a
+    /// local-only session pass `true`; a corpus is loaded with `parse_jsonl`.
+    pub fn parse_jsonl_scoped(text: &str, allow_local_only: bool) -> Result<Dataset, SchemaError> {
         let mut records = Vec::new();
         let mut seen_ids: BTreeSet<String> = BTreeSet::new();
         for (index, line) in text.lines().enumerate() {
@@ -299,10 +318,12 @@ impl Dataset {
                 id: id.clone(),
                 message: format!("does not match the record schema: {error}"),
             })?;
-            validate_record(&record, declared).map_err(|message| SchemaError {
-                line: line_number,
-                id: id.clone(),
-                message,
+            validate_record(&record, declared, allow_local_only).map_err(|message| {
+                SchemaError {
+                    line: line_number,
+                    id: id.clone(),
+                    message,
+                }
             })?;
             if !seen_ids.insert(record.id.clone()) {
                 return Err(SchemaError {
@@ -374,7 +395,11 @@ impl Dataset {
     }
 }
 
-fn validate_record(record: &Record, declared_version: u32) -> Result<(), String> {
+fn validate_record(
+    record: &Record,
+    declared_version: u32,
+    allow_local_only: bool,
+) -> Result<(), String> {
     if record.id.trim().is_empty() {
         return Err("empty id".into());
     }
@@ -419,7 +444,7 @@ fn validate_record(record: &Record, declared_version: u32) -> Result<(), String>
             "an audio block needs dataset_schema_version {AUDIO_SCHEMA_VERSION}, but this record declares {declared_version}"
         ));
     }
-    validate_audio(record)?;
+    validate_audio(record, allow_local_only)?;
     if !record.provenance.has_audio() {
         if !record.asr_hypotheses.is_empty() {
             return Err(format!(
@@ -443,7 +468,7 @@ fn validate_record(record: &Record, declared_version: u32) -> Result<(), String>
 }
 
 /// Rules a recording has to satisfy before the corpus will hold it.
-fn validate_audio(record: &Record) -> Result<(), String> {
+fn validate_audio(record: &Record, allow_local_only: bool) -> Result<(), String> {
     let Some(audio) = &record.audio else {
         // A record whose provenance claims audio but carries none would let
         // a voice benchmark be assembled out of text.
@@ -514,10 +539,21 @@ fn validate_audio(record: &Record) -> Result<(), String> {
                 "consent must name the statement the speaker agreed to and the date".into(),
             );
         }
-        if record.speaker_id.as_deref().unwrap_or("").trim().is_empty() {
+        if !allow_local_only && audio.consent.statement_id.trim() == LOCAL_ONLY_CONSENT_ID {
+            return Err(format!(
+                "consent '{LOCAL_ONLY_CONSENT_ID}' allows local use only, so the recording cannot be in a corpus; record again under consent-ru-v2"
+            ));
+        }
+        let speaker = record.speaker_id.as_deref().unwrap_or("");
+        if speaker.trim().is_empty() {
             return Err(
                 "a recording of a real person needs a speaker_id, so speaker leakage between splits can be checked".into(),
             );
+        }
+        if !is_voice_speaker_id(speaker) {
+            return Err(format!(
+                "speaker_id '{speaker}' is not a voice-v1 speaker code: 'spk' and two digits, spk01..spk99"
+            ));
         }
     }
     Ok(())
@@ -659,6 +695,59 @@ mod tests {
         ))
         .expect_err("must be rejected");
         assert!(error.message.contains("speaker_id"), "{}", error.message);
+    }
+
+    #[test]
+    fn speaker_codes_are_spk_and_two_digits_from_01_to_99() {
+        for id in ["spk01", "spk05", "spk99"] {
+            assert!(is_voice_speaker_id(id), "{id} must be accepted");
+        }
+        for id in [
+            "", "spk", "spk00", "spk1", "spk001", "spk-a7b9", "SPK01", "spk0a", "spk-1",
+        ] {
+            assert!(!is_voice_speaker_id(id), "{id:?} must be refused");
+        }
+    }
+
+    #[test]
+    fn a_recording_with_a_speaker_code_outside_the_protocol_is_refused() {
+        for bad in ["\"spk-a7b9\"", "\"spk00\"", "\"spk1\"", "\"SPK01\""] {
+            let error = Dataset::parse_jsonl(&voice_record(
+                &[("speaker_id", bad)],
+                Some(audio_block(&[])),
+            ))
+            .expect_err("must be rejected");
+            assert!(
+                error.message.contains("voice-v1"),
+                "{bad}: {}",
+                error.message
+            );
+        }
+    }
+
+    #[test]
+    fn a_local_only_consent_never_loads_as_a_corpus_but_a_local_session_may_check_it() {
+        let local = audio_block(&[(
+            "consent",
+            r#"{"granted":true,"statement_id":" voice-local-v1 ","date":"2026-09-05"}"#,
+        )]);
+        let line = voice_record(&[], Some(local));
+        let error = Dataset::parse_jsonl(&line).expect_err("must be rejected");
+        assert!(
+            error.message.contains("local use only"),
+            "{}",
+            error.message
+        );
+        assert!(Dataset::parse_jsonl_scoped(&line, true).is_ok());
+        // The local door does not loosen anything else.
+        let bad_speaker = voice_record(
+            &[("speaker_id", "\"spk-a7b9\"")],
+            Some(audio_block(&[(
+                "consent",
+                r#"{"granted":true,"statement_id":"voice-local-v1","date":"2026-09-05"}"#,
+            )])),
+        );
+        assert!(Dataset::parse_jsonl_scoped(&bad_speaker, true).is_err());
     }
 
     #[test]

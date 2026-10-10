@@ -187,9 +187,8 @@ fn validate_plan(plan: &Plan) -> Result<()> {
     {
         return Err("Неизвестная версия сессии или неподтверждённое согласие".into());
     }
-    // Protocol voice-v1: spk01…spk05; spk00 is refused, spk01…spk99 accepted.
-    let digits = plan.speaker_id.strip_prefix("spk").unwrap_or("");
-    if digits.len() != 2 || !digits.bytes().all(|b| b.is_ascii_digit()) || digits == "00" {
+    // Protocol voice-v1: the corpus schema owns the speaker code format.
+    if !sciwhisper_eval::schema::is_voice_speaker_id(&plan.speaker_id) {
         return Err("Код диктора: spk и две цифры, от spk01 до spk99; используйте один код для одного человека".into());
     }
     if plan.environment.trim().is_empty()
@@ -370,6 +369,16 @@ impl Session {
         })
     }
 
+    /// The corpus schema check for this session's records. A local-only
+    /// session (`voice-local-v1`) is checked with the local door, so it can
+    /// still be recorded and exported locally; `ingest` and `validate-dataset`
+    /// refuse its records anyway.
+    fn check_corpus_schema(&self, jsonl: &str) -> Result<()> {
+        let local_only = self.plan.consent_kind()? == ConsentKind::LocalV1;
+        let checked = Dataset::parse_jsonl_scoped(jsonl, local_only);
+        checked.map(drop).map_err(err)
+    }
+
     pub fn active(&self) -> Result<()> {
         if self.root.join("REVOKED").try_exists().map_err(err)? {
             return Err("Согласие отозвано: запись и экспорт запрещены".into());
@@ -437,8 +446,7 @@ impl Session {
             {
                 return Err("Аудио изменено после подтверждения".into());
             }
-            Dataset::parse_jsonl(&serde_json::to_string(&take.record).map_err(err)?)
-                .map_err(err)?;
+            self.check_corpus_schema(&serde_json::to_string(&take.record).map_err(err)?)?;
             takes.insert(idx, take);
         }
         Ok(takes)
@@ -493,7 +501,7 @@ impl Session {
             snr_db: facts.snr_db,
             consent: self.plan.consent.clone(),
         });
-        Dataset::parse_jsonl(&serde_json::to_string(&record).map_err(err)?).map_err(err)?;
+        self.check_corpus_schema(&serde_json::to_string(&record).map_err(err)?)?;
         let take = Take {
             schema_version: 1,
             task_index: idx,
@@ -550,7 +558,7 @@ impl Session {
             jsonl.push_str(&serde_json::to_string(&take.record).map_err(err)?);
             jsonl.push('\n');
         }
-        Dataset::parse_jsonl(&jsonl).map_err(err)?;
+        self.check_corpus_schema(&jsonl)?;
         for (name, bytes) in [
             ("dataset.jsonl", jsonl.as_bytes()),
             ("consent.txt", self.plan.consent_kind()?.text().as_bytes()),

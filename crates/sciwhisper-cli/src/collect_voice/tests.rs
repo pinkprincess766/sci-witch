@@ -505,6 +505,10 @@ fn the_terminal_says_which_document_and_that_local_is_local_only() {
 #[test]
 fn consent_ids_match_what_ingest_refuses() {
     assert_eq!(CONSENT_LOCAL_ID, crate::ingest::LOCAL_ONLY_STATEMENT_ID);
+    assert_eq!(
+        CONSENT_LOCAL_ID,
+        sciwhisper_eval::schema::LOCAL_ONLY_CONSENT_ID
+    );
     assert_eq!(ConsentKind::LocalV1.id(), CONSENT_LOCAL_ID);
     assert_eq!(ConsentKind::RuV2.id(), CONSENT_V2_ID);
 }
@@ -595,4 +599,53 @@ fn cli_start_without_consent_is_refused_and_both_ids_parse() {
             ..
         }
     ));
+}
+
+/// What the collector exports and `ingest` completes must pass the corpus
+/// schema that `validate-dataset` uses, and the schema must refuse the same
+/// record when it is wrong in the ways the collector and `ingest` refuse.
+#[test]
+fn an_exported_and_ingested_v2_session_passes_the_corpus_schema_and_wrong_ones_do_not() {
+    let dir = tempfile::tempdir().unwrap();
+    let p = plan_with_consent(ConsentKind::RuV2);
+    let session = Session::create(&dir.path().join("session"), p.clone()).unwrap();
+    session
+        .accept(0, &wav(dir.path()), &p.tasks[0].human_transcript, "Mic")
+        .unwrap();
+    let out = dir.path().join("export");
+    session.export(&out).unwrap();
+    let measured = out.join("measured.jsonl");
+    crate::ingest::run(
+        crate::ingest::IngestOptions {
+            manifest: out.join("dataset.jsonl"),
+            output: measured.clone(),
+            describe_only: true,
+        },
+        &mut |_| panic!("collection must not invoke ASR"),
+    )
+    .unwrap();
+    let text = fs::read_to_string(measured).unwrap();
+    // `validate-dataset` loads a corpus with exactly this function.
+    let dataset =
+        Dataset::parse_jsonl(&text).expect("the collector's own output is a valid corpus");
+    assert_eq!(dataset.records.len(), 1);
+    assert_eq!(dataset.records[0].speaker_id.as_deref(), Some("spk01"));
+
+    let line = text.lines().next().unwrap();
+    let with = |change: &dyn Fn(&mut serde_json::Value)| {
+        let mut record: serde_json::Value = serde_json::from_str(line).unwrap();
+        change(&mut record);
+        Dataset::parse_jsonl(&record.to_string())
+    };
+    assert!(with(&|_| {}).is_ok(), "the unchanged record must pass");
+
+    let error = with(&|r| r["audio"]["consent"]["statement_id"] = "voice-local-v1".into())
+        .expect_err("a local-only consent is never a corpus record");
+    assert!(error.message.contains("voice-local-v1"), "{error}");
+    let error = with(&|r| r["speaker_id"] = "spk-a7b9".into())
+        .expect_err("a speaker code the protocol does not define");
+    assert!(error.message.contains("speaker_id"), "{error}");
+    let error = with(&|r| r["split"] = "dev-holdout".into())
+        .expect_err("serde accepts only the underscore split name");
+    assert!(error.message.contains("dev-holdout"), "{error}");
 }
