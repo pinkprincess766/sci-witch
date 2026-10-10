@@ -87,13 +87,13 @@ pub struct OperatingPoint {
 pub struct Calibration {
     /// One row per distinct confidence the parser produced.
     pub levels: Vec<Level>,
-    /// Mean squared difference between the score and the outcome. Lower is
-    /// better; 0.25 is what a constant 0.5 would score.
+    /// Area under the risk–coverage curve over the scored answers (see
+    /// [`aurc`]). It uses the parse levels only as a **ranking**: which answer
+    /// comes before which. That is legitimate for a rank. Brier and ECE would
+    /// read the same levels as probabilities, which they are not (`AGENTS.md`),
+    /// so they are not computed here. `None` when nothing was scored.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub brier: Option<f64>,
-    /// Weighted mean gap between a level's score and its accuracy.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub expected_calibration_error: Option<f64>,
+    pub aurc: Option<f64>,
     pub scored_examples: usize,
     pub errors: usize,
     /// Whether the corpus can support choosing a threshold from data.
@@ -210,28 +210,9 @@ fn calibrate(decisions: &[Decision]) -> Calibration {
         .collect();
 
     let errors = scored.iter().filter(|d| !d.insert_is_correct).count();
-    let (brier, ece) = if scored.is_empty() {
-        (None, None)
-    } else {
-        let brier = scored
-            .iter()
-            .map(|d| {
-                let outcome = f64::from(u8::from(d.insert_is_correct));
-                let score = f64::from(d.confidence);
-                (score - outcome).powi(2)
-            })
-            .sum::<f64>()
-            / scored.len() as f64;
-        let ece = levels
-            .iter()
-            .map(|level| {
-                let weight = level.examples as f64 / scored.len() as f64;
-                let observed = level.accuracy.value.unwrap_or(0.0);
-                weight * (f64::from(level.confidence) - observed).abs()
-            })
-            .sum::<f64>();
-        (Some(round(brier)), Some(round(ece)))
-    };
+    let scores: Vec<f64> = scored.iter().map(|d| f64::from(d.confidence)).collect();
+    let correct: Vec<bool> = scored.iter().map(|d| d.insert_is_correct).collect();
+    let area = aurc(&scores, &correct).map(round);
 
     let distinct = levels.len();
     let verdict = if errors < MIN_ERRORS_TO_FIT {
@@ -250,8 +231,7 @@ fn calibrate(decisions: &[Decision]) -> Calibration {
 
     Calibration {
         levels,
-        brier,
-        expected_calibration_error: ece,
+        aurc: area,
         scored_examples: scored.len(),
         errors,
         verdict,
@@ -316,10 +296,6 @@ fn round(value: f64) -> f64 {
 /// example is in a tie.
 ///
 /// `None` for empty input, lengths that differ, or any NaN score.
-#[cfg_attr(
-    not(test),
-    expect(dead_code, reason = "not yet wired into a report; tested below")
-)]
 pub fn aurc(scores: &[f64], correct: &[bool]) -> Option<f64> {
     if scores.is_empty() || scores.len() != correct.len() || scores.iter().any(|s| s.is_nan()) {
         return None;
@@ -349,6 +325,35 @@ pub fn aurc(scores: &[f64], correct: &[bool]) -> Option<f64> {
     Some(risk_sum / ranked.len() as f64)
 }
 
+/// A number in `[0, 1]` that is claimed to be a probability.
+///
+/// The only way in is [`Probability::new`], and there is no `From` for `f32`
+/// or `f64` on purpose: the compiler's `confidence` is a parse level, not a
+/// probability (see `AGENTS.md`), so turning one into a `Probability` has to
+/// be a visible, deliberate call. Only the output of a fitted model belongs
+/// here, as in question 2, model 2 (`research/protocol/question-2-calibration.md`).
+#[cfg_attr(
+    not(test),
+    expect(dead_code, reason = "not yet wired into a report; tested below")
+)]
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
+pub struct Probability(f64);
+
+#[cfg_attr(
+    not(test),
+    expect(dead_code, reason = "not yet wired into a report; tested below")
+)]
+impl Probability {
+    /// `None` outside `[0, 1]`, and for NaN.
+    pub fn new(p: f64) -> Option<Self> {
+        (0.0..=1.0).contains(&p).then_some(Self(p))
+    }
+
+    pub fn get(self) -> f64 {
+        self.0
+    }
+}
+
 /// Lowest probability [`log_loss`] sees. It keeps `-ln 0` out of the sum: one
 /// certain prediction that is wrong would otherwise make the mean infinite.
 #[cfg_attr(
@@ -372,25 +377,20 @@ pub const LOG_LOSS_EPS: f64 = 1e-15;
 /// Each `p` is clipped to `[LOG_LOSS_EPS, 1 - LOG_LOSS_EPS]` first, so a
 /// certain prediction that turns out wrong costs about 34.5, not infinity.
 ///
-/// `None` for empty input, lengths that differ, or any probability outside
-/// `[0, 1]`, NaN included.
+/// `None` for empty input or lengths that differ.
 #[cfg_attr(
     not(test),
     expect(dead_code, reason = "not yet wired into a report; tested below")
 )]
-pub fn log_loss(probabilities: &[f64], correct: &[bool]) -> Option<f64> {
+pub fn log_loss(probabilities: &[Probability], correct: &[bool]) -> Option<f64> {
     if probabilities.is_empty() || probabilities.len() != correct.len() {
-        return None;
-    }
-    // A NaN fails the range check too, so it is rejected here.
-    if !probabilities.iter().all(|p| (0.0..=1.0).contains(p)) {
         return None;
     }
     let total: f64 = probabilities
         .iter()
         .zip(correct)
-        .map(|(&p, &right)| {
-            let p = p.clamp(LOG_LOSS_EPS, 1.0 - LOG_LOSS_EPS);
+        .map(|(p, &right)| {
+            let p = p.get().clamp(LOG_LOSS_EPS, 1.0 - LOG_LOSS_EPS);
             -(if right { p } else { 1.0 - p }).ln()
         })
         .sum();
@@ -405,26 +405,21 @@ pub fn log_loss(probabilities: &[f64], correct: &[bool]) -> Option<f64> {
 /// is a parse level, not a probability (see `AGENTS.md`), so it does not go
 /// here.
 ///
-/// `None` for empty input, lengths that differ, or any probability outside
-/// `[0, 1]`, NaN included.
+/// `None` for empty input or lengths that differ.
 #[cfg_attr(
     not(test),
     expect(dead_code, reason = "not yet wired into a report; tested below")
 )]
-pub fn brier_score(probabilities: &[f64], correct: &[bool]) -> Option<f64> {
+pub fn brier_score(probabilities: &[Probability], correct: &[bool]) -> Option<f64> {
     if probabilities.is_empty() || probabilities.len() != correct.len() {
-        return None;
-    }
-    // A NaN fails the range check too, so it is rejected here.
-    if !probabilities.iter().all(|p| (0.0..=1.0).contains(p)) {
         return None;
     }
     let total: f64 = probabilities
         .iter()
         .zip(correct)
-        .map(|(&p, &right)| {
+        .map(|(p, &right)| {
             let outcome = f64::from(u8::from(right));
-            (p - outcome).powi(2)
+            (p.get() - outcome).powi(2)
         })
         .sum();
     Some(total / probabilities.len() as f64)
@@ -455,22 +450,18 @@ pub const MAX_ECE_BINS: usize = 100;
 /// Like [`log_loss`], this is for a fitted model's probability. The compiler's
 /// `confidence` is a parse level, not a probability (see `AGENTS.md`).
 ///
-/// `None` for empty input, lengths that differ, any probability outside
-/// `[0, 1]` (NaN included), or `bins` outside `1..=MAX_ECE_BINS`.
+/// `None` for empty input, lengths that differ, or `bins` outside
+/// `1..=MAX_ECE_BINS`.
 #[cfg_attr(
     not(test),
     expect(dead_code, reason = "not yet wired into a report; tested below")
 )]
 pub fn expected_calibration_error(
-    probabilities: &[f64],
+    probabilities: &[Probability],
     correct: &[bool],
     bins: usize,
 ) -> Option<f64> {
     if probabilities.is_empty() || probabilities.len() != correct.len() {
-        return None;
-    }
-    // A NaN fails the range check too, so it is rejected here.
-    if !probabilities.iter().all(|p| (0.0..=1.0).contains(p)) {
         return None;
     }
     if bins == 0 || bins > MAX_ECE_BINS {
@@ -479,7 +470,8 @@ pub fn expected_calibration_error(
     let mut count = vec![0usize; bins];
     let mut sum_p = vec![0.0f64; bins];
     let mut right = vec![0usize; bins];
-    for (&p, &is_right) in probabilities.iter().zip(correct) {
+    for (p, &is_right) in probabilities.iter().zip(correct) {
+        let p = p.get();
         let bin = ((p * bins as f64).floor() as usize).min(bins - 1);
         count[bin] += 1;
         sum_p[bin] += p;
@@ -589,7 +581,7 @@ mod tests {
             .expect("a 0.7 level");
         assert!(level.trustworthy);
         assert!((level.accuracy.value.unwrap() - 0.5).abs() < 0.01);
-        assert!(report.calibration.expected_calibration_error.unwrap() > 0.05);
+        assert!(report.calibration.aurc.is_some());
     }
 
     /// A level with a handful of examples is noise, and is marked as such.
@@ -687,10 +679,35 @@ mod tests {
         assert_eq!(aurc(&[f64::NAN, 0.4], &[true, false]), None);
     }
 
+    /// Test inputs are written as plain numbers; this is the one place they
+    /// become `Probability`, and every value passed in must be a valid one.
+    fn probs(values: &[f64]) -> Vec<Probability> {
+        values
+            .iter()
+            .map(|&value| Probability::new(value).expect("a probability in [0, 1]"))
+            .collect()
+    }
+
+    /// The edges of `[0, 1]` are in; everything outside, and NaN, is out.
+    /// This is the one range check left, so it is tested on both sides.
+    #[test]
+    fn probability_accepts_zero_to_one_and_nothing_else() {
+        assert_eq!(Probability::new(0.0).map(Probability::get), Some(0.0));
+        assert_eq!(Probability::new(1.0).map(Probability::get), Some(1.0));
+        assert_eq!(Probability::new(0.25).map(Probability::get), Some(0.25));
+        assert_eq!(Probability::new(-0.1), None);
+        assert_eq!(Probability::new(-f64::MIN_POSITIVE), None);
+        assert_eq!(Probability::new(1.0 + f64::EPSILON), None);
+        assert_eq!(Probability::new(1.1), None);
+        assert_eq!(Probability::new(f64::NAN), None);
+        assert_eq!(Probability::new(f64::INFINITY), None);
+        assert_eq!(Probability::new(f64::NEG_INFINITY), None);
+    }
+
     /// p = 0.5 everywhere: every term is -ln 0.5 = ln 2, whatever the answer.
     #[test]
     fn log_loss_of_a_coin_is_ln_2() {
-        let p = [0.5, 0.5, 0.5];
+        let p = probs(&[0.5, 0.5, 0.5]);
         let loss = log_loss(&p, &[true, false, true]).unwrap();
         assert!((loss - std::f64::consts::LN_2).abs() < 1e-12, "{loss}");
     }
@@ -698,12 +715,12 @@ mod tests {
     /// Right at p = 0.9 costs -ln 0.9. Wrong at p = 0.9 costs -ln 0.1.
     #[test]
     fn log_loss_takes_minus_ln_p_for_right_and_minus_ln_one_minus_p_for_wrong() {
-        let right = log_loss(&[0.9], &[true]).unwrap();
+        let right = log_loss(&probs(&[0.9]), &[true]).unwrap();
         assert!((right - (-(0.9f64.ln()))).abs() < 1e-12, "{right}");
-        let wrong = log_loss(&[0.9], &[false]).unwrap();
+        let wrong = log_loss(&probs(&[0.9]), &[false]).unwrap();
         assert!((wrong - (-(0.1f64.ln()))).abs() < 1e-12, "{wrong}");
         // Mean of the two: (-ln 0.9 - ln 0.1) / 2 = 1.2039728...
-        let mean = log_loss(&[0.9, 0.9], &[true, false]).unwrap();
+        let mean = log_loss(&probs(&[0.9, 0.9]), &[true, false]).unwrap();
         assert!((mean - 1.203_972_804_325_936).abs() < 1e-12, "{mean}");
     }
 
@@ -718,17 +735,17 @@ mod tests {
     #[test]
     fn log_loss_clips_at_zero_and_one() {
         let big = 15.0 * 10.0f64.ln();
-        let at_zero_right = log_loss(&[0.0], &[true]).unwrap();
+        let at_zero_right = log_loss(&probs(&[0.0]), &[true]).unwrap();
         assert!(at_zero_right.is_finite());
         assert!((at_zero_right - big).abs() < 1e-9, "{at_zero_right}");
 
-        let at_zero_wrong = log_loss(&[0.0], &[false]).unwrap();
+        let at_zero_wrong = log_loss(&probs(&[0.0]), &[false]).unwrap();
         assert!(at_zero_wrong.abs() < 1e-14, "{at_zero_wrong}");
 
-        let at_one_right = log_loss(&[1.0], &[true]).unwrap();
+        let at_one_right = log_loss(&probs(&[1.0]), &[true]).unwrap();
         assert!(at_one_right.abs() < 1e-14, "{at_one_right}");
 
-        let at_one_wrong = log_loss(&[1.0], &[false]).unwrap();
+        let at_one_wrong = log_loss(&probs(&[1.0]), &[false]).unwrap();
         let clipped_complement = 1.0 - (1.0 - LOG_LOSS_EPS);
         assert!(at_one_wrong.is_finite());
         assert!(
@@ -742,24 +759,23 @@ mod tests {
     /// it is, and -ln(1e-12) = 27.631...
     #[test]
     fn log_loss_leaves_probabilities_inside_the_clip_alone() {
-        let loss = log_loss(&[1e-12], &[true]).unwrap();
+        let loss = log_loss(&probs(&[1e-12]), &[true]).unwrap();
         assert!((loss - 27.631_021_115_928_547).abs() < 1e-9, "{loss}");
     }
 
+    /// Range is checked by `Probability::new`; what is left here is the shape.
     #[test]
     fn log_loss_is_none_for_invalid_input() {
         assert_eq!(log_loss(&[], &[]), None);
-        assert_eq!(log_loss(&[0.5], &[]), None);
-        assert_eq!(log_loss(&[0.5, 0.4], &[true]), None);
-        assert_eq!(log_loss(&[-0.1], &[true]), None);
-        assert_eq!(log_loss(&[1.1], &[false]), None);
-        assert_eq!(log_loss(&[f64::NAN], &[true]), None);
+        assert_eq!(log_loss(&probs(&[0.5]), &[]), None);
+        assert_eq!(log_loss(&probs(&[0.5, 0.4]), &[true]), None);
     }
 
     /// p = 0.5 everywhere: every term is (0.5 - y)^2 = 0.25, right or wrong.
     #[test]
     fn brier_of_a_coin_is_one_quarter() {
-        let brier = brier_score(&[0.5, 0.5, 0.5, 0.5], &[true, false, true, false]).unwrap();
+        let p = probs(&[0.5, 0.5, 0.5, 0.5]);
+        let brier = brier_score(&p, &[true, false, true, false]).unwrap();
         assert!((brier - 0.25).abs() < 1e-12, "{brier}");
     }
 
@@ -767,7 +783,7 @@ mod tests {
     /// (0.2 - 0)^2 = 0.04. Mean: (0.01 + 0.04) / 2 = 0.025.
     #[test]
     fn brier_takes_the_squared_gap_to_the_outcome() {
-        let brier = brier_score(&[0.9, 0.2], &[true, false]).unwrap();
+        let brier = brier_score(&probs(&[0.9, 0.2]), &[true, false]).unwrap();
         assert!((brier - 0.025).abs() < 1e-12, "{brier}");
     }
 
@@ -775,17 +791,15 @@ mod tests {
     /// are accepted, and both score 0.
     #[test]
     fn brier_of_perfect_predictions_is_zero() {
-        assert_eq!(brier_score(&[1.0, 0.0], &[true, false]), Some(0.0));
+        assert_eq!(brier_score(&probs(&[1.0, 0.0]), &[true, false]), Some(0.0));
     }
 
+    /// Range is checked by `Probability::new`; what is left here is the shape.
     #[test]
     fn brier_is_none_for_invalid_input() {
         assert_eq!(brier_score(&[], &[]), None);
-        assert_eq!(brier_score(&[0.5], &[]), None);
-        assert_eq!(brier_score(&[0.5, 0.4], &[true]), None);
-        assert_eq!(brier_score(&[-0.1], &[true]), None);
-        assert_eq!(brier_score(&[1.1], &[false]), None);
-        assert_eq!(brier_score(&[f64::NAN], &[true]), None);
+        assert_eq!(brier_score(&probs(&[0.5]), &[]), None);
+        assert_eq!(brier_score(&probs(&[0.5, 0.4]), &[true]), None);
     }
 
     /// Four predictions in two bins: [0, 0.5) and [0.5, 1].
@@ -796,7 +810,7 @@ mod tests {
     /// An unweighted mean over the two bins would give (0.75 + 1/12) / 2 = 5/12.
     #[test]
     fn ece_weights_each_bin_by_its_share_of_the_examples() {
-        let p = [0.25, 0.75, 0.5, 1.0];
+        let p = probs(&[0.25, 0.75, 0.5, 1.0]);
         let right = [true, false, true, true];
         let ece = expected_calibration_error(&p, &right, 2).unwrap();
         assert!((ece - 0.25).abs() < 1e-12, "{ece}");
@@ -807,7 +821,7 @@ mod tests {
     /// Without the clamp, p = 1 indexes bin 2 of 2 and panics.
     #[test]
     fn ece_puts_probability_one_in_the_last_bin() {
-        let ece = expected_calibration_error(&[0.75, 1.0], &[true, false], 2).unwrap();
+        let ece = expected_calibration_error(&probs(&[0.75, 1.0]), &[true, false], 2).unwrap();
         assert!((ece - 0.375).abs() < 1e-12, "{ece}");
     }
 
@@ -816,14 +830,14 @@ mod tests {
     /// the skip, an empty bin divides 0 by 0 and the sum becomes NaN.
     #[test]
     fn ece_skips_empty_bins() {
-        let ece = expected_calibration_error(&[0.1, 0.2], &[true, true], 4).unwrap();
+        let ece = expected_calibration_error(&probs(&[0.1, 0.2]), &[true, true], 4).unwrap();
         assert!((ece - 0.85).abs() < 1e-12, "{ece}");
     }
 
     /// The bin count is accepted from 1 to 100 and refused at 0 and 101.
     #[test]
     fn ece_bin_count_has_a_limit_on_both_sides() {
-        let p = [0.5, 0.9];
+        let p = probs(&[0.5, 0.9]);
         let right = [true, false];
         assert!(expected_calibration_error(&p, &right, 1).is_some());
         assert!(expected_calibration_error(&p, &right, 100).is_some());
@@ -831,14 +845,89 @@ mod tests {
         assert_eq!(expected_calibration_error(&p, &right, 0), None);
     }
 
+    /// Range is checked by `Probability::new`; what is left here is the shape.
     #[test]
     fn ece_is_none_for_invalid_input() {
         assert_eq!(expected_calibration_error(&[], &[], 10), None);
-        assert_eq!(expected_calibration_error(&[0.5], &[], 10), None);
-        assert_eq!(expected_calibration_error(&[0.5, 0.4], &[true], 10), None);
-        assert_eq!(expected_calibration_error(&[-0.1], &[true], 10), None);
-        assert_eq!(expected_calibration_error(&[1.1], &[false], 10), None);
-        assert_eq!(expected_calibration_error(&[f64::NAN], &[true], 10), None);
+        assert_eq!(expected_calibration_error(&probs(&[0.5]), &[], 10), None);
+        assert_eq!(
+            expected_calibration_error(&probs(&[0.5, 0.4]), &[true], 10),
+            None
+        );
+    }
+
+    /// The report must not carry Brier or ECE over the parse levels, and must
+    /// carry AURC. Hand values: answers (score, right) = (0.95, yes),
+    /// (0.95, yes), (0.7, no), (0.7, yes). The first block has risk 0 at
+    /// k = 1, 2. The tied block of two with one wrong adds, at k = 3 and 4,
+    /// expected errors 1/2 and 1, so risks (1/2)/3 = 1/6 and 1/4.
+    /// AURC = (0 + 0 + 1/6 + 1/4) / 4 = 5/48 = 0.104166..., which `round`
+    /// reports as 0.1042; the tolerance is half a unit of that last digit.
+    /// A calibrate() that still wrote the old fields, or no aurc, fails here.
+    #[test]
+    fn calibration_json_has_aurc_and_no_brier_or_ece() {
+        let decisions = vec![
+            decision(true, 0.95, true, false),
+            decision(true, 0.95, true, false),
+            decision(true, 0.7, false, true),
+            decision(true, 0.7, true, false),
+        ];
+        let json = serde_json::to_value(calibrate(&decisions)).unwrap();
+        let object = json.as_object().expect("a JSON object");
+        assert!(!object.contains_key("brier"), "{json}");
+        assert!(!object.contains_key("expected_calibration_error"), "{json}");
+        let aurc = object
+            .get("aurc")
+            .and_then(serde_json::Value::as_f64)
+            .expect("an aurc number");
+        assert!((aurc - 5.0 / 48.0).abs() <= 5e-5, "{aurc}");
+        assert!(object.contains_key("levels"));
+        assert!(object.contains_key("verdict"));
+    }
+
+    /// Nothing scored (only plain speech) means no AURC, and the key is left
+    /// out rather than written as a zero that would read as «no risk».
+    #[test]
+    fn calibration_without_scored_answers_has_no_aurc() {
+        let decisions = vec![decision(false, 0.0, false, true)];
+        let calibration = calibrate(&decisions);
+        assert_eq!(calibration.aurc, None);
+        let json = serde_json::to_value(&calibration).unwrap();
+        assert!(!json.as_object().unwrap().contains_key("aurc"), "{json}");
+    }
+
+    /// Tripwire: a parse level must not be turned into a `Probability`.
+    /// It is crude (a line-level text match, so a call split over lines gets
+    /// past it), but it is real: the day someone writes the obvious wrong
+    /// line, this fails. The needles are built from pieces so that this test
+    /// does not contain the pattern it looks for.
+    #[test]
+    fn no_source_line_turns_a_confidence_into_a_probability() {
+        let needle_call = concat!("Probability", "::new(");
+        let needle_level = concat!("confid", "ence");
+        let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let mut files = 0usize;
+        let mut offenders = Vec::new();
+        for entry in std::fs::read_dir(&src).expect("the src directory") {
+            let path = entry.expect("a directory entry").path();
+            if path.extension().and_then(|ext| ext.to_str()) != Some("rs") {
+                continue;
+            }
+            files += 1;
+            let text = std::fs::read_to_string(&path).expect("a readable source file");
+            for (index, line) in text.lines().enumerate() {
+                if line.contains(needle_call) && line.contains(needle_level) {
+                    offenders.push(format!("{}:{}: {}", path.display(), index + 1, line.trim()));
+                }
+            }
+        }
+        // Scanning zero files would pass for the wrong reason.
+        assert!(
+            files >= 10,
+            "scanned only {files} files in {}",
+            src.display()
+        );
+        assert!(offenders.is_empty(), "{}", offenders.join("\n"));
     }
 
     /// The test-only entry point, so the curve can be exercised without
