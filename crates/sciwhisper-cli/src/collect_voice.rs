@@ -11,7 +11,7 @@ use std::sync::mpsc;
 
 use clap::{Args as ClapArgs, Subcommand, ValueEnum};
 use sciwhisper_eval::schema::Split;
-use store::{err, Result, Session};
+use store::{err, ConsentKind, Result, Session};
 
 #[derive(ClapArgs)]
 pub struct Args {
@@ -36,6 +36,24 @@ impl From<Partition> for Split {
     }
 }
 
+#[derive(Clone, Copy, ValueEnum)]
+enum ConsentChoice {
+    /// Signed paper form research/data/consent-ru-v2.md; required by protocol voice-v1.
+    #[value(name = "consent-ru-v2")]
+    RuV2,
+    /// Short on-screen text; recordings stay local and never go into a published corpus.
+    #[value(name = "voice-local-v1")]
+    LocalV1,
+}
+impl From<ConsentChoice> for ConsentKind {
+    fn from(c: ConsentChoice) -> Self {
+        match c {
+            ConsentChoice::RuV2 => ConsentKind::RuV2,
+            ConsentChoice::LocalV1 => ConsentKind::LocalV1,
+        }
+    }
+}
+
 #[derive(Subcommand)]
 enum Action {
     /// Start a local session. Consent is requested before opening a microphone.
@@ -48,6 +66,9 @@ enum Action {
         /// Assign each speaker to exactly one split across all sessions.
         #[arg(long, value_enum)]
         split: Partition,
+        /// Which consent the speaker gave. Required, no default.
+        #[arg(long, value_enum)]
+        consent: ConsentChoice,
         /// Date of consent (YYYY-MM-DD).
         #[arg(long)]
         date: String,
@@ -137,13 +158,14 @@ pub fn run(args: Args) -> Result<()> {
             let s = Session::open(&session)?;
             s.active()?;
             let takes = s.takes()?;
-            println!("Диктор: {}. Подтверждено: {}/{}. Split: {}.\nСессия локальная, записи никуда не отправляются.", s.plan.speaker_id, takes.len(), s.plan.tasks.len(), s.plan.split.as_str());
+            println!("Диктор: {}. Подтверждено: {}/{}. Split: {}. Согласие: {}.\nСессия локальная, записи никуда не отправляются.", s.plan.speaker_id, takes.len(), s.plan.tasks.len(), s.plan.split.as_str(), s.plan.consent.statement_id);
             Ok(())
         }
         Action::Start {
             session,
             speaker,
             split,
+            consent,
             date,
             environment,
             tasks,
@@ -154,11 +176,12 @@ pub fn run(args: Args) -> Result<()> {
                 Some(p) => store::read_limited(&p)?,
                 None => include_bytes!("../../../research/data/dev-seed-v2.jsonl").to_vec(),
             };
-            let plan = store::plan(&source, split.into(), speaker, date, environment)?;
+            let kind = ConsentKind::from(consent);
+            let plan = store::plan(&source, split.into(), speaker, date, environment, kind)?;
             let console = Console::open()?;
             println!(
                 "{}\nЗаданий: {}. Папка: {}\nПримеры: {}",
-                store::CONSENT,
+                kind.notice(),
                 plan.tasks.len(),
                 session.display(),
                 plan.tasks
@@ -168,8 +191,8 @@ pub fn run(args: Args) -> Result<()> {
                     .collect::<Vec<_>>()
                     .join("; ")
             );
-            let answer = console.ask("Для согласия на локальную запись введите СОГЛАСНА или СОГЛАСЕН; иначе сессия не создаётся.")?;
-            if !matches!(answer.as_str(), "СОГЛАСНА" | "СОГЛАСЕН") {
+            let answer = console.ask(&kind.question())?;
+            if !kind.accepts(&answer) {
                 println!("Запись отменена.");
                 return Ok(());
             }
@@ -188,7 +211,7 @@ pub fn run(args: Args) -> Result<()> {
                 "Продолжение сессии {} ({})\n{}",
                 s.plan.speaker_id,
                 s.plan.split.as_str(),
-                store::CONSENT
+                s.plan.consent_kind()?.notice()
             );
             if console.ask("Продолжить локальную запись? Введите ДА.")? != "ДА"
             {

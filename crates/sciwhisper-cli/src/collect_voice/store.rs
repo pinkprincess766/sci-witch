@@ -12,9 +12,78 @@ use sciwhisper_eval::schema::{AudioSource, Consent, Dataset, Provenance, Record,
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-pub const CONSENT: &str = "Согласие voice-local-v1\nЯ разрешаю sci-witch сохранять короткие записи моего голоса и подтверждённый мною текст для локальной проверки качества. Голос может позволить узнать меня: код диктора не делает его анонимным. Записи, сведения о микрофоне и обстановке остаются в выбранной папке. Экспорт создаёт ещё одну локальную копию, без отправки и разрешения на публикацию. Для передачи другим людям нужно отдельное согласие. Команда revoke удаляет записи этой сессии; ранее экспортированные или переданные копии нужно удалить отдельно. Автоматическое обучение не выполняется.\n";
+pub const CONSENT_LOCAL_TEXT: &str = "Согласие voice-local-v1\nЯ разрешаю sci-witch сохранять короткие записи моего голоса и подтверждённый мною текст для локальной проверки качества. Голос может позволить узнать меня: код диктора не делает его анонимным. Записи, сведения о микрофоне и обстановке остаются в выбранной папке. Экспорт создаёт ещё одну локальную копию, без отправки и разрешения на публикацию. Для передачи другим людям нужно отдельное согласие. Команда revoke удаляет записи этой сессии; ранее экспортированные или переданные копии нужно удалить отдельно. Автоматическое обучение не выполняется.\n";
 const LIMIT: u64 = 8 * 1024 * 1024;
 pub const MAX_TASKS: usize = 1000;
+pub const CONSENT_LOCAL_ID: &str = "voice-local-v1";
+pub const CONSENT_V2_ID: &str = "consent-ru-v2";
+/// The repo's text of the form the speaker signs; its bytes are hashed at recording time.
+pub const CONSENT_V2_TEXT: &str = include_str!("../../../../research/data/consent-ru-v2.md");
+pub const CONSENT_V2_PATH: &str = "research/data/consent-ru-v2.md";
+/// Typed by the operator to confirm the paper form is signed.
+pub const CONSENT_V2_WORD: &str = "ПОДПИСАНО";
+
+/// Which statement the speaker agreed to. No default: the caller must choose.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum ConsentKind {
+    /// Short on-screen text, local use only; never goes into a published corpus.
+    LocalV1,
+    /// Signed paper form `consent-ru-v2`, as required by protocol voice-v1.
+    RuV2,
+}
+
+impl ConsentKind {
+    pub fn from_id(id: &str) -> Option<Self> {
+        match id {
+            CONSENT_LOCAL_ID => Some(Self::LocalV1),
+            CONSENT_V2_ID => Some(Self::RuV2),
+            _ => None,
+        }
+    }
+    pub fn id(self) -> &'static str {
+        match self {
+            Self::LocalV1 => CONSENT_LOCAL_ID,
+            Self::RuV2 => CONSENT_V2_ID,
+        }
+    }
+    /// Bytes stored as `consent.txt` and hashed into `consent_sha256`.
+    pub fn text(self) -> &'static str {
+        match self {
+            Self::LocalV1 => CONSENT_LOCAL_TEXT,
+            Self::RuV2 => CONSENT_V2_TEXT,
+        }
+    }
+    pub fn scope(self) -> &'static str {
+        match self {
+            Self::LocalV1 => "local_only",
+            Self::RuV2 => "publication_after_legal_review",
+        }
+    }
+    /// What the terminal shows before the confirmation question.
+    pub fn notice(self) -> String {
+        match self {
+            Self::LocalV1 => format!(
+                "{CONSENT_LOCAL_TEXT}\nРЕЖИМ ТОЛЬКО ЛОКАЛЬНЫЙ: записи с согласием {CONSENT_LOCAL_ID} нельзя включать в корпус для публикации; для него запись нужно повторить с --consent {CONSENT_V2_ID}."
+            ),
+            Self::RuV2 => format!(
+                "Согласие {CONSENT_V2_ID}. Диктор должен подписать бумажную форму {CONSENT_V2_PATH} до записи.\nSHA-256 текста формы: {}",
+                digest(CONSENT_V2_TEXT.as_bytes())
+            ),
+        }
+    }
+    pub fn question(self) -> String {
+        match self {
+            Self::LocalV1 => "Для согласия на локальную запись введите СОГЛАСНА или СОГЛАСЕН; иначе сессия не создаётся.".into(),
+            Self::RuV2 => format!("Форма {CONSENT_V2_ID} подписана диктором? Введите {CONSENT_V2_WORD}; иначе сессия не создаётся."),
+        }
+    }
+    pub fn accepts(self, answer: &str) -> bool {
+        match self {
+            Self::LocalV1 => matches!(answer, "СОГЛАСНА" | "СОГЛАСЕН"),
+            Self::RuV2 => answer == CONSENT_V2_WORD,
+        }
+    }
+}
 
 pub type Result<T> = std::result::Result<T, String>;
 
@@ -30,6 +99,13 @@ pub struct Plan {
     pub source_sha256: String,
     pub environment: String,
     pub tasks: Vec<Record>,
+}
+
+impl Plan {
+    pub fn consent_kind(&self) -> Result<ConsentKind> {
+        ConsentKind::from_id(&self.consent.statement_id)
+            .ok_or_else(|| "Неизвестное заявление о согласии".into())
+    }
 }
 
 #[derive(Serialize, Deserialize)]
@@ -105,8 +181,8 @@ fn validate_plan(plan: &Plan) -> Result<()> {
         || plan.session_id.len() != 32
         || !plan.session_id.bytes().all(|b| b.is_ascii_hexdigit())
         || !plan.consent.granted
-        || plan.consent.statement_id != "voice-local-v1"
-        || plan.consent_sha256 != digest(CONSENT.as_bytes())
+        || !ConsentKind::from_id(&plan.consent.statement_id)
+            .is_some_and(|kind| plan.consent_sha256 == digest(kind.text().as_bytes()))
         || !valid_date(&plan.consent.date)
     {
         return Err("Неизвестная версия сессии или неподтверждённое согласие".into());
@@ -156,6 +232,7 @@ pub fn plan(
     speaker_id: String,
     date: String,
     environment: String,
+    consent: ConsentKind,
 ) -> Result<Plan> {
     let text = std::str::from_utf8(source).map_err(err)?;
     if source.len() as u64 > LIMIT {
@@ -190,10 +267,10 @@ pub fn plan(
         split,
         consent: Consent {
             granted: true,
-            statement_id: "voice-local-v1".into(),
+            statement_id: consent.id().into(),
             date,
         },
-        consent_sha256: digest(CONSENT.as_bytes()),
+        consent_sha256: digest(consent.text().as_bytes()),
         source_sha256: digest(source),
         environment,
         tasks: dataset
@@ -256,7 +333,10 @@ impl Session {
             &root.join("session.json"),
             &serde_json::to_vec_pretty(&plan).map_err(err)?,
         )?;
-        write_new(&root.join("consent.txt"), CONSENT.as_bytes())?;
+        write_new(
+            &root.join("consent.txt"),
+            plan.consent_kind()?.text().as_bytes(),
+        )?;
         fs::create_dir(root.join("takes")).map_err(err)?;
         Self::open(root)
     }
@@ -279,7 +359,7 @@ impl Session {
         let plan: Plan =
             serde_json::from_slice(&read_limited(&root.join("session.json"))?).map_err(err)?;
         validate_plan(&plan)?;
-        if read_limited(&root.join("consent.txt"))? != CONSENT.as_bytes() {
+        if read_limited(&root.join("consent.txt"))? != plan.consent_kind()?.text().as_bytes() {
             return Err("Текст согласия изменён".into());
         }
         directory(&root.join("takes"))?;
@@ -473,14 +553,15 @@ impl Session {
         Dataset::parse_jsonl(&jsonl).map_err(err)?;
         for (name, bytes) in [
             ("dataset.jsonl", jsonl.as_bytes()),
-            ("consent.txt", CONSENT.as_bytes()),
+            ("consent.txt", self.plan.consent_kind()?.text().as_bytes()),
         ] {
             write_new(&stage.path().join(name), bytes)?;
             hashes.insert(name.into(), digest(bytes));
         }
         let manifest = serde_json::json!({ "voice_pack_schema_version": 1, "collector_version": env!("CARGO_PKG_VERSION"),
             "source_sha256": self.plan.source_sha256, "speaker_id": self.plan.speaker_id, "session_id": self.plan.session_id,
-            "split": self.plan.split, "scope": "local_only", "records": takes.len(),
+            "split": self.plan.split, "scope": self.plan.consent_kind()?.scope(),
+            "consent_statement_id": self.plan.consent.statement_id, "consent_sha256": self.plan.consent_sha256, "records": takes.len(),
             "planned_records": self.plan.tasks.len(), "recording_os": takes.values().map(|t| t.os.as_str()).collect::<BTreeSet<_>>(),
             "audio_processing": "mono_pcm16_16000_no_vad_trim", "files": hashes });
         write_new(
