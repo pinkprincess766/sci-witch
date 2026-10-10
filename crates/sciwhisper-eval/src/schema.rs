@@ -152,6 +152,17 @@ pub struct Consent {
     pub date: String,
 }
 
+/// Whether `human_transcript` has been written down yet. A free-speech task
+/// has no phrase to copy, so its transcript is filled in by a person later.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ReferenceStatus {
+    /// The transcript is still to be written; it may be empty.
+    Pending,
+    /// The transcript is the reference. This is what an absent field means.
+    Final,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct ExpectedRender {
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -175,6 +186,9 @@ pub struct Record {
     pub family_id: String,
     pub provenance: Provenance,
     pub human_transcript: String,
+    /// Absent means `final`. Only `pending` may leave `human_transcript` empty.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reference_status: Option<ReferenceStatus>,
     #[serde(default)]
     pub asr_hypotheses: Vec<AsrHypothesis>,
     /// The recording, for schema 2 records whose provenance has audio.
@@ -412,7 +426,9 @@ fn validate_record(
             record.id, record.family_id
         ));
     }
-    if record.human_transcript.trim().is_empty() {
+    if record.human_transcript.trim().is_empty()
+        && record.reference_status != Some(ReferenceStatus::Pending)
+    {
         return Err("empty human_transcript".into());
     }
     if !matches!(

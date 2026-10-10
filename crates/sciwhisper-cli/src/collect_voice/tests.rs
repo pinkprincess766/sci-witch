@@ -1,7 +1,7 @@
 use super::store::*;
 use super::{Action, Args, ConsentChoice, Partition};
 use clap::Parser;
-use sciwhisper_eval::schema::{Dataset, Split};
+use sciwhisper_eval::schema::{Dataset, ReferenceStatus, Split};
 use sha2::Digest;
 use std::fs;
 
@@ -599,6 +599,268 @@ fn cli_start_without_consent_is_refused_and_both_ids_parse() {
             ..
         }
     ));
+}
+
+type Row = serde_json::Map<String, serde_json::Value>;
+
+const CARD: &str = "Назовите воду как химическое вещество своими словами.";
+
+fn train_rows() -> Vec<Row> {
+    include_str!("../../../../research/data/dev-seed-v2.jsonl")
+        .lines()
+        .map(|line| serde_json::from_str::<Row>(line).unwrap())
+        .filter(|row| row["split"] == "train")
+        .collect()
+}
+
+fn read_row() -> Row {
+    train_rows().remove(0)
+}
+
+/// A free task: gold fields of a real record, a card, no human_transcript.
+fn free_row() -> Row {
+    let mut row = train_rows().remove(1);
+    row.insert("family_id".into(), "free-test-001".into());
+    row.insert("id".into(), "free-test-001-a".into());
+    row.remove("human_transcript");
+    row.insert("delivery".into(), "free".into());
+    row.insert("card".into(), CARD.into());
+    row
+}
+
+fn plan_from(rows: &[Row]) -> Result<Plan> {
+    let source = rows
+        .iter()
+        .map(|row| serde_json::to_string(row).unwrap())
+        .collect::<Vec<_>>()
+        .join("\n");
+    plan(
+        source.as_bytes(),
+        Split::Train,
+        "spk01".into(),
+        "2026-09-12".into(),
+        "quiet_room".into(),
+        ConsentKind::RuV2,
+    )
+}
+
+fn mixed_plan() -> Plan {
+    plan_from(&[read_row(), free_row()]).unwrap()
+}
+
+#[test]
+fn a_plan_with_one_read_and_one_free_task_loads_and_survives_reopening() {
+    let p = mixed_plan();
+    assert_eq!(p.tasks.len(), 2);
+    assert!(!p.is_free(0) && p.is_free(1));
+    assert_eq!(p.shown(0), p.tasks[0].human_transcript);
+    assert_eq!(p.shown(1), format!("Карточка: {CARD}"));
+    assert_eq!(p.tasks[1].human_transcript, "");
+    assert_eq!(p.tasks[1].reference_status, Some(ReferenceStatus::Pending));
+    assert_eq!(p.tasks[0].reference_status, None);
+    // "scripted" is the same as no field.
+    let mut scripted = read_row();
+    scripted.insert("delivery".into(), "scripted".into());
+    assert!(!plan_from(&[scripted, free_row()]).unwrap().is_free(0));
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("session");
+    drop(Session::create(&path, p).unwrap());
+    let reopened = Session::open(&path).unwrap();
+    assert!(reopened.plan.is_free(1) && !reopened.plan.is_free(0));
+}
+
+#[test]
+fn a_free_task_needs_a_card_and_must_not_bring_a_transcript_or_a_status() {
+    let refused = |edit: &dyn Fn(&mut Row)| {
+        let mut free = free_row();
+        edit(&mut free);
+        plan_from(&[read_row(), free])
+            .err()
+            .expect("plan must be refused")
+    };
+    let bad_cards: [Option<serde_json::Value>; 5] = [
+        None,
+        Some("".into()),
+        Some("  ".into()),
+        Some("a\nb".into()),
+        Some(1.into()),
+    ];
+    for card in bad_cards {
+        let error = refused(&|row| match &card {
+            Some(value) => drop(row.insert("card".into(), value.clone())),
+            None => drop(row.remove("card")),
+        });
+        assert!(
+            error.contains("карточк") || error.contains("Карточк"),
+            "{card:?}: {error}"
+        );
+    }
+    // The transcript comes from annotation, not from the plan, even if empty.
+    for text in ["вода", ""] {
+        let error = refused(&|row| drop(row.insert("human_transcript".into(), text.into())));
+        assert!(error.contains("human_transcript"), "{error}");
+    }
+    let error = refused(&|row| drop(row.insert("reference_status".into(), "final".into())));
+    assert!(error.contains("reference_status"), "{error}");
+    let error = refused(&|row| drop(row.insert("delivery".into(), "spoken".into())));
+    assert!(error.contains("delivery"), "{error}");
+    // A card on a read task would hide its phrase from the confirmation.
+    let mut read = read_row();
+    read.insert("card".into(), CARD.into());
+    assert!(plan_from(&[read, free_row()]).is_err());
+}
+
+#[test]
+fn the_card_length_limit_holds_on_both_sides() {
+    let with_card = |len: usize| {
+        let mut free = free_row();
+        free.insert("card".into(), "a".repeat(len).into());
+        plan_from(&[free])
+    };
+    assert!(with_card(MAX_CARD_BYTES).is_ok());
+    assert!(with_card(MAX_CARD_BYTES + 1).is_err());
+}
+
+#[test]
+fn a_session_file_where_cards_and_pending_disagree_is_refused() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut no_card = mixed_plan();
+    no_card.cards.clear();
+    assert!(Session::create(&dir.path().join("a"), no_card).is_err());
+    let mut card_on_read_task = mixed_plan();
+    let read_id = card_on_read_task.tasks[0].id.clone();
+    card_on_read_task.cards.insert(read_id, CARD.into());
+    assert!(Session::create(&dir.path().join("b"), card_on_read_task).is_err());
+    let mut stray = mixed_plan();
+    stray.cards.insert("nobody-a".into(), CARD.into());
+    assert!(Session::create(&dir.path().join("c"), stray).is_err());
+    let mut typed = mixed_plan();
+    typed.tasks[1].human_transcript = "вода".into();
+    assert!(Session::create(&dir.path().join("d"), typed).is_err());
+}
+
+#[test]
+fn only_a_read_task_asks_for_the_exact_word() {
+    let p = mixed_plan();
+    let read = p.confirmation(0);
+    let free = p.confirmation(1);
+    assert_eq!(
+        (read, free),
+        (Confirmation::ExactText, Confirmation::Usable)
+    );
+    assert!(read.accepts("ТОЧНО"));
+    for word in ["", "ДА", "точно", "ТОЧНО "] {
+        assert!(!read.accepts(word), "{word:?} must not confirm a read task");
+    }
+    assert!(free.accepts("ДА"));
+    for word in ["", "ТОЧНО", "да", "ДА "] {
+        assert!(!free.accepts(word), "{word:?} must not confirm a free task");
+    }
+    assert!(read.question().contains("ТОЧНО") && !free.question().contains("ТОЧНО"));
+}
+
+#[test]
+fn a_free_take_cannot_be_accepted_with_a_typed_transcript() {
+    let dir = tempfile::tempdir().unwrap();
+    let s = Session::create(&dir.path().join("session"), mixed_plan()).unwrap();
+    let wave = wav(dir.path());
+    assert!(s.accept(1, &wave, "вода", "Mic").is_err());
+    assert!(s.takes().unwrap().is_empty());
+    s.accept(1, &wave, "", "Mic").unwrap();
+    let take = s.takes().unwrap().remove(&1).unwrap();
+    assert_eq!(take.record.human_transcript, "");
+    assert_eq!(take.record.reference_status, Some(ReferenceStatus::Pending));
+}
+
+/// Exported dataset.jsonl lines of a session with one read and one free take.
+fn exported_mixed_pack(dir: &std::path::Path) -> std::path::PathBuf {
+    let s = Session::create(&dir.join("session"), mixed_plan()).unwrap();
+    let wave = wav(dir);
+    s.accept(0, &wave, &s.plan.tasks[0].human_transcript.clone(), "Mic")
+        .unwrap();
+    s.accept(1, &wave, "", "Mic").unwrap();
+    let out = dir.join("pack");
+    assert_eq!(s.export(&out).unwrap(), 2);
+    out
+}
+
+fn ingest_describe(
+    pack: &std::path::Path,
+    manifest: &std::path::Path,
+) -> std::result::Result<(), String> {
+    crate::ingest::run(
+        crate::ingest::IngestOptions {
+            manifest: manifest.to_owned(),
+            output: pack.join("measured.jsonl"),
+            describe_only: true,
+        },
+        &mut |_| panic!("collection must not invoke ASR"),
+    )
+}
+
+#[test]
+fn a_free_take_exports_and_ingests_as_pending_with_an_empty_transcript() {
+    let dir = tempfile::tempdir().unwrap();
+    let out = exported_mixed_pack(dir.path());
+    let exported = fs::read_to_string(out.join("dataset.jsonl")).unwrap();
+    let lines: Vec<serde_json::Value> = exported
+        .lines()
+        .map(|line| serde_json::from_str(line).unwrap())
+        .collect();
+    assert!(
+        lines[0].get("reference_status").is_none(),
+        "read records are unchanged"
+    );
+    assert_eq!(lines[1]["reference_status"], "pending");
+    assert_eq!(lines[1]["human_transcript"], "");
+    assert!(lines[1].get("card").is_none() && lines[1].get("delivery").is_none());
+    let dataset = Dataset::parse_jsonl(&exported).expect("schema accepts a pending record");
+    assert_eq!(
+        dataset.records[1].reference_status,
+        Some(ReferenceStatus::Pending)
+    );
+    ingest_describe(&out, &out.join("dataset.jsonl")).unwrap();
+    let measured = fs::read_to_string(out.join("measured.jsonl")).unwrap();
+    let measured = Dataset::parse_jsonl(&measured).unwrap();
+    assert_eq!(
+        measured.records[1].reference_status,
+        Some(ReferenceStatus::Pending)
+    );
+    assert_eq!(measured.records[1].human_transcript, "");
+    assert_eq!(measured.records[0].reference_status, None);
+}
+
+#[test]
+fn an_empty_transcript_is_refused_unless_the_record_is_pending() {
+    let dir = tempfile::tempdir().unwrap();
+    let out = exported_mixed_pack(dir.path());
+    let exported = fs::read_to_string(out.join("dataset.jsonl")).unwrap();
+    let free_line = exported.lines().nth(1).unwrap();
+    for (status, accepted) in [
+        (Some("pending"), true),
+        (Some("final"), false),
+        (None, false),
+        (Some("draft"), false),
+    ] {
+        let mut record: Row = serde_json::from_str(free_line).unwrap();
+        match status {
+            Some(value) => drop(record.insert("reference_status".into(), value.into())),
+            None => drop(record.remove("reference_status")),
+        }
+        let line = serde_json::to_string(&record).unwrap();
+        assert_eq!(
+            Dataset::parse_jsonl(&line).is_ok(),
+            accepted,
+            "schema, status {status:?}"
+        );
+        let manifest = out.join("edited.jsonl");
+        fs::write(&manifest, &line).unwrap();
+        assert_eq!(
+            ingest_describe(&out, &manifest).is_ok(),
+            accepted,
+            "ingest, status {status:?}"
+        );
+    }
 }
 
 /// What the collector exports and `ingest` completes must pass the corpus
