@@ -11,7 +11,7 @@
 | # | Вопрос | Статус | Ещё не проверено на |
 |---|---|---|---|
 | 1 | Повышает ли выбор среди *K* гипотез Whisper по совместной оценке ASR и грамматики точное совпадение AST на живых дикторах относительно top-1 Whisper плюс текущий разборщик (`interpret_utterance`)? | Открыт. Процедура записана в [research/protocol/question-1-nbest.md](research/protocol/question-1-nbest.md); прогона нет. Температура, seed и сетка λ в файле пустые, поэтому прогон на замороженном test запрещён. | Живые дикторы, списки Whisper *N*-best, доля ошибок слов, оценка PCFG. |
-| 2 | Даёт ли подогнанная модель уверенности (признаки ASR и грамматики) меньший риск при том же покрытии, чем четыре ручных уровня разбора 1.0 / 0.95 / 0.7 / 0.0 с порогом вставки 0.9? | Открыт. Процедура записана в [research/protocol/question-2-calibration.md](research/protocol/question-2-calibration.md); прогона нет. | Живые дикторы и любой корпус, где среди отвеченных пунктов не меньше `MIN_ERRORS_TO_FIT` (20) ошибок ([`crates/sciwhisper-eval/src/selective.rs`](crates/sciwhisper-eval/src/selective.rs)). На `dev-seed-v3` поле `selective_prediction.calibration.errors` равно 1 ([research/results/deterministic-v6.json](research/results/deterministic-v6.json)). |
+| 2 | Даёт ли подогнанная модель уверенности (признаки ASR и грамматики) меньший риск при том же покрытии, чем четыре ручных уровня разбора 1.0 / 0.95 / 0.7 / 0.0 с порогом вставки 0.9? | Открыт. Процедура записана в [research/protocol/question-2-calibration.md](research/protocol/question-2-calibration.md); прогона нет. | Живые дикторы и любой корпус, где среди отвеченных пунктов не меньше `MIN_ERRORS_TO_FIT` (20) ошибок ([`crates/sciwhisper-eval/src/selective.rs`](crates/sciwhisper-eval/src/selective.rs)). На `dev-seed-v3` поле `selective_prediction.calibration.errors` равно 1 ([research/results/deterministic-v7.json](research/results/deterministic-v7.json)). |
 | 3 | Можно ли гарантировать, что обычная речь остаётся словами — что название вещества внутри предложения не заменяется формулой (серьёзность S4 в [research/schema/severity-v1.json](research/schema/severity-v1.json))? | Предварительный ответ на тексте, написанном автором: наблюдаемое число S4 равно 0 и числитель ложных переписываний равен 0 на четырёх бенчмарк-корпусах, с верхними границами Уилсона в таблице ниже. | Живые дикторы, формулировки других авторов, вывод распознавателя. Корпус прозы — нижняя планка на собственных ловушках автора ([research/data/prose-negatives-v1.manifest.json](research/data/prose-negatives-v1.manifest.json)). |
 
 Вопрос 1 и вопрос 2 сформулированы в [docs/research/sci-witch-plan.md](docs/research/sci-witch-plan.md) (постановка №1, постановка №2). Вопрос 3 — утверждение о безопасности, которое ворота компилятора уже судят на тексте ([research/schema/compiler-gates-v1.json](research/schema/compiler-gates-v1.json)).
@@ -61,15 +61,15 @@
 
 | Корпус | Записей | Метрика | Значение | 95 % интервал Уилсона | Источник |
 |---|---:|---|---|---|---|
-| `dev-seed-v3` | 113 | `metrics.ast_exact_match` | 112/113 | [0.951, 0.999] | [research/results/deterministic-v6.json](research/results/deterministic-v6.json) |
+| `dev-seed-v3` | 113 | `metrics.ast_exact_match` | 112/113 | [0.951, 0.999] | [research/results/deterministic-v7.json](research/results/deterministic-v7.json) |
 | `dev-seed-v3` | 113 | `metrics.false_scientific_rewrite_rate` | 0/29 | [0.0, 0.117]; `zero_count_upper95` 0.099 | тот же |
 | `dev-seed-v3` | 113 | `severity.count_by_severity.S4` | 0 | | тот же |
 | `dev-seed-v3` | 113 | `split_audit.speakers` | 0 | | тот же |
-| `ambiguous-v2` | 58 | `metrics.ast_exact_match` | 36/58 | [0.492, 0.735] | [research/results/ambiguous-auto-v2.json](research/results/ambiguous-auto-v2.json) |
+| `ambiguous-v2` | 58 | `metrics.ast_exact_match` | 36/58 | [0.492, 0.735] | [research/results/ambiguous-auto-v3.json](research/results/ambiguous-auto-v3.json) |
 | `ambiguous-v2` | 58 | `metrics.false_scientific_rewrite_rate` | 0/20 | [0.0, 0.162]; `zero_count_upper95` 0.140 | тот же |
 | `ambiguous-v2` | 58 | `severity.count_by_severity.S4` | 0 | | тот же |
 | `ambiguous-v2` | 58 | `split_audit.speakers` | 0 | | тот же |
-| `nomenclature-v1` | 53 | `metrics.ast_exact_match` | 53/53 | [0.932, 1.0] | [research/results/nomenclature-v1.json](research/results/nomenclature-v1.json) |
+| `nomenclature-v1` | 53 | `metrics.ast_exact_match` | 53/53 | [0.932, 1.0] | [research/results/nomenclature-v2.json](research/results/nomenclature-v2.json) |
 | `nomenclature-v1` | 53 | `metrics.false_scientific_rewrite_rate` | 0/27 | [0.0, 0.125]; `zero_count_upper95` 0.106 | тот же |
 | `nomenclature-v1` | 53 | `severity.count_by_severity.S4` | 0 | | тот же |
 | `nomenclature-v1` | 53 | `split_audit.speakers` | 0 | | тот же |
@@ -80,7 +80,7 @@
 
 Точные значения — в JSON-отчёте из последнего столбца.
 
-Профиль ворот компилятора `compiler-v2` ([research/schema/compiler-gates-v2.json](research/schema/compiler-gates-v2.json)) перед суждением сводит четыре отчёта в одну выборку: счётчики суммируются, доли заново делятся из сумм. Знаменатели обычной речи у `metrics.false_scientific_rewrite_rate` — 29 + 20 + 27 + 180 = 256 ([research/results/deterministic-v6.json](research/results/deterministic-v6.json), [research/results/ambiguous-auto-v2.json](research/results/ambiguous-auto-v2.json), [research/results/nomenclature-v1.json](research/results/nomenclature-v1.json), [research/results/prose-negatives-v2.json](research/results/prose-negatives-v2.json)); ложные научные переписывания 0/256. Односторонняя верхняя 95-процентная граница при нуле наблюдений — 0.0117, с округлением вверх (`1 − 0.05^(1/n)` при n = 256). Прошли все шесть проверок: пять ворот из массива `gates` в `compiler-gates-v2.json` и проверка покрытия бенчмарка, которую добавляет код (`BENCHMARK_GATE_ID` в [`crates/sciwhisper-eval/src/gate.rs`](crates/sciwhisper-eval/src/gate.rs)). Эти 256 предложений написаны для этого проекта автором парсера и агентами, которые над ним работали; граница относится к этому набору, а не к живой речи. Прежний профиль `compiler-v1` ([research/schema/compiler-gates-v1.json](research/schema/compiler-gates-v1.json)) закреплял `prose-negatives-v1` и оставлен без изменений.
+Профиль ворот компилятора `compiler-v2` ([research/schema/compiler-gates-v2.json](research/schema/compiler-gates-v2.json)) перед суждением сводит четыре отчёта в одну выборку: счётчики суммируются, доли заново делятся из сумм. Знаменатели обычной речи у `metrics.false_scientific_rewrite_rate` — 29 + 20 + 27 + 180 = 256 ([research/results/deterministic-v7.json](research/results/deterministic-v7.json), [research/results/ambiguous-auto-v3.json](research/results/ambiguous-auto-v3.json), [research/results/nomenclature-v2.json](research/results/nomenclature-v2.json), [research/results/prose-negatives-v2.json](research/results/prose-negatives-v2.json)); ложные научные переписывания 0/256. Односторонняя верхняя 95-процентная граница при нуле наблюдений — 0.0117, с округлением вверх (`1 − 0.05^(1/n)` при n = 256). Прошли все шесть проверок: пять ворот из массива `gates` в `compiler-gates-v2.json` и проверка покрытия бенчмарка, которую добавляет код (`BENCHMARK_GATE_ID` в [`crates/sciwhisper-eval/src/gate.rs`](crates/sciwhisper-eval/src/gate.rs)). Эти 256 предложений написаны для этого проекта автором парсера и агентами, которые над ним работали; граница относится к этому набору, а не к живой речи. Прежний профиль `compiler-v1` ([research/schema/compiler-gates-v1.json](research/schema/compiler-gates-v1.json)) закреплял `prose-negatives-v1` и оставлен без изменений.
 
 `dev-seed-v3` — основное зерно разработки (химия, математика, физика и пункты обычной речи RAW). `ambiguous-v2` — намеренно состязательный набор; его доля не сопоставима с `dev-seed-v3` как общая цифра ([research/data/ambiguous-v2.manifest.json](research/data/ambiguous-v2.manifest.json)). `nomenclature-v1` покрывает документированное подмножество номенклатуры. `prose-negatives-v1` — обычная научная проза, у которой gold — само предложение; точное совпадение AST 146/146 на том корпусе означает, что предложения оставлены в покое.
 
@@ -155,9 +155,9 @@ cargo run -p sciwhisper-eval --locked -- evaluate \
 
 ```bash
 cargo run -p sciwhisper-eval --locked -- gate \
-  --report research/results/deterministic-v6.json \
-  --report research/results/ambiguous-auto-v2.json \
-  --report research/results/nomenclature-v1.json \
+  --report research/results/deterministic-v7.json \
+  --report research/results/ambiguous-auto-v3.json \
+  --report research/results/nomenclature-v2.json \
   --report research/results/prose-negatives-v2.json
 ```
 
