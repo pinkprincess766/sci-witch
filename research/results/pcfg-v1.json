@@ -1,0 +1,1439 @@
+{
+  "corpora": [
+    "dev-seed-v3",
+    "ambiguous-v2",
+    "nomenclature-v1",
+    "prose-negatives-v2"
+  ],
+  "dev_holdout_skipped": {
+    "ambiguous-v2": 9,
+    "dev-seed-v3": 21,
+    "nomenclature-v1": 0,
+    "prose-negatives-v2": 34
+  },
+  "grammar": "docs/grammar/math.ebnf",
+  "modes": {
+    "math": {
+      "productions": [
+        {
+          "id": 0,
+          "lhs": "math_input",
+          "prob": 1.0,
+          "rhs": "eq_expr",
+          "train_count": 25.0
+        },
+        {
+          "id": 1,
+          "lhs": "eq_expr~R1",
+          "prob": 0.125,
+          "rhs": "rel_op add_expr eq_expr~R1",
+          "train_count": 3.0
+        },
+        {
+          "id": 2,
+          "lhs": "eq_expr~R1",
+          "prob": 0.875,
+          "rhs": "",
+          "train_count": 27.0
+        },
+        {
+          "id": 3,
+          "lhs": "eq_expr",
+          "prob": 1.0,
+          "rhs": "add_expr eq_expr~R1",
+          "train_count": 27.0
+        },
+        {
+          "id": 4,
+          "lhs": "rel_op",
+          "prob": 0.444444,
+          "rhs": "EQ",
+          "train_count": 3.0
+        },
+        {
+          "id": 10,
+          "lhs": "add_expr~R1",
+          "prob": 0.180451,
+          "rhs": "add_op mul_expr add_expr~R1",
+          "train_count": 7.0
+        },
+        {
+          "id": 11,
+          "lhs": "add_expr~R1",
+          "prob": 0.819549,
+          "rhs": "",
+          "train_count": 35.333333
+        },
+        {
+          "id": 12,
+          "lhs": "add_expr",
+          "prob": 1.0,
+          "rhs": "mul_expr add_expr~R1",
+          "train_count": 35.333333
+        },
+        {
+          "id": 13,
+          "lhs": "add_op",
+          "prob": 0.8,
+          "rhs": "PLUS",
+          "train_count": 7.0
+        },
+        {
+          "id": 16,
+          "lhs": "mul_expr~R1",
+          "prob": 0.090301,
+          "rhs": "mul_op unary_expr mul_expr~R1",
+          "train_count": 3.5
+        },
+        {
+          "id": 17,
+          "lhs": "mul_expr~R1",
+          "prob": 0.909699,
+          "rhs": "",
+          "train_count": 44.333333
+        },
+        {
+          "id": 18,
+          "lhs": "mul_expr",
+          "prob": 1.0,
+          "rhs": "unary_expr mul_expr~R1",
+          "train_count": 44.333333
+        },
+        {
+          "id": 19,
+          "lhs": "mul_op",
+          "prob": 0.5,
+          "rhs": "TIMES",
+          "train_count": 2.0
+        },
+        {
+          "id": 20,
+          "lhs": "mul_op",
+          "prob": 0.5,
+          "rhs": "DIV",
+          "train_count": 2.0
+        },
+        {
+          "id": 23,
+          "lhs": "unary_expr",
+          "prob": 0.961039,
+          "rhs": "juxt",
+          "train_count": 48.333333
+        },
+        {
+          "id": 24,
+          "lhs": "juxt~R1",
+          "prob": 0.122093,
+          "rhs": "juxt_item juxt~R1",
+          "train_count": 6.0
+        },
+        {
+          "id": 25,
+          "lhs": "juxt~R1",
+          "prob": 0.877907,
+          "rhs": "",
+          "train_count": 49.333333
+        },
+        {
+          "id": 26,
+          "lhs": "juxt",
+          "prob": 1.0,
+          "rhs": "postfix juxt~R1",
+          "train_count": 49.333333
+        },
+        {
+          "id": 28,
+          "lhs": "juxt_item~R1",
+          "prob": 0.941176,
+          "rhs": "",
+          "train_count": 15.0
+        },
+        {
+          "id": 29,
+          "lhs": "juxt_item",
+          "prob": 1.0,
+          "rhs": "common_atom juxt_item~R1",
+          "train_count": 15.0
+        },
+        {
+          "id": 30,
+          "lhs": "postfix~R1",
+          "prob": 0.046875,
+          "rhs": "postfix_op postfix~R1",
+          "train_count": 2.0
+        },
+        {
+          "id": 31,
+          "lhs": "postfix~R1",
+          "prob": 0.953125,
+          "rhs": "",
+          "train_count": 60.0
+        },
+        {
+          "id": 32,
+          "lhs": "postfix",
+          "prob": 1.0,
+          "rhs": "atom postfix~R1",
+          "train_count": 60.0
+        },
+        {
+          "id": 40,
+          "lhs": "postfix_op",
+          "prob": 0.333333,
+          "rhs": "SUB_KW atom",
+          "train_count": 2.0
+        },
+        {
+          "id": 42,
+          "lhs": "atom",
+          "prob": 0.96875,
+          "rhs": "common_atom",
+          "train_count": 61.0
+        },
+        {
+          "id": 43,
+          "lhs": "atom",
+          "prob": 0.03125,
+          "rhs": "prefix_atom",
+          "train_count": 1.0
+        },
+        {
+          "id": 45,
+          "lhs": "common_atom~O1",
+          "prob": 0.944444,
+          "rhs": "",
+          "train_count": 16.0
+        },
+        {
+          "id": 48,
+          "lhs": "common_atom~O3",
+          "prob": 0.666667,
+          "rhs": "R_PAREN",
+          "train_count": 1.0
+        },
+        {
+          "id": 54,
+          "lhs": "common_atom~O6",
+          "prob": 0.75,
+          "rhs": "ROOT_END",
+          "train_count": 2.0
+        },
+        {
+          "id": 57,
+          "lhs": "common_atom~O7",
+          "prob": 0.666667,
+          "rhs": "",
+          "train_count": 1.0
+        },
+        {
+          "id": 60,
+          "lhs": "common_atom",
+          "prob": 0.177083,
+          "rhs": "NUM common_atom~O1",
+          "train_count": 16.0
+        },
+        {
+          "id": 61,
+          "lhs": "common_atom",
+          "prob": 0.427083,
+          "rhs": "symbol_atom",
+          "train_count": 40.0
+        },
+        {
+          "id": 62,
+          "lhs": "common_atom",
+          "prob": 0.020833,
+          "rhs": "INF",
+          "train_count": 1.0
+        },
+        {
+          "id": 65,
+          "lhs": "common_atom",
+          "prob": 0.03125,
+          "rhs": "VECTOR_KW postfix",
+          "train_count": 2.0
+        },
+        {
+          "id": 66,
+          "lhs": "common_atom",
+          "prob": 0.020833,
+          "rhs": "FACT juxt",
+          "train_count": 1.0
+        },
+        {
+          "id": 68,
+          "lhs": "common_atom",
+          "prob": 0.083333,
+          "rhs": "FUNCTION postfix",
+          "train_count": 7.0
+        },
+        {
+          "id": 69,
+          "lhs": "common_atom",
+          "prob": 0.020833,
+          "rhs": "L_PAREN eq_expr common_atom~O3",
+          "train_count": 1.0
+        },
+        {
+          "id": 72,
+          "lhs": "common_atom",
+          "prob": 0.020833,
+          "rhs": "FRAC_START fraction_tail",
+          "train_count": 1.0
+        },
+        {
+          "id": 73,
+          "lhs": "common_atom",
+          "prob": 0.03125,
+          "rhs": "ROOT_START add_expr common_atom~O6",
+          "train_count": 2.0
+        },
+        {
+          "id": 74,
+          "lhs": "common_atom",
+          "prob": 0.03125,
+          "rhs": "ROOT root_body",
+          "train_count": 2.0
+        },
+        {
+          "id": 76,
+          "lhs": "common_atom",
+          "prob": 0.03125,
+          "rhs": "LIMIT limit_tail",
+          "train_count": 2.0
+        },
+        {
+          "id": 77,
+          "lhs": "common_atom",
+          "prob": 0.020833,
+          "rhs": "SUM nary_tail common_atom~O7",
+          "train_count": 1.0
+        },
+        {
+          "id": 83,
+          "lhs": "prefix_atom",
+          "prob": 0.333333,
+          "rhs": "PARTIAL DERIVATIVE derivative_tail",
+          "train_count": 1.0
+        },
+        {
+          "id": 87,
+          "lhs": "symbol_atom~O1",
+          "prob": 0.05,
+          "rhs": "application",
+          "train_count": 1.0
+        },
+        {
+          "id": 88,
+          "lhs": "symbol_atom~O1",
+          "prob": 0.05,
+          "rhs": "NUM",
+          "train_count": 1.0
+        },
+        {
+          "id": 89,
+          "lhs": "symbol_atom~O1",
+          "prob": 0.9,
+          "rhs": "",
+          "train_count": 35.0
+        },
+        {
+          "id": 91,
+          "lhs": "symbol_atom~O2",
+          "prob": 0.8,
+          "rhs": "",
+          "train_count": 3.0
+        },
+        {
+          "id": 92,
+          "lhs": "symbol_atom",
+          "prob": 0.904762,
+          "rhs": "SYM symbol_atom~O1",
+          "train_count": 37.0
+        },
+        {
+          "id": 93,
+          "lhs": "symbol_atom",
+          "prob": 0.095238,
+          "rhs": "WEAK_SYM symbol_atom~O2",
+          "train_count": 3.0
+        },
+        {
+          "id": 94,
+          "lhs": "application",
+          "prob": 1.0,
+          "rhs": "FROM argument_list",
+          "train_count": 1.0
+        },
+        {
+          "id": 95,
+          "lhs": "argument_list~R1",
+          "prob": 0.5,
+          "rhs": "COMMA mul_expr argument_list~R1",
+          "train_count": 1.0
+        },
+        {
+          "id": 96,
+          "lhs": "argument_list~R1",
+          "prob": 0.5,
+          "rhs": "",
+          "train_count": 1.0
+        },
+        {
+          "id": 97,
+          "lhs": "argument_list",
+          "prob": 1.0,
+          "rhs": "mul_expr argument_list~R1",
+          "train_count": 1.0
+        },
+        {
+          "id": 107,
+          "lhs": "fraction_tail~O1",
+          "prob": 0.666667,
+          "rhs": "NUMER",
+          "train_count": 1.0
+        },
+        {
+          "id": 109,
+          "lhs": "fraction_tail~O2",
+          "prob": 0.666667,
+          "rhs": "FRAC_END",
+          "train_count": 1.0
+        },
+        {
+          "id": 111,
+          "lhs": "fraction_tail",
+          "prob": 1.0,
+          "rhs": "fraction_tail~O1 add_expr DENOM add_expr fraction_tail~O2",
+          "train_count": 1.0
+        },
+        {
+          "id": 112,
+          "lhs": "root_body",
+          "prob": 0.416667,
+          "rhs": "postfix",
+          "train_count": 0.666667
+        },
+        {
+          "id": 113,
+          "lhs": "root_body",
+          "prob": 0.583333,
+          "rhs": "add_expr",
+          "train_count": 1.333333
+        },
+        {
+          "id": 114,
+          "lhs": "nary_tail~O1",
+          "prob": 0.666667,
+          "rhs": "FROM eq_expr",
+          "train_count": 1.0
+        },
+        {
+          "id": 116,
+          "lhs": "nary_tail~O2",
+          "prob": 0.666667,
+          "rhs": "TO postfix",
+          "train_count": 1.0
+        },
+        {
+          "id": 119,
+          "lhs": "nary_tail~O3",
+          "prob": 0.666667,
+          "rhs": "",
+          "train_count": 1.0
+        },
+        {
+          "id": 120,
+          "lhs": "nary_tail",
+          "prob": 1.0,
+          "rhs": "nary_tail~O1 nary_tail~O2 nary_tail~O3",
+          "train_count": 1.0
+        },
+        {
+          "id": 134,
+          "lhs": "derivative_tail~O1",
+          "prob": 0.666667,
+          "rhs": "ORDINAL ORDER_KW",
+          "train_count": 1.0
+        },
+        {
+          "id": 137,
+          "lhs": "derivative_tail~O2",
+          "prob": 0.666667,
+          "rhs": "",
+          "train_count": 1.0
+        },
+        {
+          "id": 139,
+          "lhs": "derivative_tail~O3",
+          "prob": 0.666667,
+          "rhs": "",
+          "train_count": 1.0
+        },
+        {
+          "id": 140,
+          "lhs": "derivative_tail~R1",
+          "prob": 0.5,
+          "rhs": "deriv_var derivative_tail~R1",
+          "train_count": 1.0
+        },
+        {
+          "id": 141,
+          "lhs": "derivative_tail~R1",
+          "prob": 0.5,
+          "rhs": "",
+          "train_count": 1.0
+        },
+        {
+          "id": 142,
+          "lhs": "derivative_tail",
+          "prob": 1.0,
+          "rhs": "derivative_tail~O1 derivative_tail~O2 derivative_tail~O3 mul_body deriv_var derivative_tail~R1",
+          "train_count": 1.0
+        },
+        {
+          "id": 143,
+          "lhs": "deriv_var~G1",
+          "prob": 0.5,
+          "rhs": "BY",
+          "train_count": 1.0
+        },
+        {
+          "id": 144,
+          "lhs": "deriv_var~G1",
+          "prob": 0.5,
+          "rhs": "AND_BY",
+          "train_count": 1.0
+        },
+        {
+          "id": 145,
+          "lhs": "deriv_var",
+          "prob": 1.0,
+          "rhs": "deriv_var~G1 juxt_item",
+          "train_count": 2.0
+        },
+        {
+          "id": 146,
+          "lhs": "limit_tail~O1",
+          "prob": 0.5,
+          "rhs": "direction",
+          "train_count": 1.0
+        },
+        {
+          "id": 147,
+          "lhs": "limit_tail~O1",
+          "prob": 0.5,
+          "rhs": "",
+          "train_count": 1.0
+        },
+        {
+          "id": 149,
+          "lhs": "limit_tail~O2",
+          "prob": 0.75,
+          "rhs": "",
+          "train_count": 2.0
+        },
+        {
+          "id": 151,
+          "lhs": "limit_tail~O3",
+          "prob": 0.75,
+          "rhs": "",
+          "train_count": 2.0
+        },
+        {
+          "id": 155,
+          "lhs": "limit_tail~O5",
+          "prob": 0.75,
+          "rhs": "",
+          "train_count": 2.0
+        },
+        {
+          "id": 157,
+          "lhs": "limit_tail~G1",
+          "prob": 0.75,
+          "rhs": "approach limit_tail~O5 mul_body",
+          "train_count": 2.0
+        },
+        {
+          "id": 158,
+          "lhs": "limit_tail",
+          "prob": 1.0,
+          "rhs": "limit_tail~O1 limit_tail~O2 limit_tail~O3 limit_tail~G1",
+          "train_count": 2.0
+        },
+        {
+          "id": 159,
+          "lhs": "approach",
+          "prob": 1.0,
+          "rhs": "LIMIT_VAR juxt_item TENDS limit_target",
+          "train_count": 2.0
+        },
+        {
+          "id": 161,
+          "lhs": "limit_target~O1",
+          "prob": 0.75,
+          "rhs": "",
+          "train_count": 2.0
+        },
+        {
+          "id": 163,
+          "lhs": "limit_target",
+          "prob": 0.75,
+          "rhs": "limit_target~O1 juxt_item",
+          "train_count": 2.0
+        },
+        {
+          "id": 165,
+          "lhs": "direction",
+          "prob": 0.666667,
+          "rhs": "LIMIT_RIGHT",
+          "train_count": 1.0
+        },
+        {
+          "id": 167,
+          "lhs": "mul_body~R1",
+          "prob": 0.8,
+          "rhs": "",
+          "train_count": 3.0
+        },
+        {
+          "id": 168,
+          "lhs": "mul_body~R2",
+          "prob": 0.272727,
+          "rhs": "mul_op unary_expr mul_body~R2",
+          "train_count": 0.5
+        },
+        {
+          "id": 169,
+          "lhs": "mul_body~R2",
+          "prob": 0.727273,
+          "rhs": "",
+          "train_count": 3.0
+        },
+        {
+          "id": 170,
+          "lhs": "mul_body",
+          "prob": 1.0,
+          "rhs": "juxt_item mul_body~R1 mul_body~R2",
+          "train_count": 3.0
+        }
+      ],
+      "sentences_with_unseen_productions": 12,
+      "train": {
+        "rejected": 3,
+        "tokenize_fail": 189,
+        "tokens": 114,
+        "too_long": 0,
+        "too_many": 0,
+        "too_many_items": 0,
+        "total": 217,
+        "used": 25
+      },
+      "trained": {
+        "consistency": {
+          "norm": 0.532544,
+          "power": 64,
+          "proven": true
+        },
+        "train_log_prob": -248.258558,
+        "train_perplexity": 8.826042,
+        "validation_log_prob": -235.784086,
+        "validation_perplexity": 17.732794
+      },
+      "uniform": {
+        "consistency": {
+          "norm": 2.0421752372242073e+197,
+          "power": null,
+          "proven": false
+        },
+        "validation_log_prob": -457.772917,
+        "validation_perplexity": 265.760771
+      },
+      "validation": {
+        "rejected": 3,
+        "tokenize_fail": 101,
+        "tokens": 82,
+        "too_long": 0,
+        "too_many": 0,
+        "too_many_items": 0,
+        "total": 123,
+        "used": 19
+      }
+    },
+    "physics": {
+      "productions": [
+        {
+          "id": 0,
+          "lhs": "math_input",
+          "prob": 1.0,
+          "rhs": "eq_expr",
+          "train_count": 35.0
+        },
+        {
+          "id": 1,
+          "lhs": "eq_expr~R1",
+          "prob": 0.116279,
+          "rhs": "rel_op add_expr eq_expr~R1",
+          "train_count": 4.0
+        },
+        {
+          "id": 2,
+          "lhs": "eq_expr~R1",
+          "prob": 0.883721,
+          "rhs": "",
+          "train_count": 37.0
+        },
+        {
+          "id": 3,
+          "lhs": "eq_expr",
+          "prob": 1.0,
+          "rhs": "add_expr eq_expr~R1",
+          "train_count": 37.0
+        },
+        {
+          "id": 4,
+          "lhs": "rel_op",
+          "prob": 0.5,
+          "rhs": "EQ",
+          "train_count": 4.0
+        },
+        {
+          "id": 10,
+          "lhs": "add_expr~R1",
+          "prob": 0.144578,
+          "rhs": "add_op mul_expr add_expr~R1",
+          "train_count": 7.0
+        },
+        {
+          "id": 11,
+          "lhs": "add_expr~R1",
+          "prob": 0.855422,
+          "rhs": "",
+          "train_count": 46.333333
+        },
+        {
+          "id": 12,
+          "lhs": "add_expr",
+          "prob": 1.0,
+          "rhs": "mul_expr add_expr~R1",
+          "train_count": 46.333333
+        },
+        {
+          "id": 13,
+          "lhs": "add_op",
+          "prob": 0.8,
+          "rhs": "PLUS",
+          "train_count": 7.0
+        },
+        {
+          "id": 16,
+          "lhs": "mul_expr~R1",
+          "prob": 0.073973,
+          "rhs": "mul_op unary_expr mul_expr~R1",
+          "train_count": 3.5
+        },
+        {
+          "id": 17,
+          "lhs": "mul_expr~R1",
+          "prob": 0.926027,
+          "rhs": "",
+          "train_count": 55.333333
+        },
+        {
+          "id": 18,
+          "lhs": "mul_expr",
+          "prob": 1.0,
+          "rhs": "unary_expr mul_expr~R1",
+          "train_count": 55.333333
+        },
+        {
+          "id": 19,
+          "lhs": "mul_op",
+          "prob": 0.5,
+          "rhs": "TIMES",
+          "train_count": 2.0
+        },
+        {
+          "id": 20,
+          "lhs": "mul_op",
+          "prob": 0.5,
+          "rhs": "DIV",
+          "train_count": 2.0
+        },
+        {
+          "id": 23,
+          "lhs": "unary_expr",
+          "prob": 0.967914,
+          "rhs": "juxt",
+          "train_count": 59.333333
+        },
+        {
+          "id": 24,
+          "lhs": "juxt~R1",
+          "prob": 0.102439,
+          "rhs": "juxt_item juxt~R1",
+          "train_count": 6.0
+        },
+        {
+          "id": 25,
+          "lhs": "juxt~R1",
+          "prob": 0.897561,
+          "rhs": "",
+          "train_count": 60.333333
+        },
+        {
+          "id": 26,
+          "lhs": "juxt",
+          "prob": 1.0,
+          "rhs": "postfix juxt~R1",
+          "train_count": 60.333333
+        },
+        {
+          "id": 27,
+          "lhs": "juxt_item~R1",
+          "prob": 0.081081,
+          "rhs": "postfix_op juxt_item~R1",
+          "train_count": 0.5
+        },
+        {
+          "id": 28,
+          "lhs": "juxt_item~R1",
+          "prob": 0.918919,
+          "rhs": "",
+          "train_count": 16.0
+        },
+        {
+          "id": 29,
+          "lhs": "juxt_item",
+          "prob": 1.0,
+          "rhs": "common_atom juxt_item~R1",
+          "train_count": 16.0
+        },
+        {
+          "id": 30,
+          "lhs": "postfix~R1",
+          "prob": 0.112,
+          "rhs": "postfix_op postfix~R1",
+          "train_count": 8.333333
+        },
+        {
+          "id": 31,
+          "lhs": "postfix~R1",
+          "prob": 0.888,
+          "rhs": "",
+          "train_count": 73.0
+        },
+        {
+          "id": 32,
+          "lhs": "postfix",
+          "prob": 1.0,
+          "rhs": "atom postfix~R1",
+          "train_count": 73.0
+        },
+        {
+          "id": 38,
+          "lhs": "postfix_op",
+          "prob": 0.126316,
+          "rhs": "DEGREE atom",
+          "train_count": 1.0
+        },
+        {
+          "id": 40,
+          "lhs": "postfix_op",
+          "prob": 0.189474,
+          "rhs": "SUB_KW atom",
+          "train_count": 2.0
+        },
+        {
+          "id": 41,
+          "lhs": "postfix_op",
+          "prob": 0.431579,
+          "rhs": "unit_expr",
+          "train_count": 5.833333
+        },
+        {
+          "id": 42,
+          "lhs": "atom",
+          "prob": 0.974359,
+          "rhs": "common_atom",
+          "train_count": 75.0
+        },
+        {
+          "id": 43,
+          "lhs": "atom",
+          "prob": 0.025641,
+          "rhs": "prefix_atom",
+          "train_count": 1.0
+        },
+        {
+          "id": 44,
+          "lhs": "common_atom~O1",
+          "prob": 0.205556,
+          "rhs": "unit_expr",
+          "train_count": 5.166667
+        },
+        {
+          "id": 45,
+          "lhs": "common_atom~O1",
+          "prob": 0.794444,
+          "rhs": "",
+          "train_count": 22.833333
+        },
+        {
+          "id": 48,
+          "lhs": "common_atom~O3",
+          "prob": 0.666667,
+          "rhs": "R_PAREN",
+          "train_count": 1.0
+        },
+        {
+          "id": 54,
+          "lhs": "common_atom~O6",
+          "prob": 0.75,
+          "rhs": "ROOT_END",
+          "train_count": 2.0
+        },
+        {
+          "id": 57,
+          "lhs": "common_atom~O7",
+          "prob": 0.666667,
+          "rhs": "",
+          "train_count": 1.0
+        },
+        {
+          "id": 60,
+          "lhs": "common_atom",
+          "prob": 0.261261,
+          "rhs": "NUM common_atom~O1",
+          "train_count": 28.0
+        },
+        {
+          "id": 61,
+          "lhs": "common_atom",
+          "prob": 0.378378,
+          "rhs": "symbol_atom",
+          "train_count": 41.0
+        },
+        {
+          "id": 62,
+          "lhs": "common_atom",
+          "prob": 0.018018,
+          "rhs": "INF",
+          "train_count": 1.0
+        },
+        {
+          "id": 65,
+          "lhs": "common_atom",
+          "prob": 0.027027,
+          "rhs": "VECTOR_KW postfix",
+          "train_count": 2.0
+        },
+        {
+          "id": 66,
+          "lhs": "common_atom",
+          "prob": 0.018018,
+          "rhs": "FACT juxt",
+          "train_count": 1.0
+        },
+        {
+          "id": 68,
+          "lhs": "common_atom",
+          "prob": 0.081081,
+          "rhs": "FUNCTION postfix",
+          "train_count": 8.0
+        },
+        {
+          "id": 69,
+          "lhs": "common_atom",
+          "prob": 0.018018,
+          "rhs": "L_PAREN eq_expr common_atom~O3",
+          "train_count": 1.0
+        },
+        {
+          "id": 72,
+          "lhs": "common_atom",
+          "prob": 0.018018,
+          "rhs": "FRAC_START fraction_tail",
+          "train_count": 1.0
+        },
+        {
+          "id": 73,
+          "lhs": "common_atom",
+          "prob": 0.027027,
+          "rhs": "ROOT_START add_expr common_atom~O6",
+          "train_count": 2.0
+        },
+        {
+          "id": 74,
+          "lhs": "common_atom",
+          "prob": 0.027027,
+          "rhs": "ROOT root_body",
+          "train_count": 2.0
+        },
+        {
+          "id": 76,
+          "lhs": "common_atom",
+          "prob": 0.027027,
+          "rhs": "LIMIT limit_tail",
+          "train_count": 2.0
+        },
+        {
+          "id": 77,
+          "lhs": "common_atom",
+          "prob": 0.018018,
+          "rhs": "SUM nary_tail common_atom~O7",
+          "train_count": 1.0
+        },
+        {
+          "id": 79,
+          "lhs": "common_atom",
+          "prob": 0.018018,
+          "rhs": "INTEGRAL integral_tail",
+          "train_count": 1.0
+        },
+        {
+          "id": 83,
+          "lhs": "prefix_atom",
+          "prob": 0.333333,
+          "rhs": "PARTIAL DERIVATIVE derivative_tail",
+          "train_count": 1.0
+        },
+        {
+          "id": 87,
+          "lhs": "symbol_atom~O1",
+          "prob": 0.04878,
+          "rhs": "application",
+          "train_count": 1.0
+        },
+        {
+          "id": 88,
+          "lhs": "symbol_atom~O1",
+          "prob": 0.04878,
+          "rhs": "NUM",
+          "train_count": 1.0
+        },
+        {
+          "id": 89,
+          "lhs": "symbol_atom~O1",
+          "prob": 0.902439,
+          "rhs": "",
+          "train_count": 36.0
+        },
+        {
+          "id": 91,
+          "lhs": "symbol_atom~O2",
+          "prob": 0.8,
+          "rhs": "",
+          "train_count": 3.0
+        },
+        {
+          "id": 92,
+          "lhs": "symbol_atom",
+          "prob": 0.906977,
+          "rhs": "SYM symbol_atom~O1",
+          "train_count": 38.0
+        },
+        {
+          "id": 93,
+          "lhs": "symbol_atom",
+          "prob": 0.093023,
+          "rhs": "WEAK_SYM symbol_atom~O2",
+          "train_count": 3.0
+        },
+        {
+          "id": 94,
+          "lhs": "application",
+          "prob": 1.0,
+          "rhs": "FROM argument_list",
+          "train_count": 1.0
+        },
+        {
+          "id": 95,
+          "lhs": "argument_list~R1",
+          "prob": 0.5,
+          "rhs": "COMMA mul_expr argument_list~R1",
+          "train_count": 1.0
+        },
+        {
+          "id": 96,
+          "lhs": "argument_list~R1",
+          "prob": 0.5,
+          "rhs": "",
+          "train_count": 1.0
+        },
+        {
+          "id": 97,
+          "lhs": "argument_list",
+          "prob": 1.0,
+          "rhs": "mul_expr argument_list~R1",
+          "train_count": 1.0
+        },
+        {
+          "id": 99,
+          "lhs": "unit_expr~R1",
+          "prob": 0.923077,
+          "rhs": "",
+          "train_count": 11.0
+        },
+        {
+          "id": 101,
+          "lhs": "unit_expr~O1",
+          "prob": 0.923077,
+          "rhs": "",
+          "train_count": 11.0
+        },
+        {
+          "id": 102,
+          "lhs": "unit_expr",
+          "prob": 1.0,
+          "rhs": "unit_factor unit_expr~R1 unit_expr~O1",
+          "train_count": 11.0
+        },
+        {
+          "id": 105,
+          "lhs": "unit_factor~O1",
+          "prob": 0.857143,
+          "rhs": "",
+          "train_count": 11.0
+        },
+        {
+          "id": 106,
+          "lhs": "unit_factor",
+          "prob": 1.0,
+          "rhs": "UNIT unit_factor~O1",
+          "train_count": 11.0
+        },
+        {
+          "id": 107,
+          "lhs": "fraction_tail~O1",
+          "prob": 0.666667,
+          "rhs": "NUMER",
+          "train_count": 1.0
+        },
+        {
+          "id": 109,
+          "lhs": "fraction_tail~O2",
+          "prob": 0.666667,
+          "rhs": "FRAC_END",
+          "train_count": 1.0
+        },
+        {
+          "id": 111,
+          "lhs": "fraction_tail",
+          "prob": 1.0,
+          "rhs": "fraction_tail~O1 add_expr DENOM add_expr fraction_tail~O2",
+          "train_count": 1.0
+        },
+        {
+          "id": 112,
+          "lhs": "root_body",
+          "prob": 0.416667,
+          "rhs": "postfix",
+          "train_count": 0.666667
+        },
+        {
+          "id": 113,
+          "lhs": "root_body",
+          "prob": 0.583333,
+          "rhs": "add_expr",
+          "train_count": 1.333333
+        },
+        {
+          "id": 114,
+          "lhs": "nary_tail~O1",
+          "prob": 0.666667,
+          "rhs": "FROM eq_expr",
+          "train_count": 1.0
+        },
+        {
+          "id": 116,
+          "lhs": "nary_tail~O2",
+          "prob": 0.666667,
+          "rhs": "TO postfix",
+          "train_count": 1.0
+        },
+        {
+          "id": 119,
+          "lhs": "nary_tail~O3",
+          "prob": 0.666667,
+          "rhs": "",
+          "train_count": 1.0
+        },
+        {
+          "id": 120,
+          "lhs": "nary_tail",
+          "prob": 1.0,
+          "rhs": "nary_tail~O1 nary_tail~O2 nary_tail~O3",
+          "train_count": 1.0
+        },
+        {
+          "id": 122,
+          "lhs": "integral_tail~O1",
+          "prob": 0.666667,
+          "rhs": "",
+          "train_count": 1.0
+        },
+        {
+          "id": 124,
+          "lhs": "integral_tail~G1",
+          "prob": 0.666667,
+          "rhs": "integral_tail~O1",
+          "train_count": 1.0
+        },
+        {
+          "id": 125,
+          "lhs": "integral_tail~O2",
+          "prob": 0.666667,
+          "rhs": "mul_body",
+          "train_count": 1.0
+        },
+        {
+          "id": 127,
+          "lhs": "integral_tail~O3",
+          "prob": 0.666667,
+          "rhs": "differential",
+          "train_count": 1.0
+        },
+        {
+          "id": 130,
+          "lhs": "integral_tail~O4",
+          "prob": 0.666667,
+          "rhs": "",
+          "train_count": 1.0
+        },
+        {
+          "id": 131,
+          "lhs": "integral_tail",
+          "prob": 1.0,
+          "rhs": "integral_tail~G1 integral_tail~O2 integral_tail~O3 integral_tail~O4",
+          "train_count": 1.0
+        },
+        {
+          "id": 133,
+          "lhs": "differential",
+          "prob": 0.666667,
+          "rhs": "BY postfix",
+          "train_count": 1.0
+        },
+        {
+          "id": 134,
+          "lhs": "derivative_tail~O1",
+          "prob": 0.666667,
+          "rhs": "ORDINAL ORDER_KW",
+          "train_count": 1.0
+        },
+        {
+          "id": 137,
+          "lhs": "derivative_tail~O2",
+          "prob": 0.666667,
+          "rhs": "",
+          "train_count": 1.0
+        },
+        {
+          "id": 139,
+          "lhs": "derivative_tail~O3",
+          "prob": 0.666667,
+          "rhs": "",
+          "train_count": 1.0
+        },
+        {
+          "id": 140,
+          "lhs": "derivative_tail~R1",
+          "prob": 0.5,
+          "rhs": "deriv_var derivative_tail~R1",
+          "train_count": 1.0
+        },
+        {
+          "id": 141,
+          "lhs": "derivative_tail~R1",
+          "prob": 0.5,
+          "rhs": "",
+          "train_count": 1.0
+        },
+        {
+          "id": 142,
+          "lhs": "derivative_tail",
+          "prob": 1.0,
+          "rhs": "derivative_tail~O1 derivative_tail~O2 derivative_tail~O3 mul_body deriv_var derivative_tail~R1",
+          "train_count": 1.0
+        },
+        {
+          "id": 143,
+          "lhs": "deriv_var~G1",
+          "prob": 0.5,
+          "rhs": "BY",
+          "train_count": 1.0
+        },
+        {
+          "id": 144,
+          "lhs": "deriv_var~G1",
+          "prob": 0.5,
+          "rhs": "AND_BY",
+          "train_count": 1.0
+        },
+        {
+          "id": 145,
+          "lhs": "deriv_var",
+          "prob": 1.0,
+          "rhs": "deriv_var~G1 juxt_item",
+          "train_count": 2.0
+        },
+        {
+          "id": 146,
+          "lhs": "limit_tail~O1",
+          "prob": 0.5,
+          "rhs": "direction",
+          "train_count": 1.0
+        },
+        {
+          "id": 147,
+          "lhs": "limit_tail~O1",
+          "prob": 0.5,
+          "rhs": "",
+          "train_count": 1.0
+        },
+        {
+          "id": 149,
+          "lhs": "limit_tail~O2",
+          "prob": 0.75,
+          "rhs": "",
+          "train_count": 2.0
+        },
+        {
+          "id": 151,
+          "lhs": "limit_tail~O3",
+          "prob": 0.75,
+          "rhs": "",
+          "train_count": 2.0
+        },
+        {
+          "id": 155,
+          "lhs": "limit_tail~O5",
+          "prob": 0.75,
+          "rhs": "",
+          "train_count": 2.0
+        },
+        {
+          "id": 157,
+          "lhs": "limit_tail~G1",
+          "prob": 0.75,
+          "rhs": "approach limit_tail~O5 mul_body",
+          "train_count": 2.0
+        },
+        {
+          "id": 158,
+          "lhs": "limit_tail",
+          "prob": 1.0,
+          "rhs": "limit_tail~O1 limit_tail~O2 limit_tail~O3 limit_tail~G1",
+          "train_count": 2.0
+        },
+        {
+          "id": 159,
+          "lhs": "approach",
+          "prob": 1.0,
+          "rhs": "LIMIT_VAR juxt_item TENDS limit_target",
+          "train_count": 2.0
+        },
+        {
+          "id": 161,
+          "lhs": "limit_target~O1",
+          "prob": 0.75,
+          "rhs": "",
+          "train_count": 2.0
+        },
+        {
+          "id": 163,
+          "lhs": "limit_target",
+          "prob": 0.75,
+          "rhs": "limit_target~O1 juxt_item",
+          "train_count": 2.0
+        },
+        {
+          "id": 165,
+          "lhs": "direction",
+          "prob": 0.666667,
+          "rhs": "LIMIT_RIGHT",
+          "train_count": 1.0
+        },
+        {
+          "id": 167,
+          "lhs": "mul_body~R1",
+          "prob": 0.833333,
+          "rhs": "",
+          "train_count": 4.0
+        },
+        {
+          "id": 168,
+          "lhs": "mul_body~R2",
+          "prob": 0.230769,
+          "rhs": "mul_op unary_expr mul_body~R2",
+          "train_count": 0.5
+        },
+        {
+          "id": 169,
+          "lhs": "mul_body~R2",
+          "prob": 0.769231,
+          "rhs": "",
+          "train_count": 4.0
+        },
+        {
+          "id": 170,
+          "lhs": "mul_body",
+          "prob": 1.0,
+          "rhs": "juxt_item mul_body~R1 mul_body~R2",
+          "train_count": 4.0
+        }
+      ],
+      "sentences_with_unseen_productions": 11,
+      "train": {
+        "rejected": 3,
+        "tokenize_fail": 179,
+        "tokens": 143,
+        "too_long": 0,
+        "too_many": 0,
+        "too_many_items": 0,
+        "total": 217,
+        "used": 35
+      },
+      "trained": {
+        "consistency": {
+          "norm": 0.164768,
+          "power": 64,
+          "proven": true
+        },
+        "train_log_prob": -314.552412,
+        "train_perplexity": 9.022011,
+        "validation_log_prob": -280.403278,
+        "validation_perplexity": 14.823079
+      },
+      "uniform": {
+        "consistency": {
+          "norm": 2.0421752372242073e+197,
+          "power": null,
+          "proven": false
+        },
+        "validation_log_prob": -564.756468,
+        "validation_perplexity": 228.22926
+      },
+      "validation": {
+        "rejected": 3,
+        "tokenize_fail": 95,
+        "tokens": 104,
+        "too_long": 0,
+        "too_many": 0,
+        "too_many_items": 0,
+        "total": 123,
+        "used": 25
+      }
+    }
+  },
+  "n_productions": 171,
+  "note": "The data are a few dozen sentences per mode, so this is a demonstration of the method, not a language model. A sentence with several derivation trees splits its count evenly between them; this is not EM. Probabilities are add-one smoothed, and perplexity is per token in token classes, natural log. The uniform baseline gives every alternative of a left-hand side the same probability; its consistency check comes out not proven with a huge norm, so it is probably not a proper distribution, and its perplexity is a score under a deficient model, not a fair baseline.",
+  "pseudocount": 1.0,
+  "splits": {
+    "evaluation": "validation",
+    "train": "train"
+  },
+  "start": "math_input",
+  "version": "pcfg-v1"
+}

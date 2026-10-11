@@ -392,11 +392,6 @@ const KNOWN_STALE_PATHS: &[(&str, &str)] = &[
     ("README.md", "research/results/voice-v1.json"),
     // README.ru: states that this file is absent from the tree.
     ("README.ru.md", "research/results/voice-v1.json"),
-    // BACKLOG: the planned report of an open item; it was never created.
-    (
-        "docs/process/BACKLOG_RU.md",
-        "research/results/pcfg-v1.json",
-    ),
     // Plan: a removed file, named as removed.
     (
         "docs/research/sci-witch-plan.md",
