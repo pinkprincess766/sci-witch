@@ -21,6 +21,15 @@ $PY research/asr/whisper_hypotheses.py sample research/voice-samples/synthetic/q
   --model base --temperature 0.6 --best-of 5 --seed 1 --out /tmp/sample.json
 ```
 
+## Список гипотез для вопроса 1
+
+[Протокол вопроса 1](../protocol/question-1-nbest.md) собирает список из K гипотез отдельными прогонами скрипта. Каждый прогон отдаёт одну гипотезу:
+
+- гипотеза 1 — `greedy`;
+- гипотезы 2…K — `sample --best-of 1 --temperature T --seed s`, по одному прогону на каждый из K − 1 seed, в порядке seed. Совпадающие тексты не схлопываются. Флаг `--best-of 1` писать явно: по умолчанию у `sample` `best_of` = 5 (`DEFAULT_BEST_OF`).
+
+`sample --best-of 5` — отдельный режим протокола: Whisper сам делает пять выборок и отдаёт одну, лучшую по `sum/len`. В список вопроса 1 его выход не входит. Температура и seed берутся из раздела «Запечатано» протокола; пока он пуст, числа в примерах выше — только для проверки скрипта.
+
 Общие флаги: `--model` (по умолчанию `base`), `--language` (по умолчанию `ru`), `--out`. Фикстура `crates/sciwhisper-asr/tests/fixtures/whisper-hypotheses-greedy-quadratic.json` получена первой командой (с `--model base`). Проверки пределов скрипта: `$PY research/asr/test_whisper_hypotheses.py`.
 
 ## Что в JSON
@@ -54,7 +63,7 @@ $PY research/asr/whisper_hypotheses.py sample research/voice-samples/synthetic/q
 ## Чего скрипт не делает
 
 - Не принимает звук длиннее одного окна (`MAX_AUDIO_S` = 30 с): отказывает с ошибкой, не режет и не склеивает.
-- Отдаёт одну гипотезу. В режиме выборки `whisper.decode` сам выбирает лучшую из `best_of` выборок по `sum/len`; остальные кандидаты не возвращаются.
+- Отдаёт одну гипотезу за прогон. При `--best-of` больше 1 `whisper.decode` сам выбирает лучшую из `best_of` выборок по `sum/len`; остальные кандидаты не возвращаются. Список из K гипотез — это K прогонов (раздел выше).
 - Без меток времени: `sum_logprob` не включает токены-метки, в отличие от `avg_logprob` из командной строки `whisper`.
 - Не делает откат температуры, поиск лучей, `condition_on_previous_text`, подсказок (`initial_prompt`).
 - Воспроизводимость по seed проверена только на этой машине (CPU, torch 2.12.1, `base`, `quadratic.caf`): между машинами, версиями PyTorch, GPU и MPS не проверялась. `fp16`, модели кроме `base` (в том числе `large-v3-turbo`), языки кроме `ru` не проверялись.
