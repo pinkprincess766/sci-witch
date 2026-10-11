@@ -2,8 +2,8 @@
 //! the start symbol sum to 1?
 //!
 //! Booth & Thompson (1973, IEEE Trans. Computers C-22): with the mean-count
-//! matrix M[A][B] = sum over productions p of A of prob[p] * (occurrences of
-//! B in rhs(p)), the grammar is consistent if the spectral radius rho(M) < 1.
+//! matrix `M[A][B] = sum over productions p of A of prob[p] * (occurrences of
+//! B in rhs(p))`, the grammar is consistent if the spectral radius rho(M) < 1.
 //! The check is a one-sided certificate: rho(M) <= ||M^k||^(1/k) for any k
 //! (Gelfand), so ||M^k||_inf < 1 for some k proves rho(M) < 1. A critical
 //! grammar (rho = 1) never gives a norm below 1, so it stays `NotProven`.
