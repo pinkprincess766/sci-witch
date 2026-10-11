@@ -22,7 +22,6 @@ pub struct Args {
 #[derive(Clone, Copy, ValueEnum)]
 enum Partition {
     Train,
-    Validation,
     #[value(name = "dev_holdout")]
     DevHoldout,
 }
@@ -30,7 +29,6 @@ impl From<Partition> for Split {
     fn from(p: Partition) -> Self {
         match p {
             Partition::Train => Split::Train,
-            Partition::Validation => Split::Validation,
             Partition::DevHoldout => Split::DevHoldout,
         }
     }

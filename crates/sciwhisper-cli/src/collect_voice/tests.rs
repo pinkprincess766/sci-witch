@@ -257,7 +257,7 @@ fn uncommitted_takes_are_never_exported_and_revocation_removes_them() {
 #[test]
 fn task_families_and_speakers_cannot_change_split_within_a_plan() {
     let mut p = plan_for_test();
-    p.tasks[1].split = Split::Validation;
+    p.tasks[1].split = Split::DevHoldout;
     let dir = tempfile::tempdir().unwrap();
     assert!(Session::create(&dir.path().join("session"), p).is_err());
     let mut p = plan_for_test();
@@ -412,6 +412,49 @@ fn cli_split_is_dev_holdout_with_underscore_and_no_dashed_alias() {
         .err()
         .expect("dev-holdout must be refused");
     assert_eq!(error.kind(), clap::error::ErrorKind::InvalidValue);
+}
+
+#[test]
+fn cli_split_offers_only_train_and_dev_holdout() {
+    assert!(matches!(
+        start_with_split("train").expect("train is a CLI value"),
+        Action::Start {
+            split: Partition::Train,
+            ..
+        }
+    ));
+    let error = start_with_split("validation")
+        .err()
+        .expect("voice-v1 has no validation split");
+    assert_eq!(error.kind(), clap::error::ErrorKind::InvalidValue);
+}
+
+#[test]
+fn a_plan_naming_split_validation_is_refused_and_train_is_accepted() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut p = plan_for_test();
+    p.tasks[1].split = Split::Validation;
+    let error = Session::create(&dir.path().join("task"), p)
+        .err()
+        .expect("a validation task must be refused");
+    assert!(error.contains("validation"), "{error}");
+    let mut p = plan_for_test();
+    p.split = Split::Validation;
+    for task in &mut p.tasks {
+        task.split = Split::Validation;
+    }
+    let error = Session::create(&dir.path().join("plan"), p)
+        .err()
+        .expect("a validation plan must be refused");
+    assert!(error.contains("validation"), "{error}");
+    let mut p = plan_for_test();
+    p.split = Split::Validation;
+    p.tasks.clear();
+    let error = Session::create(&dir.path().join("empty"), p)
+        .err()
+        .expect("a validation plan must be refused before the task count");
+    assert!(error.contains("validation"), "{error}");
+    assert!(Session::create(&dir.path().join("train"), plan_for_test()).is_ok());
 }
 
 #[test]

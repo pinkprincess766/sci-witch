@@ -234,6 +234,13 @@ pub fn valid_date(s: &str) -> bool {
 }
 
 fn validate_plan(plan: &Plan) -> Result<()> {
+    // Protocol voice-v1 has no validation split, so a plan or task that names it is refused.
+    if plan.split == Split::Validation || plan.tasks.iter().any(|t| t.split == Split::Validation) {
+        return Err(
+            "split validation в протоколе voice-v1 не используется; допустимы train и dev_holdout"
+                .into(),
+        );
+    }
     if plan.schema_version != 1
         || plan.session_id.len() != 32
         || !plan.session_id.bytes().all(|b| b.is_ascii_hexdigit())
