@@ -18,6 +18,7 @@
 
 pub mod earley;
 pub mod ebnf;
+pub mod likelihood;
 
 pub use earley::{
     count_parses, recognise, CountOutcome, ParseCount, Recognition, MAX_ITEMS, MAX_PARSES,
