@@ -22,6 +22,7 @@
 
 pub mod earley;
 pub mod ebnf;
+pub mod likelihood;
 pub mod pcfg;
 
 pub use earley::{
