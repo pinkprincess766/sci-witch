@@ -20,6 +20,7 @@
 //! [`derivations`] returns every derivation tree of an accepted sentence as
 //! a list of those ids; it is the input for rule statistics.
 
+pub mod consistency;
 pub mod earley;
 pub mod ebnf;
 pub mod likelihood;
