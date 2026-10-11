@@ -28,6 +28,9 @@ pub const AUDIO_SCHEMA_VERSION: u32 = 2;
 /// recording under it never belongs in a corpus; `ingest` refuses it too.
 pub const LOCAL_ONLY_CONSENT_ID: &str = "voice-local-v1";
 
+/// The only consent id under which a real recording may enter a corpus.
+pub const PUBLISHABLE_CONSENT_ID: &str = "consent-ru-v2";
+
 /// Speaker code of protocol voice-v1: `spk` and two digits, `spk01`..`spk99`.
 /// The collector (`collect-voice start --speaker`) calls this same function,
 /// so the corpus and the collector cannot disagree on the format.
@@ -571,9 +574,16 @@ fn validate_audio(record: &Record, allow_local_only: bool) -> Result<(), String>
                 "consent must name the statement the speaker agreed to and the date".into(),
             );
         }
-        if !allow_local_only && audio.consent.statement_id.trim() == LOCAL_ONLY_CONSENT_ID {
+        let statement = audio.consent.statement_id.trim();
+        if !allow_local_only && statement == LOCAL_ONLY_CONSENT_ID {
             return Err(format!(
                 "consent '{LOCAL_ONLY_CONSENT_ID}' allows local use only, so the recording cannot be in a corpus; record again under consent-ru-v2"
+            ));
+        }
+        let local_session_ok = allow_local_only && statement == LOCAL_ONLY_CONSENT_ID;
+        if statement != PUBLISHABLE_CONSENT_ID && !local_session_ok {
+            return Err(format!(
+                "consent '{statement}' is not accepted: a recording of a real person enters a corpus only under '{PUBLISHABLE_CONSENT_ID}'"
             ));
         }
         let speaker = record.speaker_id.as_deref().unwrap_or("");
@@ -649,7 +659,7 @@ mod tests {
 
     // ------------------------------------------------------------- audio
 
-    const CONSENT: &str = r#"{"granted":true,"statement_id":"consent-ru-v1","date":"2026-09-05"}"#;
+    const CONSENT: &str = r#"{"granted":true,"statement_id":"consent-ru-v2","date":"2026-09-05"}"#;
 
     fn audio_block(overrides: &[(&str, &str)]) -> String {
         let mut fields: BTreeMap<&str, String> = BTreeMap::new();
@@ -708,11 +718,55 @@ mod tests {
         assert!(audio.consent.granted);
     }
 
+    fn audio_with_statement(statement_id: &str) -> String {
+        let consent =
+            format!(r#"{{"granted":true,"statement_id":"{statement_id}","date":"2026-09-05"}}"#);
+        audio_block(&[("consent", consent.as_str())])
+    }
+
+    /// Only `consent-ru-v2` opens a corpus to a real recording. Any other
+    /// id is refused, including ids the old blocklist never named.
+    #[test]
+    fn a_recording_enters_a_corpus_only_under_consent_ru_v2() {
+        let accepted = voice_record(&[], Some(audio_with_statement("consent-ru-v2")));
+        assert!(Dataset::parse_jsonl(&accepted).is_ok());
+        for id in ["consent-ru-v1", "consent-xx"] {
+            let line = voice_record(&[], Some(audio_with_statement(id)));
+            let error = Dataset::parse_jsonl(&line).expect_err("must be rejected");
+            assert!(error.message.contains(id), "{}", error.message);
+            assert!(error.message.contains("consent-ru-v2"), "{}", error.message);
+        }
+    }
+
+    #[test]
+    fn spaces_around_the_consent_id_do_not_change_the_decision() {
+        let line = voice_record(&[], Some(audio_with_statement(" consent-ru-v2 ")));
+        assert!(Dataset::parse_jsonl(&line).is_ok());
+    }
+
+    #[test]
+    fn consent_ru_v1_is_refused_even_by_a_local_session() {
+        let line = voice_record(&[], Some(audio_with_statement("consent-ru-v1")));
+        assert!(Dataset::parse_jsonl_scoped(&line, true).is_err());
+    }
+
+    #[test]
+    fn local_only_consent_is_refused_in_a_corpus_and_accepted_only_by_a_local_session() {
+        let line = voice_record(&[], Some(audio_with_statement("voice-local-v1")));
+        let error = Dataset::parse_jsonl(&line).expect_err("must be rejected");
+        assert!(
+            error.message.contains("voice-local-v1"),
+            "{}",
+            error.message
+        );
+        assert!(Dataset::parse_jsonl_scoped(&line, true).is_ok());
+    }
+
     #[test]
     fn a_recording_of_a_person_without_consent_is_refused() {
         let without = audio_block(&[(
             "consent",
-            r#"{"granted":false,"statement_id":"consent-ru-v1","date":"2026-09-05"}"#,
+            r#"{"granted":false,"statement_id":"consent-ru-v2","date":"2026-09-05"}"#,
         )]);
         let error =
             Dataset::parse_jsonl(&voice_record(&[], Some(without))).expect_err("must be rejected");

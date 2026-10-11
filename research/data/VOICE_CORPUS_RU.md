@@ -65,10 +65,11 @@ sciwhisper corrections          # посмотреть накопленное
 согласия или нет даты (`schema.rs`, тест
 `a_recording_of_a_person_without_consent_is_refused`).
 
-Шаблон без публикации — [`consent-ru-v1.md`](consent-ru-v1.md). Для корпуса,
-который потом можно выложить, — [`consent-ru-v2.md`](consent-ru-v2.md):
-там названы публикация, лицензия CC BY 4.0 и то, что уже скачанную копию
-отозвать нельзя. Оба текста — **черновики инженера, а не юриста**. Перед
+Шаблон без публикации — [`consent-ru-v1.md`](consent-ru-v1.md); запись под
+ним в корпус не попадает. В корпус принимается только `consent-ru-v2`
+([`consent-ru-v2.md`](consent-ru-v2.md)): и загрузчик, и `ingest` отказывают
+на любом другом идентификаторе. В тексте v2 названы публикация, лицензия
+CC BY 4.0 и то, что уже скачанную копию отозвать нельзя. Оба текста — **черновики инженера, а не юриста**. Перед
 выкладкой аудио v2 показывает юрист. `statement_id` в записи должен
 совпадать с версией текста, который человек реально подписал. Первый
 замороженный набор фраз — протокол
@@ -87,7 +88,7 @@ sciwhisper corrections          # посмотреть накопленное
    "charge":null,"marker":null}}},
  "split":"train","tags":["voice","formula"],"speaker_id":"spk01",
  "audio":{"file":"audio/spk01-0001.wav","microphone":"Logitech H390","environment":"quiet_room",
-   "consent":{"granted":true,"statement_id":"consent-ru-v1","date":"2026-09-05"}}}
+   "consent":{"granted":true,"statement_id":"consent-ru-v2","date":"2026-09-05"}}}
 ```
 
 Путь в `audio.file` — относительно самого манифеста, выход за его каталог
