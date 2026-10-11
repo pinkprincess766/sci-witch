@@ -15,6 +15,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use sciwhisper_asr::corpus::describe_wav;
+use sciwhisper_eval::schema::PUBLISHABLE_CONSENT_ID;
 use serde_json::{Map, Value};
 
 /// Schema version in which the audio block exists. Records written here
@@ -265,9 +266,15 @@ fn prepare(line: &str, number: usize, root: &Path) -> Result<Prepared, String> {
                 "{id}: consent must be granted, name the statement the speaker agreed to, and carry a date"
             ));
         }
-        if statement_id.map(str::trim) == Some(LOCAL_ONLY_STATEMENT_ID) {
+        let statement = statement_id.unwrap_or("").trim();
+        if statement == LOCAL_ONLY_STATEMENT_ID {
             return Err(format!(
                 "{id}: согласие {LOCAL_ONLY_STATEMENT_ID} разрешает только локальное использование; запись нужно повторить с согласием consent-ru-v2"
+            ));
+        }
+        if statement != PUBLISHABLE_CONSENT_ID {
+            return Err(format!(
+                "{id}: согласие '{statement}' не принимается; запись голоса попадает в корпус только с согласием {PUBLISHABLE_CONSENT_ID}"
             ));
         }
     }
@@ -330,7 +337,7 @@ mod tests {
         writer.finalize().unwrap();
     }
 
-    const CONSENT: &str = r#"{"granted":true,"statement_id":"consent-ru-v1","date":"2026-09-05"}"#;
+    const CONSENT: &str = r#"{"granted":true,"statement_id":"consent-ru-v2","date":"2026-09-05"}"#;
 
     fn manifest_line(overrides: &str, audio: &str) -> String {
         format!(
@@ -459,6 +466,26 @@ mod tests {
             "nothing may be transcribed before consent is checked"
         );
         assert!(!options.output.exists(), "no output on a refused manifest");
+    }
+
+    #[test]
+    fn consent_other_than_ru_v2_is_refused_before_any_audio_is_read() {
+        for statement in ["consent-ru-v1", "consent-xx"] {
+            let (_dir, options) = setup(true, &audio_with_statement(statement), "");
+            let mut called = false;
+            let error = run(options_ref(&options), &mut |_| {
+                called = true;
+                Ok("вода".into())
+            })
+            .unwrap_err();
+            assert!(error.contains(statement), "{error}");
+            assert!(error.contains("consent-ru-v2"), "{error}");
+            assert!(
+                !called,
+                "nothing may be transcribed before consent is checked"
+            );
+            assert!(!options.output.exists(), "no output on a refused manifest");
+        }
     }
 
     #[test]

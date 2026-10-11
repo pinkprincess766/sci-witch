@@ -175,7 +175,7 @@ mod speaker_tests {
 
     fn voice(id: &str, family: &str, split: &str, speaker: &str) -> String {
         format!(
-            r#"{{"dataset_schema_version":2,"id":"{id}","family_id":"{family}","provenance":"real_audio","human_transcript":"вода","asr_hypotheses":[{{"text":"вода"}}],"audio":{{"file":"audio/{id}.wav","sha256":"0000000000000000000000000000000000000000000000000000000000000000","duration_secs":1.0,"sample_rate_hz":16000,"channels":1,"consent":{{"granted":true,"statement_id":"consent-ru-v1","date":"2026-09-05"}}}},"target_domain":"plain","target_action":"raw","target_ast":null,"split":"{split}","tags":[],"speaker_id":"{speaker}"}}"#
+            r#"{{"dataset_schema_version":2,"id":"{id}","family_id":"{family}","provenance":"real_audio","human_transcript":"вода","asr_hypotheses":[{{"text":"вода"}}],"audio":{{"file":"audio/{id}.wav","sha256":"0000000000000000000000000000000000000000000000000000000000000000","duration_secs":1.0,"sample_rate_hz":16000,"channels":1,"consent":{{"granted":true,"statement_id":"consent-ru-v2","date":"2026-09-05"}}}},"target_domain":"plain","target_action":"raw","target_ast":null,"split":"{split}","tags":[],"speaker_id":"{speaker}"}}"#
         )
     }
 
