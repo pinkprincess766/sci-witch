@@ -5,7 +5,7 @@
 //! derivations, so its probability is the sum over all of them (ambiguity is
 //! summed over trees). All log values are natural logs, in nats.
 
-/// ln P(tree) = Σ ln prob[p] over the production ids of one derivation.
+/// `ln P(tree) = Σ ln prob[p]` over the production ids of one derivation.
 ///
 /// A production with probability 0 makes it -inf. Panics if an id is out of range.
 pub fn tree_log_prob(prob: &[f64], derivation: &[usize]) -> f64 {
