@@ -578,7 +578,7 @@ fn completed_items(bnf: &Bnf, chart: &Chart) -> HashSet<(u32, u32, u32)> {
     done
 }
 
-fn count_chart(built: &ChartBuilt, tokens: &[&str]) -> ParseCount {
+fn make_counter<'a>(built: &'a ChartBuilt, tokens: &'a [&'a str]) -> Counter<'a> {
     let suffix = built
         .bnf
         .prods
@@ -593,7 +593,7 @@ fn count_chart(built: &ChartBuilt, tokens: &[&str]) -> ParseCount {
             suf
         })
         .collect();
-    let mut counter = Counter {
+    Counter {
         bnf: &built.bnf,
         nullable: &built.nullable,
         suffix,
@@ -601,8 +601,11 @@ fn count_chart(built: &ChartBuilt, tokens: &[&str]) -> ParseCount {
         tokens,
         nt_memo: HashMap::new(),
         seq_memo: HashMap::new(),
-    };
-    counter.nt(built.start_id, 0, built.n as u32)
+    }
+}
+
+fn count_chart(built: &ChartBuilt, tokens: &[&str]) -> ParseCount {
+    make_counter(built, tokens).nt(built.start_id, 0, built.n as u32)
 }
 
 impl Counter<'_> {
@@ -702,6 +705,202 @@ impl Counter<'_> {
     }
 }
 
+/// A symbol on the right-hand side of a lowered production.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Symbol {
+    Terminal(String),
+    Nonterminal(String),
+}
+
+/// One production of the BNF that [`recognise`] runs on. Index in the `Vec`
+/// returned by [`productions`] is the production id used by [`derivations`].
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Production {
+    pub lhs: String,
+    pub rhs: Vec<Symbol>,
+}
+
+/// The lowered productions of `grammar`, in the order the chart numbers them.
+///
+/// Ids are stable for a given grammar text: lowering is deterministic and
+/// follows rule order. The productions of an optional, repeat or group
+/// inside a rule come before the productions of the rule itself. The dummy
+/// start production the chart adds is not included.
+pub fn productions(grammar: &Grammar) -> Vec<Production> {
+    let bnf = lower(grammar);
+    bnf.prods
+        .iter()
+        .map(|prod| Production {
+            lhs: bnf.names[prod.lhs].clone(),
+            rhs: prod
+                .rhs
+                .iter()
+                .map(|sym| match sym {
+                    Sym::T(t) => Symbol::Terminal(t.clone()),
+                    Sym::N(id) => Symbol::Nonterminal(bnf.names[*id].clone()),
+                })
+                .collect(),
+        })
+        .collect()
+}
+
+/// Outcome of [`derivations`].
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum DerivationOutcome {
+    /// Every derivation tree, each as production ids in pre-order
+    /// (the leftmost derivation), sorted ascending lexicographically.
+    Derivations(Vec<Vec<usize>>),
+    /// More than [`MAX_PARSES`] trees, or a nullable cycle
+    /// ([`count_parses`] says [`ParseCount::AtLeastMax`]).
+    TooMany,
+    Rejected {
+        /// Same index [`Recognition::Rejected`] reports.
+        furthest: usize,
+    },
+    TooLong,
+    TooManyItems,
+}
+
+/// List every derivation tree of `start` over `tokens`.
+///
+/// Same chart and same splits as [`count_parses`]; the lists are built only
+/// when the count is exact, so there are at most [`MAX_PARSES`] of them.
+pub fn derivations(grammar: &Grammar, start: &str, tokens: &[&str]) -> DerivationOutcome {
+    let built = match build_chart(grammar, start, tokens, MAX_TOKENS, MAX_ITEMS, true, false) {
+        Ok(built) => built,
+        Err(Recognition::TooLong) => return DerivationOutcome::TooLong,
+        Err(Recognition::TooManyItems) => return DerivationOutcome::TooManyItems,
+        Err(Recognition::Rejected { furthest }) => return DerivationOutcome::Rejected { furthest },
+        Err(Recognition::Accepted) => {
+            panic!("internal: chart construction does not accept by itself")
+        }
+    };
+    match judge(&built) {
+        Recognition::Accepted => {}
+        Recognition::Rejected { furthest } => return DerivationOutcome::Rejected { furthest },
+        Recognition::TooLong | Recognition::TooManyItems => {
+            panic!("internal: a finished chart is accepted or rejected")
+        }
+    }
+    let mut lister = Lister {
+        counter: make_counter(&built, tokens),
+        nt_memo: HashMap::new(),
+        seq_memo: HashMap::new(),
+    };
+    let count = lister.counter.nt(built.start_id, 0, built.n as u32);
+    let ParseCount::Exact(expected) = count else {
+        return DerivationOutcome::TooMany;
+    };
+    let mut trees = lister.nt(built.start_id, 0, built.n as u32);
+    trees.sort();
+    debug_assert_eq!(trees.len(), expected as usize);
+    DerivationOutcome::Derivations(trees)
+}
+
+enum ListMemo {
+    InProgress,
+    Done(Vec<Vec<usize>>),
+}
+
+/// Lists the trees the embedded counter counts. The counter is an oracle:
+/// a split is listed only when both of its halves have a nonzero count, so
+/// no half is expanded that the counter's empty-factor rule discards.
+struct Lister<'a> {
+    counter: Counter<'a>,
+    nt_memo: HashMap<(u32, u32, u32), ListMemo>,
+    seq_memo: HashMap<(u32, u32, u32, u32), ListMemo>,
+}
+
+impl Lister<'_> {
+    fn nt(&mut self, id: usize, from: u32, to: u32) -> Vec<Vec<usize>> {
+        let key = (id as u32, from, to);
+        match self.nt_memo.get(&key) {
+            // A cycle can only sit on a split the counter multiplied by zero.
+            Some(ListMemo::InProgress) => return Vec::new(),
+            Some(ListMemo::Done(trees)) => return trees.clone(),
+            None => {}
+        }
+        if from == to && !self.counter.nullable[id] {
+            return Vec::new();
+        }
+        let prods: Vec<usize> = self.counter.bnf.prods_of[id]
+            .iter()
+            .copied()
+            .filter(|&prod| self.counter.completed.contains(&(prod as u32, from, to)))
+            .collect();
+        self.nt_memo.insert(key, ListMemo::InProgress);
+        let mut trees = Vec::new();
+        for prod in prods {
+            if self.counter.seq(prod, 0, from, to) == ParseCount::Exact(0) {
+                continue;
+            }
+            for tail in self.seq(prod, 0, from, to) {
+                let mut tree = Vec::with_capacity(tail.len() + 1);
+                tree.push(prod);
+                tree.extend(tail);
+                trees.push(tree);
+            }
+        }
+        self.nt_memo.insert(key, ListMemo::Done(trees.clone()));
+        trees
+    }
+
+    fn seq(&mut self, prod: usize, index: usize, from: u32, to: u32) -> Vec<Vec<usize>> {
+        let key = (prod as u32, index as u32, from, to);
+        match self.seq_memo.get(&key) {
+            Some(ListMemo::InProgress) => return Vec::new(),
+            Some(ListMemo::Done(trees)) => return trees.clone(),
+            None => {}
+        }
+        if index == self.counter.bnf.prods[prod].rhs.len() {
+            let trees = if from == to {
+                vec![Vec::new()]
+            } else {
+                Vec::new()
+            };
+            self.seq_memo.insert(key, ListMemo::Done(trees.clone()));
+            return trees;
+        }
+        let symbol = self.counter.bnf.prods[prod].rhs[index].clone();
+        let sym_nullable = symbol_nullable(&symbol, self.counter.nullable);
+        let rest_nullable = self.counter.suffix[prod][index + 1];
+        self.seq_memo.insert(key, ListMemo::InProgress);
+        let mut trees = Vec::new();
+        // Same splits as `Counter::seq`.
+        for mid in from..=to {
+            if mid == from && !sym_nullable {
+                continue;
+            }
+            if mid == to && !rest_nullable {
+                continue;
+            }
+            let left_count = match &symbol {
+                Sym::T(t) => self.counter.terminal(t, from, mid),
+                Sym::N(nt) => self.counter.nt(*nt, from, mid),
+            };
+            if left_count == ParseCount::Exact(0)
+                || self.counter.seq(prod, index + 1, mid, to) == ParseCount::Exact(0)
+            {
+                continue;
+            }
+            let lefts = match &symbol {
+                Sym::T(_) => vec![Vec::new()],
+                Sym::N(nt) => self.nt(*nt, from, mid),
+            };
+            let rights = self.seq(prod, index + 1, mid, to);
+            for left in &lefts {
+                for right in &rights {
+                    let mut tree = left.clone();
+                    tree.extend_from_slice(right);
+                    trees.push(tree);
+                }
+            }
+        }
+        self.seq_memo.insert(key, ListMemo::Done(trees.clone()));
+        trees
+    }
+}
+
 #[cfg(test)]
 fn recognise_limited(
     grammar: &Grammar,
@@ -720,13 +919,41 @@ fn recognise_naive(grammar: &Grammar, start: &str, tokens: &[&str]) -> Recogniti
     recognise_inner(grammar, start, tokens, MAX_TOKENS, MAX_ITEMS, false, true)
 }
 
+/// Rebuild the token string from a pre-order production list: pop a
+/// production, expand its right-hand side left to right. Panics when the
+/// list is not a well-formed tree rooted at `start`.
+#[cfg(test)]
+fn pre_order_yield(prods: &[Production], ids: &[usize], start: &str) -> Vec<String> {
+    fn go(prods: &[Production], ids: &[usize], pos: &mut usize, lhs: &str, out: &mut Vec<String>) {
+        let prod = &prods[ids[*pos]];
+        assert_eq!(
+            prod.lhs, lhs,
+            "production {} at position {}",
+            ids[*pos], pos
+        );
+        *pos += 1;
+        for sym in &prod.rhs {
+            match sym {
+                Symbol::Terminal(t) => out.push(t.clone()),
+                Symbol::Nonterminal(n) => go(prods, ids, pos, n, out),
+            }
+        }
+    }
+    let mut out = Vec::new();
+    let mut pos = 0;
+    go(prods, ids, &mut pos, start, &mut out);
+    assert_eq!(pos, ids.len(), "unused ids after the tree is complete");
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use crate::ebnf::parse;
 
     use super::{
-        count_parses, recognise, recognise_limited, recognise_naive, CountOutcome, ParseCount,
-        Recognition, MAX_ITEMS, MAX_PARSES, MAX_TOKENS,
+        count_parses, derivations, productions, recognise, recognise_limited, recognise_naive,
+        CountOutcome, DerivationOutcome, ParseCount, Production, Recognition, Symbol, MAX_ITEMS,
+        MAX_PARSES, MAX_TOKENS,
     };
 
     fn g(src: &str) -> crate::ebnf::Grammar {
@@ -1089,6 +1316,186 @@ mod tests {
             CountOutcome::Counted(ParseCount::AtLeastMax)
         );
     }
+
+    fn trees(src: &str, start: &str, tokens: &[&str]) -> Vec<Vec<usize>> {
+        match derivations(&g(src), start, tokens) {
+            DerivationOutcome::Derivations(trees) => trees,
+            other => panic!("expected derivations, got {other:?} for {tokens:?} in {src}"),
+        }
+    }
+
+    fn prod(lhs: &str, rhs: &[Symbol]) -> Production {
+        Production {
+            lhs: lhs.to_string(),
+            rhs: rhs.to_vec(),
+        }
+    }
+
+    fn t(text: &str) -> Symbol {
+        Symbol::Terminal(text.to_string())
+    }
+
+    fn n(name: &str) -> Symbol {
+        Symbol::Nonterminal(name.to_string())
+    }
+
+    #[test]
+    fn productions_of_an_optional_are_the_hand_written_list() {
+        // Lowering adds the productions of a fresh nonterminal while it
+        // reads the rule body, so `s~O1` comes before `s` itself. The dummy
+        // start production of the chart is not in the list.
+        assert_eq!(
+            productions(&g(r#"s = "a" [ "b" ] ;"#)),
+            vec![
+                prod("s~O1", &[t("b")]),
+                prod("s~O1", &[]),
+                prod("s", &[t("a"), n("s~O1")]),
+            ]
+        );
+    }
+
+    #[test]
+    fn derivations_of_ambiguous_addition_are_listed_in_pre_order() {
+        // Ids: 0 is s → s "+" s, 1 is s → "x". On x + x + x the root is
+        // always id 0. Left-associated: the left child is again id 0 with
+        // two id-1 leaves, then the right child is a leaf: [0, 0,1,1, 1].
+        // Right-associated: the left child is a leaf, then the right child
+        // is id 0 with two leaves: [0, 1, 0,1,1]. The lists differ at the
+        // second id, 0 before 1, so the sorted order is left-associated
+        // first. The enumeration itself meets the right-associated tree
+        // first (the first operand ends earliest), so the sort is needed.
+        let src = r#"s = s "+" s | "x" ;"#;
+        assert_eq!(
+            productions(&g(src)),
+            vec![prod("s", &[n("s"), t("+"), n("s")]), prod("s", &[t("x")]),]
+        );
+        assert_eq!(
+            trees(src, "s", &["x", "+", "x", "+", "x"]),
+            vec![vec![0, 0, 1, 1, 1], vec![0, 1, 0, 1, 1]]
+        );
+    }
+
+    #[test]
+    fn derivations_of_ambiguous_addition_match_catalan_and_count_parses() {
+        let src = "e = e PLUS e | A ;";
+        let catalan = [1usize, 1, 2, 5, 14, 42];
+        for (i, want) in catalan.into_iter().enumerate() {
+            let operands = i + 1;
+            let tokens = plus_operands(operands);
+            let got = trees(src, "e", &tokens);
+            assert_eq!(got.len(), want, "{operands} operands");
+            assert_eq!(
+                counted(src, "e", &tokens),
+                ParseCount::Exact(want as u32),
+                "{operands} operands"
+            );
+            let mut distinct = got.clone();
+            distinct.dedup();
+            assert_eq!(distinct, got, "sorted and without duplicates");
+        }
+    }
+
+    #[test]
+    fn an_optional_gives_one_derivation_that_names_the_branch() {
+        let src = r#"s = "a" [ "b" ] ;"#;
+        let list = productions(&g(src));
+        let without = trees(src, "s", &["a"]);
+        let with = trees(src, "s", &["a", "b"]);
+        assert_eq!(without.len(), 1);
+        assert_eq!(with.len(), 1);
+        // Each is [s → a s~O1, then the s~O1 production that was used].
+        assert_eq!(without[0].len(), 2);
+        assert_eq!(with[0].len(), 2);
+        assert_eq!(without[0][0], with[0][0]);
+        assert_ne!(without[0][1], with[0][1]);
+        assert_eq!(list[without[0][1]], prod("s~O1", &[]));
+        assert_eq!(list[with[0][1]], prod("s~O1", &[t("b")]));
+    }
+
+    #[test]
+    fn a_repeat_derives_through_the_right_recursion() {
+        // Ids: 0 s~R1 → "a" s~R1, 1 s~R1 → ε, 2 s → s~R1 (the repeat comes
+        // first, see the optional test). The tree is s, three recursive
+        // steps, one ε step.
+        let src = r#"s = { "a" } ;"#;
+        assert_eq!(productions(&g(src)).len(), 3);
+        assert_eq!(trees(src, "s", &["a", "a", "a"]), vec![vec![2, 0, 0, 0, 1]]);
+    }
+
+    #[test]
+    fn derivations_refuse_where_count_parses_refuses() {
+        let tokens_over: Vec<&str> = vec!["X"; MAX_TOKENS + 1];
+        let tokens_at: Vec<&str> = vec!["X"; MAX_TOKENS];
+        let rep = g("s = { X } ;");
+        assert_eq!(
+            derivations(&rep, "s", &tokens_over),
+            DerivationOutcome::TooLong
+        );
+        // The repeat at the limit: s, 256 steps, one ε step.
+        match derivations(&rep, "s", &tokens_at) {
+            DerivationOutcome::Derivations(list) => {
+                assert_eq!(list.len(), 1);
+                assert_eq!(list[0].len(), MAX_TOKENS + 2);
+            }
+            other => panic!("{other:?}"),
+        }
+        let ab = g("s = A B ;");
+        for tokens in [&["A"][..], &["A", "A"], &["B"], &[]] {
+            let Recognition::Rejected { furthest } = recognise(&ab, "s", tokens) else {
+                panic!("{tokens:?} should be rejected");
+            };
+            assert_eq!(
+                derivations(&ab, "s", tokens),
+                DerivationOutcome::Rejected { furthest },
+                "{tokens:?}"
+            );
+        }
+        assert_eq!(
+            derivations(&g("s = A ;"), "nope", &["A"]),
+            DerivationOutcome::Rejected { furthest: 0 }
+        );
+        // A real chart overflow, not a mock: the cap is a function argument
+        // of `build_chart`, and `derivations` fixes it at MAX_ITEMS, so only
+        // the TooMany arms below are reachable from here.
+        assert_eq!(
+            derivations(&g("s = s | A ;"), "s", &["A"]),
+            DerivationOutcome::TooMany
+        );
+        assert_eq!(
+            derivations(&g("s = { [ A ] } ;"), "s", &[]),
+            DerivationOutcome::TooMany
+        );
+    }
+
+    #[test]
+    fn derivations_stop_at_max_parses() {
+        let alternatives = |count: usize| {
+            let body = vec!["\"x\""; count].join(" | ");
+            format!("s = {body} ;")
+        };
+        let at = trees(&alternatives(MAX_PARSES as usize), "s", &["x"]);
+        assert_eq!(at.len(), MAX_PARSES as usize);
+        assert_eq!(at[0], vec![0]);
+        assert_eq!(at[999], vec![999]);
+        assert_eq!(
+            derivations(&g(&alternatives(MAX_PARSES as usize + 1)), "s", &["x"]),
+            DerivationOutcome::TooMany
+        );
+    }
+
+    #[test]
+    fn a_split_with_an_empty_half_that_is_not_a_tree_is_not_listed() {
+        // `x` is nullable only through `[ Z ]`; X must be matched by the
+        // non-nullable `y` and the empty span given to `x`, never the other
+        // way round. Exactly one tree either way.
+        let src = "s = x y ; x = [ Z ] ; y = X ;";
+        assert_eq!(trees(src, "s", &["X"]).len(), 1);
+        assert_eq!(trees(src, "s", &["Z", "X"]).len(), 1);
+        assert_eq!(
+            derivations(&g(src), "s", &["Z", "Z", "X"]),
+            DerivationOutcome::Rejected { furthest: 1 }
+        );
+    }
 }
 
 /// `count_parses` against a second counter that shares nothing with it but
@@ -1100,7 +1507,10 @@ mod tests {
 mod brute_force {
     use std::collections::HashMap;
 
-    use super::{count_parses, lower, Bnf, CountOutcome, ParseCount, Sym, MAX_PARSES};
+    use super::{
+        count_parses, derivations, lower, pre_order_yield, productions, Bnf, CountOutcome,
+        DerivationOutcome, ParseCount, Sym, MAX_PARSES,
+    };
     use crate::ebnf::parse;
 
     struct Brute<'a> {
@@ -1223,6 +1633,37 @@ mod brute_force {
             .join(" | ")
     }
 
+    /// `derivations` against `count_parses` on the same input: same refusal,
+    /// `TooMany` exactly when the count is `AtLeastMax`, otherwise as many
+    /// distinct sorted trees as the count, each of which expands back to the
+    /// input tokens.
+    fn check_derivations(src: &str, tokens: &[&str], counted: CountOutcome) {
+        let grammar = parse(src).expect("generated grammar parses");
+        let got = derivations(&grammar, "s", tokens);
+        match (counted, got) {
+            (
+                CountOutcome::Rejected { furthest: a },
+                DerivationOutcome::Rejected { furthest: b },
+            ) => {
+                assert_eq!(a, b, "{src}")
+            }
+            (CountOutcome::Counted(ParseCount::AtLeastMax), DerivationOutcome::TooMany) => {}
+            (
+                CountOutcome::Counted(ParseCount::Exact(want)),
+                DerivationOutcome::Derivations(trees),
+            ) => {
+                assert_eq!(trees.len(), want as usize, "{src}\ntokens {tokens:?}");
+                assert!(trees.windows(2).all(|w| w[0] < w[1]), "{src}: not sorted");
+                let list = productions(&grammar);
+                for tree in &trees {
+                    let yielded = pre_order_yield(&list, tree, "s");
+                    assert_eq!(yielded, tokens, "{src}\ntree {tree:?}");
+                }
+            }
+            (counted, got) => panic!("{src}\ntokens {tokens:?}: {counted:?} vs {got:?}"),
+        }
+    }
+
     /// Random three-rule grammars with recursion, optionals, repeats and
     /// nullable cycles. Each defence in the counter (the empty-factor rule
     /// in `mul`, the nullable-remainder guard in `seq`) was removed in turn
@@ -1249,6 +1690,7 @@ mod brute_force {
                 "s",
                 &tokens,
             );
+            check_derivations(&src, &tokens, got);
             match (want, got) {
                 (None, CountOutcome::Rejected { .. }) => {}
                 (Some(want), CountOutcome::Counted(got)) if want == got => {

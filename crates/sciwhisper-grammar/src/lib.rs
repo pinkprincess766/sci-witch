@@ -15,12 +15,16 @@
 //! from the Earley chart. It is the ambiguity measure for the grammar
 //! report. It does not build a packed forest and it is not consulted by
 //! the product parser.
+//!
+//! [`productions`] lists the lowered BNF productions with stable ids, and
+//! [`derivations`] returns every derivation tree of an accepted sentence as
+//! a list of those ids; it is the input for rule statistics.
 
 pub mod earley;
 pub mod ebnf;
 
 pub use earley::{
-    count_parses, recognise, CountOutcome, ParseCount, Recognition, MAX_ITEMS, MAX_PARSES,
-    MAX_TOKENS,
+    count_parses, derivations, productions, recognise, CountOutcome, DerivationOutcome, ParseCount,
+    Production, Recognition, Symbol, MAX_ITEMS, MAX_PARSES, MAX_TOKENS,
 };
 pub use ebnf::{parse, Expr, Grammar, Rule};
