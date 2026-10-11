@@ -22,6 +22,7 @@
 
 pub mod earley;
 pub mod ebnf;
+pub mod pcfg;
 
 pub use earley::{
     count_parses, derivations, productions, recognise, CountOutcome, DerivationOutcome, ParseCount,
