@@ -1,0 +1,1313 @@
+{
+  "corpora": [
+    "dev-seed-v3",
+    "ambiguous-v2",
+    "nomenclature-v1",
+    "prose-negatives-v2"
+  ],
+  "dev_holdout_skipped": {
+    "ambiguous-v2": 9,
+    "dev-seed-v3": 21,
+    "nomenclature-v1": 0,
+    "prose-negatives-v2": 34
+  },
+  "em_iterations": 100,
+  "grammar": "docs/grammar/math.ebnf",
+  "modes": {
+    "math": {
+      "em_productions": [
+        {
+          "id": 0,
+          "lhs": "math_input",
+          "prob": 1.0,
+          "rhs": "eq_expr"
+        },
+        {
+          "id": 1,
+          "lhs": "eq_expr~R1",
+          "prob": 0.125,
+          "rhs": "rel_op add_expr eq_expr~R1"
+        },
+        {
+          "id": 2,
+          "lhs": "eq_expr~R1",
+          "prob": 0.875,
+          "rhs": ""
+        },
+        {
+          "id": 3,
+          "lhs": "eq_expr",
+          "prob": 1.0,
+          "rhs": "add_expr eq_expr~R1"
+        },
+        {
+          "id": 4,
+          "lhs": "rel_op",
+          "prob": 0.444444,
+          "rhs": "EQ"
+        },
+        {
+          "id": 10,
+          "lhs": "add_expr~R1",
+          "prob": 0.180843,
+          "rhs": "add_op mul_expr add_expr~R1"
+        },
+        {
+          "id": 11,
+          "lhs": "add_expr~R1",
+          "prob": 0.819157,
+          "rhs": ""
+        },
+        {
+          "id": 12,
+          "lhs": "add_expr",
+          "prob": 1.0,
+          "rhs": "mul_expr add_expr~R1"
+        },
+        {
+          "id": 13,
+          "lhs": "add_op",
+          "prob": 0.8,
+          "rhs": "PLUS"
+        },
+        {
+          "id": 16,
+          "lhs": "mul_expr~R1",
+          "prob": 0.085264,
+          "rhs": "mul_op unary_expr mul_expr~R1"
+        },
+        {
+          "id": 17,
+          "lhs": "mul_expr~R1",
+          "prob": 0.914736,
+          "rhs": ""
+        },
+        {
+          "id": 18,
+          "lhs": "mul_expr",
+          "prob": 1.0,
+          "rhs": "unary_expr mul_expr~R1"
+        },
+        {
+          "id": 19,
+          "lhs": "mul_op",
+          "prob": 0.5,
+          "rhs": "TIMES"
+        },
+        {
+          "id": 20,
+          "lhs": "mul_op",
+          "prob": 0.5,
+          "rhs": "DIV"
+        },
+        {
+          "id": 23,
+          "lhs": "unary_expr",
+          "prob": 0.960966,
+          "rhs": "juxt"
+        },
+        {
+          "id": 24,
+          "lhs": "juxt~R1",
+          "prob": 0.112603,
+          "rhs": "juxt_item juxt~R1"
+        },
+        {
+          "id": 25,
+          "lhs": "juxt~R1",
+          "prob": 0.887397,
+          "rhs": ""
+        },
+        {
+          "id": 26,
+          "lhs": "juxt",
+          "prob": 1.0,
+          "rhs": "postfix juxt~R1"
+        },
+        {
+          "id": 28,
+          "lhs": "juxt_item~R1",
+          "prob": 0.93893,
+          "rhs": ""
+        },
+        {
+          "id": 29,
+          "lhs": "juxt_item",
+          "prob": 1.0,
+          "rhs": "common_atom juxt_item~R1"
+        },
+        {
+          "id": 30,
+          "lhs": "postfix~R1",
+          "prob": 0.046875,
+          "rhs": "postfix_op postfix~R1"
+        },
+        {
+          "id": 31,
+          "lhs": "postfix~R1",
+          "prob": 0.953125,
+          "rhs": ""
+        },
+        {
+          "id": 32,
+          "lhs": "postfix",
+          "prob": 1.0,
+          "rhs": "atom postfix~R1"
+        },
+        {
+          "id": 40,
+          "lhs": "postfix_op",
+          "prob": 0.333333,
+          "rhs": "SUB_KW atom"
+        },
+        {
+          "id": 42,
+          "lhs": "atom",
+          "prob": 0.96875,
+          "rhs": "common_atom"
+        },
+        {
+          "id": 43,
+          "lhs": "atom",
+          "prob": 0.03125,
+          "rhs": "prefix_atom"
+        },
+        {
+          "id": 45,
+          "lhs": "common_atom~O1",
+          "prob": 0.942445,
+          "rhs": ""
+        },
+        {
+          "id": 48,
+          "lhs": "common_atom~O3",
+          "prob": 0.666667,
+          "rhs": "R_PAREN"
+        },
+        {
+          "id": 54,
+          "lhs": "common_atom~O6",
+          "prob": 0.75,
+          "rhs": "ROOT_END"
+        },
+        {
+          "id": 57,
+          "lhs": "common_atom~O7",
+          "prob": 0.666667,
+          "rhs": ""
+        },
+        {
+          "id": 60,
+          "lhs": "common_atom",
+          "prob": 0.171688,
+          "rhs": "NUM common_atom~O1"
+        },
+        {
+          "id": 61,
+          "lhs": "common_atom",
+          "prob": 0.429884,
+          "rhs": "symbol_atom"
+        },
+        {
+          "id": 62,
+          "lhs": "common_atom",
+          "prob": 0.02097,
+          "rhs": "INF"
+        },
+        {
+          "id": 65,
+          "lhs": "common_atom",
+          "prob": 0.031455,
+          "rhs": "VECTOR_KW postfix"
+        },
+        {
+          "id": 66,
+          "lhs": "common_atom",
+          "prob": 0.02097,
+          "rhs": "FACT juxt"
+        },
+        {
+          "id": 68,
+          "lhs": "common_atom",
+          "prob": 0.08388,
+          "rhs": "FUNCTION postfix"
+        },
+        {
+          "id": 69,
+          "lhs": "common_atom",
+          "prob": 0.02097,
+          "rhs": "L_PAREN eq_expr common_atom~O3"
+        },
+        {
+          "id": 72,
+          "lhs": "common_atom",
+          "prob": 0.02097,
+          "rhs": "FRAC_START fraction_tail"
+        },
+        {
+          "id": 73,
+          "lhs": "common_atom",
+          "prob": 0.031455,
+          "rhs": "ROOT_START add_expr common_atom~O6"
+        },
+        {
+          "id": 74,
+          "lhs": "common_atom",
+          "prob": 0.031455,
+          "rhs": "ROOT root_body"
+        },
+        {
+          "id": 76,
+          "lhs": "common_atom",
+          "prob": 0.031455,
+          "rhs": "LIMIT limit_tail"
+        },
+        {
+          "id": 77,
+          "lhs": "common_atom",
+          "prob": 0.02097,
+          "rhs": "SUM nary_tail common_atom~O7"
+        },
+        {
+          "id": 83,
+          "lhs": "prefix_atom",
+          "prob": 0.333333,
+          "rhs": "PARTIAL DERIVATIVE derivative_tail"
+        },
+        {
+          "id": 87,
+          "lhs": "symbol_atom~O1",
+          "prob": 0.05,
+          "rhs": "application"
+        },
+        {
+          "id": 88,
+          "lhs": "symbol_atom~O1",
+          "prob": 0.065634,
+          "rhs": "NUM"
+        },
+        {
+          "id": 89,
+          "lhs": "symbol_atom~O1",
+          "prob": 0.884366,
+          "rhs": ""
+        },
+        {
+          "id": 91,
+          "lhs": "symbol_atom~O2",
+          "prob": 0.8,
+          "rhs": ""
+        },
+        {
+          "id": 92,
+          "lhs": "symbol_atom",
+          "prob": 0.904762,
+          "rhs": "SYM symbol_atom~O1"
+        },
+        {
+          "id": 93,
+          "lhs": "symbol_atom",
+          "prob": 0.095238,
+          "rhs": "WEAK_SYM symbol_atom~O2"
+        },
+        {
+          "id": 94,
+          "lhs": "application",
+          "prob": 1.0,
+          "rhs": "FROM argument_list"
+        },
+        {
+          "id": 95,
+          "lhs": "argument_list~R1",
+          "prob": 0.5,
+          "rhs": "COMMA mul_expr argument_list~R1"
+        },
+        {
+          "id": 96,
+          "lhs": "argument_list~R1",
+          "prob": 0.5,
+          "rhs": ""
+        },
+        {
+          "id": 97,
+          "lhs": "argument_list",
+          "prob": 1.0,
+          "rhs": "mul_expr argument_list~R1"
+        },
+        {
+          "id": 107,
+          "lhs": "fraction_tail~O1",
+          "prob": 0.666667,
+          "rhs": "NUMER"
+        },
+        {
+          "id": 109,
+          "lhs": "fraction_tail~O2",
+          "prob": 0.666667,
+          "rhs": "FRAC_END"
+        },
+        {
+          "id": 111,
+          "lhs": "fraction_tail",
+          "prob": 1.0,
+          "rhs": "fraction_tail~O1 add_expr DENOM add_expr fraction_tail~O2"
+        },
+        {
+          "id": 112,
+          "lhs": "root_body",
+          "prob": 0.440704,
+          "rhs": "postfix"
+        },
+        {
+          "id": 113,
+          "lhs": "root_body",
+          "prob": 0.559296,
+          "rhs": "add_expr"
+        },
+        {
+          "id": 114,
+          "lhs": "nary_tail~O1",
+          "prob": 0.666667,
+          "rhs": "FROM eq_expr"
+        },
+        {
+          "id": 116,
+          "lhs": "nary_tail~O2",
+          "prob": 0.666667,
+          "rhs": "TO postfix"
+        },
+        {
+          "id": 119,
+          "lhs": "nary_tail~O3",
+          "prob": 0.666667,
+          "rhs": ""
+        },
+        {
+          "id": 120,
+          "lhs": "nary_tail",
+          "prob": 1.0,
+          "rhs": "nary_tail~O1 nary_tail~O2 nary_tail~O3"
+        },
+        {
+          "id": 134,
+          "lhs": "derivative_tail~O1",
+          "prob": 0.666667,
+          "rhs": "ORDINAL ORDER_KW"
+        },
+        {
+          "id": 137,
+          "lhs": "derivative_tail~O2",
+          "prob": 0.666667,
+          "rhs": ""
+        },
+        {
+          "id": 139,
+          "lhs": "derivative_tail~O3",
+          "prob": 0.666667,
+          "rhs": ""
+        },
+        {
+          "id": 140,
+          "lhs": "derivative_tail~R1",
+          "prob": 0.5,
+          "rhs": "deriv_var derivative_tail~R1"
+        },
+        {
+          "id": 141,
+          "lhs": "derivative_tail~R1",
+          "prob": 0.5,
+          "rhs": ""
+        },
+        {
+          "id": 142,
+          "lhs": "derivative_tail",
+          "prob": 1.0,
+          "rhs": "derivative_tail~O1 derivative_tail~O2 derivative_tail~O3 mul_body deriv_var derivative_tail~R1"
+        },
+        {
+          "id": 143,
+          "lhs": "deriv_var~G1",
+          "prob": 0.5,
+          "rhs": "BY"
+        },
+        {
+          "id": 144,
+          "lhs": "deriv_var~G1",
+          "prob": 0.5,
+          "rhs": "AND_BY"
+        },
+        {
+          "id": 145,
+          "lhs": "deriv_var",
+          "prob": 1.0,
+          "rhs": "deriv_var~G1 juxt_item"
+        },
+        {
+          "id": 146,
+          "lhs": "limit_tail~O1",
+          "prob": 0.5,
+          "rhs": "direction"
+        },
+        {
+          "id": 147,
+          "lhs": "limit_tail~O1",
+          "prob": 0.5,
+          "rhs": ""
+        },
+        {
+          "id": 149,
+          "lhs": "limit_tail~O2",
+          "prob": 0.75,
+          "rhs": ""
+        },
+        {
+          "id": 151,
+          "lhs": "limit_tail~O3",
+          "prob": 0.75,
+          "rhs": ""
+        },
+        {
+          "id": 155,
+          "lhs": "limit_tail~O5",
+          "prob": 0.75,
+          "rhs": ""
+        },
+        {
+          "id": 157,
+          "lhs": "limit_tail~G1",
+          "prob": 0.75,
+          "rhs": "approach limit_tail~O5 mul_body"
+        },
+        {
+          "id": 158,
+          "lhs": "limit_tail",
+          "prob": 1.0,
+          "rhs": "limit_tail~O1 limit_tail~O2 limit_tail~O3 limit_tail~G1"
+        },
+        {
+          "id": 159,
+          "lhs": "approach",
+          "prob": 1.0,
+          "rhs": "LIMIT_VAR juxt_item TENDS limit_target"
+        },
+        {
+          "id": 161,
+          "lhs": "limit_target~O1",
+          "prob": 0.75,
+          "rhs": ""
+        },
+        {
+          "id": 163,
+          "lhs": "limit_target",
+          "prob": 0.75,
+          "rhs": "limit_target~O1 juxt_item"
+        },
+        {
+          "id": 165,
+          "lhs": "direction",
+          "prob": 0.666667,
+          "rhs": "LIMIT_RIGHT"
+        },
+        {
+          "id": 167,
+          "lhs": "mul_body~R1",
+          "prob": 0.8,
+          "rhs": ""
+        },
+        {
+          "id": 168,
+          "lhs": "mul_body~R2",
+          "prob": 0.308364,
+          "rhs": "mul_op unary_expr mul_body~R2"
+        },
+        {
+          "id": 169,
+          "lhs": "mul_body~R2",
+          "prob": 0.691636,
+          "rhs": ""
+        },
+        {
+          "id": 170,
+          "lhs": "mul_body",
+          "prob": 1.0,
+          "rhs": "juxt_item mul_body~R1 mul_body~R2"
+        }
+      ],
+      "models": {
+        "em": {
+          "consistency": {
+            "norm": 0.580361,
+            "power": 64,
+            "proven": true
+          },
+          "iterations": 100,
+          "objective_first": -465.982404,
+          "objective_last": -465.853779,
+          "rho_lower_bound": {
+            "bound": 0.964621,
+            "power": 16384
+          },
+          "train_log_prob": -248.51593,
+          "train_perplexity": 8.84599,
+          "validation_log_prob": -237.053747,
+          "validation_perplexity": 18.009499
+        },
+        "even_split": {
+          "consistency": {
+            "norm": 0.532544,
+            "power": 64,
+            "proven": true
+          },
+          "rho_lower_bound": {
+            "bound": 0.963686,
+            "power": 16384
+          },
+          "train_log_prob": -248.258558,
+          "train_perplexity": 8.826042,
+          "validation_log_prob": -235.784086,
+          "validation_perplexity": 17.732794
+        },
+        "uniform": {
+          "consistency": {
+            "norm": 2.0421752372242073e+197,
+            "power": null,
+            "proven": false
+          },
+          "rho_lower_bound": {
+            "bound": 1.244955,
+            "power": 2048
+          },
+          "train_log_prob": -619.547973,
+          "train_perplexity": 229.208333,
+          "validation_log_prob": -457.772917,
+          "validation_perplexity": 265.760771
+        }
+      },
+      "sentences_with_unseen_productions": 12,
+      "train": {
+        "rejected": 3,
+        "tokenize_fail": 189,
+        "tokens": 114,
+        "too_long": 0,
+        "too_many": 0,
+        "too_many_items": 0,
+        "total": 217,
+        "used": 25
+      },
+      "validation": {
+        "rejected": 3,
+        "tokenize_fail": 101,
+        "tokens": 82,
+        "too_long": 0,
+        "too_many": 0,
+        "too_many_items": 0,
+        "total": 123,
+        "used": 19
+      }
+    },
+    "physics": {
+      "em_productions": [
+        {
+          "id": 0,
+          "lhs": "math_input",
+          "prob": 1.0,
+          "rhs": "eq_expr"
+        },
+        {
+          "id": 1,
+          "lhs": "eq_expr~R1",
+          "prob": 0.116279,
+          "rhs": "rel_op add_expr eq_expr~R1"
+        },
+        {
+          "id": 2,
+          "lhs": "eq_expr~R1",
+          "prob": 0.883721,
+          "rhs": ""
+        },
+        {
+          "id": 3,
+          "lhs": "eq_expr",
+          "prob": 1.0,
+          "rhs": "add_expr eq_expr~R1"
+        },
+        {
+          "id": 4,
+          "lhs": "rel_op",
+          "prob": 0.5,
+          "rhs": "EQ"
+        },
+        {
+          "id": 10,
+          "lhs": "add_expr~R1",
+          "prob": 0.144627,
+          "rhs": "add_op mul_expr add_expr~R1"
+        },
+        {
+          "id": 11,
+          "lhs": "add_expr~R1",
+          "prob": 0.855373,
+          "rhs": ""
+        },
+        {
+          "id": 12,
+          "lhs": "add_expr",
+          "prob": 1.0,
+          "rhs": "mul_expr add_expr~R1"
+        },
+        {
+          "id": 13,
+          "lhs": "add_op",
+          "prob": 0.8,
+          "rhs": "PLUS"
+        },
+        {
+          "id": 16,
+          "lhs": "mul_expr~R1",
+          "prob": 0.069537,
+          "rhs": "mul_op unary_expr mul_expr~R1"
+        },
+        {
+          "id": 17,
+          "lhs": "mul_expr~R1",
+          "prob": 0.930463,
+          "rhs": ""
+        },
+        {
+          "id": 18,
+          "lhs": "mul_expr",
+          "prob": 1.0,
+          "rhs": "unary_expr mul_expr~R1"
+        },
+        {
+          "id": 19,
+          "lhs": "mul_op",
+          "prob": 0.5,
+          "rhs": "TIMES"
+        },
+        {
+          "id": 20,
+          "lhs": "mul_op",
+          "prob": 0.5,
+          "rhs": "DIV"
+        },
+        {
+          "id": 23,
+          "lhs": "unary_expr",
+          "prob": 0.967905,
+          "rhs": "juxt"
+        },
+        {
+          "id": 24,
+          "lhs": "juxt~R1",
+          "prob": 0.093252,
+          "rhs": "juxt_item juxt~R1"
+        },
+        {
+          "id": 25,
+          "lhs": "juxt~R1",
+          "prob": 0.906748,
+          "rhs": ""
+        },
+        {
+          "id": 26,
+          "lhs": "juxt",
+          "prob": 1.0,
+          "rhs": "postfix juxt~R1"
+        },
+        {
+          "id": 27,
+          "lhs": "juxt_item~R1",
+          "prob": 0.058289,
+          "rhs": "postfix_op juxt_item~R1"
+        },
+        {
+          "id": 28,
+          "lhs": "juxt_item~R1",
+          "prob": 0.941711,
+          "rhs": ""
+        },
+        {
+          "id": 29,
+          "lhs": "juxt_item",
+          "prob": 1.0,
+          "rhs": "common_atom juxt_item~R1"
+        },
+        {
+          "id": 30,
+          "lhs": "postfix~R1",
+          "prob": 0.052498,
+          "rhs": "postfix_op postfix~R1"
+        },
+        {
+          "id": 31,
+          "lhs": "postfix~R1",
+          "prob": 0.947502,
+          "rhs": ""
+        },
+        {
+          "id": 32,
+          "lhs": "postfix",
+          "prob": 1.0,
+          "rhs": "atom postfix~R1"
+        },
+        {
+          "id": 38,
+          "lhs": "postfix_op",
+          "prob": 0.197835,
+          "rhs": "DEGREE atom"
+        },
+        {
+          "id": 40,
+          "lhs": "postfix_op",
+          "prob": 0.296753,
+          "rhs": "SUB_KW atom"
+        },
+        {
+          "id": 41,
+          "lhs": "postfix_op",
+          "prob": 0.109741,
+          "rhs": "unit_expr"
+        },
+        {
+          "id": 42,
+          "lhs": "atom",
+          "prob": 0.974359,
+          "rhs": "common_atom"
+        },
+        {
+          "id": 43,
+          "lhs": "atom",
+          "prob": 0.025641,
+          "rhs": "prefix_atom"
+        },
+        {
+          "id": 44,
+          "lhs": "common_atom~O1",
+          "prob": 0.405743,
+          "rhs": "unit_expr"
+        },
+        {
+          "id": 45,
+          "lhs": "common_atom~O1",
+          "prob": 0.594257,
+          "rhs": ""
+        },
+        {
+          "id": 48,
+          "lhs": "common_atom~O3",
+          "prob": 0.666667,
+          "rhs": "R_PAREN"
+        },
+        {
+          "id": 54,
+          "lhs": "common_atom~O6",
+          "prob": 0.75,
+          "rhs": "ROOT_END"
+        },
+        {
+          "id": 57,
+          "lhs": "common_atom~O7",
+          "prob": 0.666667,
+          "rhs": ""
+        },
+        {
+          "id": 60,
+          "lhs": "common_atom",
+          "prob": 0.256612,
+          "rhs": "NUM common_atom~O1"
+        },
+        {
+          "id": 61,
+          "lhs": "common_atom",
+          "prob": 0.38076,
+          "rhs": "symbol_atom"
+        },
+        {
+          "id": 62,
+          "lhs": "common_atom",
+          "prob": 0.018131,
+          "rhs": "INF"
+        },
+        {
+          "id": 65,
+          "lhs": "common_atom",
+          "prob": 0.027197,
+          "rhs": "VECTOR_KW postfix"
+        },
+        {
+          "id": 66,
+          "lhs": "common_atom",
+          "prob": 0.018131,
+          "rhs": "FACT juxt"
+        },
+        {
+          "id": 68,
+          "lhs": "common_atom",
+          "prob": 0.081591,
+          "rhs": "FUNCTION postfix"
+        },
+        {
+          "id": 69,
+          "lhs": "common_atom",
+          "prob": 0.018131,
+          "rhs": "L_PAREN eq_expr common_atom~O3"
+        },
+        {
+          "id": 72,
+          "lhs": "common_atom",
+          "prob": 0.018131,
+          "rhs": "FRAC_START fraction_tail"
+        },
+        {
+          "id": 73,
+          "lhs": "common_atom",
+          "prob": 0.027197,
+          "rhs": "ROOT_START add_expr common_atom~O6"
+        },
+        {
+          "id": 74,
+          "lhs": "common_atom",
+          "prob": 0.027197,
+          "rhs": "ROOT root_body"
+        },
+        {
+          "id": 76,
+          "lhs": "common_atom",
+          "prob": 0.027197,
+          "rhs": "LIMIT limit_tail"
+        },
+        {
+          "id": 77,
+          "lhs": "common_atom",
+          "prob": 0.018131,
+          "rhs": "SUM nary_tail common_atom~O7"
+        },
+        {
+          "id": 79,
+          "lhs": "common_atom",
+          "prob": 0.018131,
+          "rhs": "INTEGRAL integral_tail"
+        },
+        {
+          "id": 83,
+          "lhs": "prefix_atom",
+          "prob": 0.333333,
+          "rhs": "PARTIAL DERIVATIVE derivative_tail"
+        },
+        {
+          "id": 87,
+          "lhs": "symbol_atom~O1",
+          "prob": 0.04878,
+          "rhs": "application"
+        },
+        {
+          "id": 88,
+          "lhs": "symbol_atom~O1",
+          "prob": 0.065714,
+          "rhs": "NUM"
+        },
+        {
+          "id": 89,
+          "lhs": "symbol_atom~O1",
+          "prob": 0.885506,
+          "rhs": ""
+        },
+        {
+          "id": 91,
+          "lhs": "symbol_atom~O2",
+          "prob": 0.8,
+          "rhs": ""
+        },
+        {
+          "id": 92,
+          "lhs": "symbol_atom",
+          "prob": 0.906977,
+          "rhs": "SYM symbol_atom~O1"
+        },
+        {
+          "id": 93,
+          "lhs": "symbol_atom",
+          "prob": 0.093023,
+          "rhs": "WEAK_SYM symbol_atom~O2"
+        },
+        {
+          "id": 94,
+          "lhs": "application",
+          "prob": 1.0,
+          "rhs": "FROM argument_list"
+        },
+        {
+          "id": 95,
+          "lhs": "argument_list~R1",
+          "prob": 0.5,
+          "rhs": "COMMA mul_expr argument_list~R1"
+        },
+        {
+          "id": 96,
+          "lhs": "argument_list~R1",
+          "prob": 0.5,
+          "rhs": ""
+        },
+        {
+          "id": 97,
+          "lhs": "argument_list",
+          "prob": 1.0,
+          "rhs": "mul_expr argument_list~R1"
+        },
+        {
+          "id": 99,
+          "lhs": "unit_expr~R1",
+          "prob": 0.923077,
+          "rhs": ""
+        },
+        {
+          "id": 101,
+          "lhs": "unit_expr~O1",
+          "prob": 0.923077,
+          "rhs": ""
+        },
+        {
+          "id": 102,
+          "lhs": "unit_expr",
+          "prob": 1.0,
+          "rhs": "unit_factor unit_expr~R1 unit_expr~O1"
+        },
+        {
+          "id": 105,
+          "lhs": "unit_factor~O1",
+          "prob": 0.857143,
+          "rhs": ""
+        },
+        {
+          "id": 106,
+          "lhs": "unit_factor",
+          "prob": 1.0,
+          "rhs": "UNIT unit_factor~O1"
+        },
+        {
+          "id": 107,
+          "lhs": "fraction_tail~O1",
+          "prob": 0.666667,
+          "rhs": "NUMER"
+        },
+        {
+          "id": 109,
+          "lhs": "fraction_tail~O2",
+          "prob": 0.666667,
+          "rhs": "FRAC_END"
+        },
+        {
+          "id": 111,
+          "lhs": "fraction_tail",
+          "prob": 1.0,
+          "rhs": "fraction_tail~O1 add_expr DENOM add_expr fraction_tail~O2"
+        },
+        {
+          "id": 112,
+          "lhs": "root_body",
+          "prob": 0.421288,
+          "rhs": "postfix"
+        },
+        {
+          "id": 113,
+          "lhs": "root_body",
+          "prob": 0.578712,
+          "rhs": "add_expr"
+        },
+        {
+          "id": 114,
+          "lhs": "nary_tail~O1",
+          "prob": 0.666667,
+          "rhs": "FROM eq_expr"
+        },
+        {
+          "id": 116,
+          "lhs": "nary_tail~O2",
+          "prob": 0.666667,
+          "rhs": "TO postfix"
+        },
+        {
+          "id": 119,
+          "lhs": "nary_tail~O3",
+          "prob": 0.666667,
+          "rhs": ""
+        },
+        {
+          "id": 120,
+          "lhs": "nary_tail",
+          "prob": 1.0,
+          "rhs": "nary_tail~O1 nary_tail~O2 nary_tail~O3"
+        },
+        {
+          "id": 122,
+          "lhs": "integral_tail~O1",
+          "prob": 0.666667,
+          "rhs": ""
+        },
+        {
+          "id": 124,
+          "lhs": "integral_tail~G1",
+          "prob": 0.666667,
+          "rhs": "integral_tail~O1"
+        },
+        {
+          "id": 125,
+          "lhs": "integral_tail~O2",
+          "prob": 0.666667,
+          "rhs": "mul_body"
+        },
+        {
+          "id": 127,
+          "lhs": "integral_tail~O3",
+          "prob": 0.666667,
+          "rhs": "differential"
+        },
+        {
+          "id": 130,
+          "lhs": "integral_tail~O4",
+          "prob": 0.666667,
+          "rhs": ""
+        },
+        {
+          "id": 131,
+          "lhs": "integral_tail",
+          "prob": 1.0,
+          "rhs": "integral_tail~G1 integral_tail~O2 integral_tail~O3 integral_tail~O4"
+        },
+        {
+          "id": 133,
+          "lhs": "differential",
+          "prob": 0.666667,
+          "rhs": "BY postfix"
+        },
+        {
+          "id": 134,
+          "lhs": "derivative_tail~O1",
+          "prob": 0.666667,
+          "rhs": "ORDINAL ORDER_KW"
+        },
+        {
+          "id": 137,
+          "lhs": "derivative_tail~O2",
+          "prob": 0.666667,
+          "rhs": ""
+        },
+        {
+          "id": 139,
+          "lhs": "derivative_tail~O3",
+          "prob": 0.666667,
+          "rhs": ""
+        },
+        {
+          "id": 140,
+          "lhs": "derivative_tail~R1",
+          "prob": 0.5,
+          "rhs": "deriv_var derivative_tail~R1"
+        },
+        {
+          "id": 141,
+          "lhs": "derivative_tail~R1",
+          "prob": 0.5,
+          "rhs": ""
+        },
+        {
+          "id": 142,
+          "lhs": "derivative_tail",
+          "prob": 1.0,
+          "rhs": "derivative_tail~O1 derivative_tail~O2 derivative_tail~O3 mul_body deriv_var derivative_tail~R1"
+        },
+        {
+          "id": 143,
+          "lhs": "deriv_var~G1",
+          "prob": 0.5,
+          "rhs": "BY"
+        },
+        {
+          "id": 144,
+          "lhs": "deriv_var~G1",
+          "prob": 0.5,
+          "rhs": "AND_BY"
+        },
+        {
+          "id": 145,
+          "lhs": "deriv_var",
+          "prob": 1.0,
+          "rhs": "deriv_var~G1 juxt_item"
+        },
+        {
+          "id": 146,
+          "lhs": "limit_tail~O1",
+          "prob": 0.5,
+          "rhs": "direction"
+        },
+        {
+          "id": 147,
+          "lhs": "limit_tail~O1",
+          "prob": 0.5,
+          "rhs": ""
+        },
+        {
+          "id": 149,
+          "lhs": "limit_tail~O2",
+          "prob": 0.75,
+          "rhs": ""
+        },
+        {
+          "id": 151,
+          "lhs": "limit_tail~O3",
+          "prob": 0.75,
+          "rhs": ""
+        },
+        {
+          "id": 155,
+          "lhs": "limit_tail~O5",
+          "prob": 0.75,
+          "rhs": ""
+        },
+        {
+          "id": 157,
+          "lhs": "limit_tail~G1",
+          "prob": 0.75,
+          "rhs": "approach limit_tail~O5 mul_body"
+        },
+        {
+          "id": 158,
+          "lhs": "limit_tail",
+          "prob": 1.0,
+          "rhs": "limit_tail~O1 limit_tail~O2 limit_tail~O3 limit_tail~G1"
+        },
+        {
+          "id": 159,
+          "lhs": "approach",
+          "prob": 1.0,
+          "rhs": "LIMIT_VAR juxt_item TENDS limit_target"
+        },
+        {
+          "id": 161,
+          "lhs": "limit_target~O1",
+          "prob": 0.75,
+          "rhs": ""
+        },
+        {
+          "id": 163,
+          "lhs": "limit_target",
+          "prob": 0.75,
+          "rhs": "limit_target~O1 juxt_item"
+        },
+        {
+          "id": 165,
+          "lhs": "direction",
+          "prob": 0.666667,
+          "rhs": "LIMIT_RIGHT"
+        },
+        {
+          "id": 167,
+          "lhs": "mul_body~R1",
+          "prob": 0.833333,
+          "rhs": ""
+        },
+        {
+          "id": 168,
+          "lhs": "mul_body~R2",
+          "prob": 0.263772,
+          "rhs": "mul_op unary_expr mul_body~R2"
+        },
+        {
+          "id": 169,
+          "lhs": "mul_body~R2",
+          "prob": 0.736228,
+          "rhs": ""
+        },
+        {
+          "id": 170,
+          "lhs": "mul_body",
+          "prob": 1.0,
+          "rhs": "juxt_item mul_body~R1 mul_body~R2"
+        }
+      ],
+      "models": {
+        "em": {
+          "consistency": {
+            "norm": 0.162355,
+            "power": 64,
+            "proven": true
+          },
+          "iterations": 100,
+          "objective_first": -540.15673,
+          "objective_last": -534.430242,
+          "rho_lower_bound": {
+            "bound": 0.943954,
+            "power": 8192
+          },
+          "train_log_prob": -309.872986,
+          "train_perplexity": 8.731559,
+          "validation_log_prob": -278.197063,
+          "validation_perplexity": 14.51194
+        },
+        "even_split": {
+          "consistency": {
+            "norm": 0.164768,
+            "power": 64,
+            "proven": true
+          },
+          "rho_lower_bound": {
+            "bound": 0.944656,
+            "power": 8192
+          },
+          "train_log_prob": -314.552412,
+          "train_perplexity": 9.022011,
+          "validation_log_prob": -280.403278,
+          "validation_perplexity": 14.823079
+        },
+        "uniform": {
+          "consistency": {
+            "norm": 2.0421752372242073e+197,
+            "power": null,
+            "proven": false
+          },
+          "rho_lower_bound": {
+            "bound": 1.244955,
+            "power": 2048
+          },
+          "train_log_prob": -773.006784,
+          "train_perplexity": 222.659087,
+          "validation_log_prob": -564.756468,
+          "validation_perplexity": 228.22926
+        }
+      },
+      "sentences_with_unseen_productions": 11,
+      "train": {
+        "rejected": 3,
+        "tokenize_fail": 179,
+        "tokens": 143,
+        "too_long": 0,
+        "too_many": 0,
+        "too_many_items": 0,
+        "total": 217,
+        "used": 35
+      },
+      "validation": {
+        "rejected": 3,
+        "tokenize_fail": 95,
+        "tokens": 104,
+        "too_long": 0,
+        "too_many": 0,
+        "too_many_items": 0,
+        "total": 123,
+        "used": 25
+      }
+    }
+  },
+  "n_productions": 171,
+  "note": "EM runs over the enumerated derivation trees of each sentence: a tree is weighted by its probability under the current model, and the M-step is add-one smoothing, so the fit is MAP under a Dirichlet prior and its objective, which includes that prior, never decreases. The even-split model is the start of EM and the model of v1. The uniform PCFG is improper by Booth and Thompson: the lower bound on the spectral radius of its mean-count matrix is above 1 and every nonterminal reachable from the start symbol is productive, so its perplexity is a score under a deficient model and not a baseline at all. The bounds are computed in f64 without interval arithmetic; the uniform bound is far above 1 compared with the rounding error. This is still a demonstration on a few dozen sentences per mode, not a language model.",
+  "pseudocount": 1.0,
+  "splits": {
+    "evaluation": "validation",
+    "train": "train"
+  },
+  "start": "math_input",
+  "uniform_improper": true,
+  "unproductive_nonterminals": [],
+  "version": "pcfg-v2"
+}

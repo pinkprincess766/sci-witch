@@ -622,3 +622,229 @@ mod tests {
         assert_eq!(distance(&empty, &empty), 0.0);
     }
 }
+
+/// Zhang–Shasha against the definition. The reference is the textbook forest
+/// recurrence with no tricks, so a disagreement points at the fast algorithm.
+#[cfg(test)]
+mod brute {
+    use super::*;
+    use serde_json::json;
+    use std::collections::HashMap;
+
+    /// Forest edit distance straight from Tai's definition. A forest is a
+    /// half-open range of postorder indices; its rightmost root is the last
+    /// index, and that root's subtree starts at `leftmost`. Nodes, labels and
+    /// `relabel` are the production ones, so only the tree algorithm differs.
+    struct Reference<'a> {
+        a: &'a Flat,
+        b: &'a Flat,
+        weights: &'a Weights,
+        memo: HashMap<(usize, usize, usize, usize), f64>,
+    }
+
+    impl Reference<'_> {
+        fn forest(&mut self, a_lo: usize, a_hi: usize, b_lo: usize, b_hi: usize) -> f64 {
+            if a_lo == a_hi {
+                return (b_hi - b_lo) as f64 * self.weights.insert;
+            }
+            if b_lo == b_hi {
+                return (a_hi - a_lo) as f64 * self.weights.delete;
+            }
+            let key = (a_lo, a_hi, b_lo, b_hi);
+            if let Some(&known) = self.memo.get(&key) {
+                return known;
+            }
+            let (a_root, b_root) = (a_hi - 1, b_hi - 1);
+            let (a_first, b_first) = (self.a.leftmost[a_root], self.b.leftmost[b_root]);
+            let delete = self.forest(a_lo, a_root, b_lo, b_hi) + self.weights.delete;
+            let insert = self.forest(a_lo, a_hi, b_lo, b_root) + self.weights.insert;
+            let left_siblings = self.forest(a_lo, a_first, b_lo, b_first);
+            let children = self.forest(a_first, a_root, b_first, b_root);
+            let roots = relabel(&self.a.labels[a_root], &self.b.labels[b_root], self.weights);
+            let matched = left_siblings + children + roots;
+            let best = delete.min(insert).min(matched);
+            self.memo.insert(key, best);
+            best
+        }
+    }
+
+    fn reference(a: &Value, b: &Value) -> f64 {
+        let (a, b) = (flatten(a), flatten(b));
+        let mut reference = Reference {
+            a: &a,
+            b: &b,
+            weights: Weights::builtin(),
+            memo: HashMap::new(),
+        };
+        reference.forest(0, a.len(), 0, b.len())
+    }
+
+    /// Zhang–Shasha without the `a == b` shortcut of `distance_with`, so the
+    /// identity axiom is tested on the algorithm and not on the shortcut.
+    fn fast(a: &Value, b: &Value) -> f64 {
+        tree_edit_distance(&flatten(a), &flatten(b), Weights::builtin())
+    }
+
+    /// Knuth's MMIX LCG; fixed seed, so a failure reproduces.
+    struct Lcg(u64);
+
+    impl Lcg {
+        fn below(&mut self, n: usize) -> usize {
+            self.0 = self
+                .0
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            ((self.0 >> 33) % n as u64) as usize
+        }
+    }
+
+    /// A random AST of at most `budget` nodes, in the serde shape `flatten`
+    /// reads. Four kinds, whose scalar fields cost 0.05, 0.2, 0.8 and 1.0 in
+    /// the shipped weight file, so relabels are not all the same price.
+    fn random_tree(rng: &mut Lcg, budget: usize) -> Value {
+        let choices = match budget {
+            1 => 1,
+            2 => 3,
+            _ => 4,
+        };
+        match rng.below(choices) {
+            0 => {
+                let symbol = ["H", "O"][rng.below(2)];
+                let count = 1 + rng.below(2);
+                let marker = ["aq", "s"][rng.below(2)];
+                json!({"Atom": {"symbol": symbol, "count": count, "marker": marker}})
+            }
+            1 => {
+                let kind = ["round", "square"][rng.below(2)];
+                let inner = random_tree(rng, budget - 1);
+                json!({"Group": {"kind": kind, "inner": inner}})
+            }
+            2 => {
+                let kind = ["sin", "cos"][rng.below(2)];
+                let arg = random_tree(rng, budget - 1);
+                json!({"Function": {"kind": kind, "arg": arg}})
+            }
+            _ => {
+                // Two or three children, each at least one node.
+                let count = if budget >= 4 { 2 + rng.below(2) } else { 2 };
+                let mut remaining = budget - 1;
+                let mut children = Vec::new();
+                for placed in 0..count {
+                    let still_to_place = count - placed - 1;
+                    let share = 1 + rng.below(remaining - still_to_place);
+                    children.push(random_tree(rng, share));
+                    remaining -= share;
+                }
+                json!({ "Sum": children })
+            }
+        }
+    }
+
+    const MAX_NODES: usize = 6;
+    const SEED: u64 = 0x5eed_5eed;
+    const PAIRS: usize = 300;
+    const TRIPLES: usize = 100;
+
+    fn small_tree(rng: &mut Lcg) -> Value {
+        let budget = 1 + rng.below(MAX_NODES);
+        random_tree(rng, budget)
+    }
+
+    /// Hand-computed values, so the reference is not trusted merely for
+    /// agreeing with the code it checks.
+    #[test]
+    fn the_reference_matches_hand_computed_distances() {
+        let atom = |symbol: &str, count: u32| json!({"Atom": {"symbol": symbol, "count": count, "marker": "aq"}});
+        let group = |kind: &str, inner: Value| json!({"Group": {"kind": kind, "inner": inner}});
+        let h = atom("H", 1);
+        let cases = [
+            (h.clone(), atom("O", 1), 1.0),
+            (h.clone(), atom("H", 2), 0.8),
+            (group("round", h.clone()), group("square", h.clone()), 0.05),
+            (group("round", h.clone()), h.clone(), 1.0),
+            (json!({"Sum": [h.clone(), h.clone()]}), h.clone(), 2.0),
+        ];
+        for (a, b, expected) in cases {
+            assert!((reference(&a, &b) - expected).abs() < 1e-9, "{a} vs {b}");
+            assert!((fast(&a, &b) - expected).abs() < 1e-9, "{a} vs {b}");
+        }
+    }
+
+    #[test]
+    fn zhang_shasha_equals_the_definition_on_random_small_trees() {
+        let mut rng = Lcg(SEED);
+        let mut largest = 0;
+        let mut seen_values: Vec<f64> = Vec::new();
+        for pair in 0..PAIRS {
+            let (a, b) = (small_tree(&mut rng), small_tree(&mut rng));
+            largest = largest.max(flatten(&a).len()).max(flatten(&b).len());
+            let (expected, actual) = (reference(&a, &b), fast(&a, &b));
+            assert!(
+                (expected - actual).abs() < 1e-9,
+                "pair {pair}: reference {expected}, Zhang–Shasha {actual}\n  a = {a}\n  b = {b}"
+            );
+            if !seen_values.iter().any(|v| (v - expected).abs() < 1e-9) {
+                seen_values.push(expected);
+            }
+        }
+        // A sample that never reaches the size limit, or whose distances are
+        // all alike, would pass for the wrong reason.
+        assert_eq!(largest, MAX_NODES);
+        assert!(
+            seen_values.len() >= 10,
+            "only {} distinct distances",
+            seen_values.len()
+        );
+    }
+
+    #[test]
+    fn random_small_trees_obey_the_metric_axioms() {
+        let mut rng = Lcg(SEED ^ 1);
+        for triple in 0..TRIPLES {
+            let (a, b, c) = (
+                small_tree(&mut rng),
+                small_tree(&mut rng),
+                small_tree(&mut rng),
+            );
+            let context = format!("triple {triple}\n  a = {a}\n  b = {b}\n  c = {c}");
+            assert_eq!(fast(&a, &a), 0.0, "{context}");
+            let (ab, ba) = (fast(&a, &b), fast(&b, &a));
+            assert!((ab - ba).abs() < 1e-9, "{ab} vs {ba}\n{context}");
+            if a != b {
+                assert!(ab > 0.0, "different trees at distance zero\n{context}");
+            }
+            let (ac, bc) = (fast(&a, &c), fast(&b, &c));
+            assert!(ac <= ab + bc + 1e-9, "d(a,c)={ac} > {ab} + {bc}\n{context}");
+        }
+    }
+
+    /// The only way a distinct pair could sit at distance zero is a free
+    /// relabel. Check every pair of labels the generator produces.
+    #[test]
+    fn no_two_different_labels_relabel_for_free() {
+        let mut rng = Lcg(SEED ^ 2);
+        let mut labels: Vec<Label> = Vec::new();
+        for _ in 0..PAIRS {
+            for label in flatten(&small_tree(&mut rng)).labels {
+                if !labels.contains(&label) {
+                    labels.push(label);
+                }
+            }
+        }
+        let mut cheapest = f64::INFINITY;
+        for a in &labels {
+            for b in &labels {
+                if a != b {
+                    cheapest = cheapest.min(relabel(a, b, Weights::builtin()));
+                }
+            }
+        }
+        // 8 atoms (2 symbols x 2 counts x 2 markers), 2 groups, 2 functions, 1 sum.
+        assert_eq!(labels.len(), 13);
+        eprintln!(
+            "{} labels, cheapest relabel between different ones: {cheapest}",
+            labels.len()
+        );
+        assert!(cheapest > 0.0, "{cheapest}");
+    }
+}
