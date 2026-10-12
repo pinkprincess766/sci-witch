@@ -103,7 +103,7 @@ pub const EM_ITERATIONS: usize = 100;
 pub struct EmFit {
     pub prob: Vec<f64>,
     /// Objective after each iteration, starting with the initial model
-    /// (len = iterations + 1): Σ_s ln P(s) + pseudocount · Σ_p ln prob[p].
+    /// (len = iterations + 1): `Σ_s ln P(s) + pseudocount · Σ_p ln prob[p]`.
     pub objective: Vec<f64>,
 }
 
@@ -136,7 +136,7 @@ fn weighted_counts(prob: &[f64], sentences: &[Vec<Vec<usize>>]) -> Result<Vec<f6
     Ok(counts)
 }
 
-/// Σ_s ln P(s) + pseudocount · Σ_p ln prob[p]. The second term is the
+/// `Σ_s ln P(s) + pseudocount · Σ_p ln prob[p]`. The second term is the
 /// Dirichlet(1 + pseudocount) log-prior; it is skipped for pseudocount 0
 /// because 0 · ln 0 is NaN in floating point.
 fn objective(prob: &[f64], sentences: &[Vec<Vec<usize>>], pseudocount: f64) -> f64 {
