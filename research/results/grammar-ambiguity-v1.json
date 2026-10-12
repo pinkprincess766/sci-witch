@@ -1,0 +1,289 @@
+{
+  "grammar": "docs/grammar/math.ebnf",
+  "max_len": 4,
+  "max_parses": 1000,
+  "note": "This is the ambiguity of the context-free grammar over token classes: every string of length 1 to max_len that the grammar derives, with its number of derivation trees. The handwritten parser picks one tree by ordered choice, so an ambiguous string is not necessarily mis-parsed. Semantic constraints written in prose in math.ebnf are not applied, so some of these strings are rejected by the parser. Length is counted in token classes, not in spoken words. above_10 includes the at_least_max strings; max_parses is capped at max_parses.",
+  "per_length": {
+    "1": {
+      "above_10": 0,
+      "ambiguous": 0,
+      "at_least_max": 0,
+      "exact_2": 0,
+      "exact_3_to_10": 0,
+      "max_parses": 0,
+      "strings": 9
+    },
+    "2": {
+      "above_10": 0,
+      "ambiguous": 47,
+      "at_least_max": 0,
+      "exact_2": 47,
+      "exact_3_to_10": 0,
+      "max_parses": 2,
+      "strings": 229
+    },
+    "3": {
+      "above_10": 0,
+      "ambiguous": 2367,
+      "at_least_max": 0,
+      "exact_2": 1546,
+      "exact_3_to_10": 821,
+      "max_parses": 6,
+      "strings": 6182
+    },
+    "4": {
+      "above_10": 845,
+      "ambiguous": 89381,
+      "at_least_max": 0,
+      "exact_2": 43705,
+      "exact_3_to_10": 44831,
+      "max_parses": 17,
+      "strings": 167368
+    }
+  },
+  "shortest_ambiguous": [
+    {
+      "parses": 2,
+      "tokens": "DELTA DELTA"
+    },
+    {
+      "parses": 2,
+      "tokens": "DELTA ELLIPSIS"
+    },
+    {
+      "parses": 2,
+      "tokens": "DELTA INF"
+    },
+    {
+      "parses": 2,
+      "tokens": "DELTA INTEGRAL"
+    },
+    {
+      "parses": 2,
+      "tokens": "DELTA NUM"
+    },
+    {
+      "parses": 2,
+      "tokens": "DELTA PRODUCT"
+    },
+    {
+      "parses": 2,
+      "tokens": "DELTA SUM"
+    },
+    {
+      "parses": 2,
+      "tokens": "DELTA SYM"
+    },
+    {
+      "parses": 2,
+      "tokens": "DELTA WEAK_SYM"
+    },
+    {
+      "parses": 2,
+      "tokens": "INTEGRAL DELTA"
+    },
+    {
+      "parses": 2,
+      "tokens": "INTEGRAL ELLIPSIS"
+    },
+    {
+      "parses": 2,
+      "tokens": "INTEGRAL INF"
+    },
+    {
+      "parses": 2,
+      "tokens": "INTEGRAL INTEGRAL"
+    },
+    {
+      "parses": 2,
+      "tokens": "INTEGRAL NUM"
+    },
+    {
+      "parses": 2,
+      "tokens": "INTEGRAL PRODUCT"
+    },
+    {
+      "parses": 2,
+      "tokens": "INTEGRAL SUM"
+    },
+    {
+      "parses": 2,
+      "tokens": "INTEGRAL SYM"
+    },
+    {
+      "parses": 2,
+      "tokens": "INTEGRAL WEAK_SYM"
+    },
+    {
+      "parses": 2,
+      "tokens": "NUM UNIT"
+    },
+    {
+      "parses": 2,
+      "tokens": "PRODUCT DELTA"
+    },
+    {
+      "parses": 2,
+      "tokens": "PRODUCT ELLIPSIS"
+    },
+    {
+      "parses": 2,
+      "tokens": "PRODUCT INF"
+    },
+    {
+      "parses": 2,
+      "tokens": "PRODUCT INTEGRAL"
+    },
+    {
+      "parses": 2,
+      "tokens": "PRODUCT NUM"
+    },
+    {
+      "parses": 2,
+      "tokens": "PRODUCT PRODUCT"
+    },
+    {
+      "parses": 2,
+      "tokens": "PRODUCT SUM"
+    },
+    {
+      "parses": 2,
+      "tokens": "PRODUCT SYM"
+    },
+    {
+      "parses": 2,
+      "tokens": "PRODUCT WEAK_SYM"
+    },
+    {
+      "parses": 2,
+      "tokens": "ROOT DELTA"
+    },
+    {
+      "parses": 2,
+      "tokens": "ROOT ELLIPSIS"
+    },
+    {
+      "parses": 2,
+      "tokens": "ROOT INF"
+    },
+    {
+      "parses": 2,
+      "tokens": "ROOT INTEGRAL"
+    },
+    {
+      "parses": 2,
+      "tokens": "ROOT NUM"
+    },
+    {
+      "parses": 2,
+      "tokens": "ROOT PRODUCT"
+    },
+    {
+      "parses": 2,
+      "tokens": "ROOT SUM"
+    },
+    {
+      "parses": 2,
+      "tokens": "ROOT SYM"
+    },
+    {
+      "parses": 2,
+      "tokens": "ROOT WEAK_SYM"
+    },
+    {
+      "parses": 2,
+      "tokens": "SUM DELTA"
+    },
+    {
+      "parses": 2,
+      "tokens": "SUM ELLIPSIS"
+    },
+    {
+      "parses": 2,
+      "tokens": "SUM INF"
+    },
+    {
+      "parses": 2,
+      "tokens": "SUM INTEGRAL"
+    },
+    {
+      "parses": 2,
+      "tokens": "SUM NUM"
+    },
+    {
+      "parses": 2,
+      "tokens": "SUM PRODUCT"
+    },
+    {
+      "parses": 2,
+      "tokens": "SUM SUM"
+    },
+    {
+      "parses": 2,
+      "tokens": "SUM SYM"
+    },
+    {
+      "parses": 2,
+      "tokens": "SUM WEAK_SYM"
+    },
+    {
+      "parses": 2,
+      "tokens": "SYM NUM"
+    },
+    {
+      "parses": 6,
+      "tokens": "INTEGRAL SYM NUM"
+    },
+    {
+      "parses": 6,
+      "tokens": "ROOT NUM UNIT"
+    },
+    {
+      "parses": 5,
+      "tokens": "DELTA NUM UNIT"
+    },
+    {
+      "parses": 5,
+      "tokens": "INTEGRAL DELTA DELTA"
+    },
+    {
+      "parses": 5,
+      "tokens": "INTEGRAL DELTA ELLIPSIS"
+    },
+    {
+      "parses": 5,
+      "tokens": "INTEGRAL DELTA INF"
+    },
+    {
+      "parses": 5,
+      "tokens": "INTEGRAL DELTA INTEGRAL"
+    },
+    {
+      "parses": 5,
+      "tokens": "INTEGRAL DELTA NUM"
+    },
+    {
+      "parses": 5,
+      "tokens": "INTEGRAL DELTA PRODUCT"
+    },
+    {
+      "parses": 5,
+      "tokens": "INTEGRAL DELTA SUM"
+    },
+    {
+      "parses": 5,
+      "tokens": "INTEGRAL DELTA SYM"
+    },
+    {
+      "parses": 5,
+      "tokens": "INTEGRAL DELTA WEAK_SYM"
+    },
+    {
+      "parses": 5,
+      "tokens": "INTEGRAL INTEGRAL DELTA"
+    }
+  ],
+  "shortest_listed_cap": 60,
+  "start": "math_input",
+  "version": "grammar-ambiguity-v1"
+}
