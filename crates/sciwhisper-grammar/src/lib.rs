@@ -23,6 +23,7 @@
 pub mod consistency;
 pub mod earley;
 pub mod ebnf;
+pub mod generate;
 pub mod likelihood;
 pub mod pcfg;
 
