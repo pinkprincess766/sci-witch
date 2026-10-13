@@ -302,11 +302,10 @@ fn is_scalar(value: &Value) -> bool {
     !matches!(value, Value::Object(_) | Value::Array(_))
 }
 
+/// The scalar as JSON text, so a string keeps its quotes and `"1"` stays
+/// distinct from `1`.
 fn scalar_text(value: &Value) -> String {
-    match value {
-        Value::String(text) => text.clone(),
-        other => other.to_string(),
-    }
+    value.to_string()
 }
 
 /// Cost of turning label `a` into label `b`.
@@ -482,7 +481,10 @@ mod tests {
     #[test]
     fn a_number_and_its_string_spelling_are_not_at_distance_zero() {
         let pairs = [
-            (serde_json::json!({"Number": 1}), serde_json::json!({"Number": "1"})),
+            (
+                serde_json::json!({"Number": 1}),
+                serde_json::json!({"Number": "1"}),
+            ),
             (serde_json::json!(1), serde_json::json!("1")),
             (serde_json::json!(true), serde_json::json!("true")),
         ];
