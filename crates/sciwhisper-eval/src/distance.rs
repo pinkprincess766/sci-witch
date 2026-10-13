@@ -302,11 +302,10 @@ fn is_scalar(value: &Value) -> bool {
     !matches!(value, Value::Object(_) | Value::Array(_))
 }
 
+/// The scalar as JSON text, so a string keeps its quotes and `"1"` stays
+/// distinct from `1`.
 fn scalar_text(value: &Value) -> String {
-    match value {
-        Value::String(text) => text.clone(),
-        other => other.to_string(),
-    }
+    value.to_string()
 }
 
 /// Cost of turning label `a` into label `b`.
@@ -475,6 +474,24 @@ mod tests {
         let weights = Weights::builtin();
         assert!(weights.kind_change <= weights.delete + weights.insert);
         assert_eq!(weights.delete, weights.insert);
+    }
+
+    /// A number and the string with the same digits are different values,
+    /// as a field and as a leaf, so they must not be at distance zero.
+    #[test]
+    fn a_number_and_its_string_spelling_are_not_at_distance_zero() {
+        let pairs = [
+            (
+                serde_json::json!({"Number": 1}),
+                serde_json::json!({"Number": "1"}),
+            ),
+            (serde_json::json!(1), serde_json::json!("1")),
+            (serde_json::json!(true), serde_json::json!("true")),
+        ];
+        for (a, b) in &pairs {
+            assert_ne!(a, b);
+            assert!(distance(a, b) > 0.0, "{a} and {b} are at distance zero");
+        }
     }
 
     /// The axioms are argued in the module documentation; here they are
