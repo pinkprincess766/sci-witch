@@ -1,9 +1,12 @@
 //! Research-only entry points. Not part of the stable compiler surface;
 //! signatures here may change without notice.
 
+use std::collections::BTreeSet;
+
 use crate::coordination::{Coordination, MaterialClasses, Refusal as CoordRefusal, SphereKind};
+use crate::lattice::vocabulary_names;
 use crate::lexicon::{ChemConnective, IonRole, Lexicon};
-use crate::normalize::words as split_words;
+use crate::normalize::{normalize_word, words as split_words};
 use crate::numbers::NumberLex;
 use crate::organic::{Organic, Refusal as OrganicRefusal};
 use crate::parser::chemistry::{
@@ -29,6 +32,87 @@ pub fn math_token_classes(text: &str, physics: bool) -> Result<Vec<String>, Stri
         .map(Tok::class_name)
         .map(str::to_string)
         .collect())
+}
+
+/// Most edits [`nearest_lexicon_words`] allows. One vowel swap is 1,
+/// «гидраксид»→«гидроксид» is 1, «сернея»→«серная» is 1, «кидроксидж»→«гидроксид»
+/// (one substitution, one deletion) is 2. A larger limit starts to reach
+/// unrelated words: at 3 edits a six-letter word is half rewritten.
+pub const MAX_WORD_EDITS: usize = 2;
+
+/// Shortest word [`nearest_lexicon_words`] tries to correct; the same bound as
+/// the lattice's `MIN_REPAIR_WORD_CHARS`. A short word has too many neighbours
+/// within two edits.
+pub const MIN_CORRECTED_WORD_CHARS: usize = 5;
+
+/// The lexicon words nearest to `word` by Levenshtein distance, with that
+/// distance `d`, if `1 <= d <=` [`MAX_WORD_EDITS`]. All ties are returned,
+/// sorted and without duplicates; no choice is made here. `None` if `word` is
+/// itself a vocabulary word, is shorter than [`MIN_CORRECTED_WORD_CHARS`]
+/// characters, is not a single word, or nothing is within the limit.
+///
+/// Vocabulary: the names the lattice's `known_word` accepts (element, anion
+/// and substance names), plus each word of a multi-word substance name taken
+/// on its own, so that «сернея» can reach «серная» of «серная кислота». This
+/// is wider than `known_word`, which compares a single word with a whole name.
+///
+/// Distance is over `char`s with unit costs for insert, delete and
+/// substitute. `word` is lowercased and ё becomes е (`normalize_word`, as for
+/// lattice words); the spelling fixes of `normalize::words` are not applied,
+/// so «гидраксид» is seen as heard. Cost is bounded by the vocabulary, not by
+/// the length of `word`: a vocabulary word whose length differs by more than
+/// [`MAX_WORD_EDITS`] is skipped without a table.
+///
+/// Research API: not part of the stable surface, may change without notice.
+pub fn nearest_lexicon_words(word: &str) -> Option<(usize, Vec<String>)> {
+    let normalized = normalize_word(word);
+    if normalized.split_whitespace().count() != 1 {
+        return None;
+    }
+    let heard: Vec<char> = normalized.chars().collect();
+    if heard.len() < MIN_CORRECTED_WORD_CHARS {
+        return None;
+    }
+    let vocabulary: BTreeSet<&str> = vocabulary_names(Lexicon::builtin())
+        .flat_map(|name| name.split_whitespace())
+        .collect();
+    if vocabulary.contains(normalized.as_str()) {
+        return None;
+    }
+    let mut best = MAX_WORD_EDITS + 1;
+    let mut nearest: Vec<String> = Vec::new();
+    for candidate in vocabulary {
+        let candidate_chars: Vec<char> = candidate.chars().collect();
+        if candidate_chars.len().abs_diff(heard.len()) > MAX_WORD_EDITS {
+            continue;
+        }
+        let distance = levenshtein(&heard, &candidate_chars);
+        if distance < best {
+            best = distance;
+            nearest.clear();
+        }
+        if distance == best {
+            nearest.push(candidate.to_string());
+        }
+    }
+    // The set iterates in order, so `nearest` is already sorted.
+    (best <= MAX_WORD_EDITS).then_some((best, nearest))
+}
+
+/// Unit-cost edit distance over characters, two rows of the textbook table.
+fn levenshtein(a: &[char], b: &[char]) -> usize {
+    let mut previous: Vec<usize> = (0..=b.len()).collect();
+    for (i, &ca) in a.iter().enumerate() {
+        let mut current = vec![i + 1];
+        for (j, &cb) in b.iter().enumerate() {
+            let substitute = previous[j] + usize::from(ca != cb);
+            let delete = previous[j + 1] + 1;
+            let insert = current[j] + 1;
+            current.push(substitute.min(delete).min(insert));
+        }
+        previous = current;
+    }
+    previous[b.len()]
 }
 
 /// Terminals of `docs/grammar/chem.ebnf` that [`chem_token_classes`] returns.
@@ -670,5 +754,195 @@ mod tests {
         let physics = math_token_classes("два метра", true).unwrap();
         assert_eq!(physics, ["NUM", "UNIT"]);
         assert!(math_token_classes("два метра", false).is_err());
+    }
+}
+
+#[cfg(test)]
+mod nearest_word_tests {
+    use super::*;
+
+    /// `nearest_lexicon_words` with the words as `&str`, to compare with literals.
+    fn nearest(word: &str) -> Option<(usize, Vec<String>)> {
+        nearest_lexicon_words(word)
+    }
+
+    fn found(distance: usize, words: &[&str]) -> Option<(usize, Vec<String>)> {
+        Some((distance, words.iter().map(|w| w.to_string()).collect()))
+    }
+
+    fn chars(word: &str) -> Vec<char> {
+        word.chars().collect()
+    }
+
+    #[test]
+    fn levenshtein_matches_hand_computed_distances_on_cyrillic() {
+        let d = |a: &str, b: &str| levenshtein(&chars(a), &chars(b));
+        assert_eq!(d("", ""), 0);
+        assert_eq!(d("", "аб"), 2);
+        assert_eq!(d("вода", "вода"), 0);
+        // a -> o: one substitution
+        assert_eq!(d("карбанат", "карбонат"), 1);
+        // «котик» -> «кошка»: т->ш, и->к, к->а = 3
+        assert_eq!(d("котик", "кошка"), 3);
+        // «гырдксд» -> «гидроксид»: LCS is г р к с д = 5, so at least
+        // 9 - 5 = 4 edits (ы->и, +д, +о, +и), and that alignment achieves 4.
+        assert_eq!(d("гырдксд", "гидроксид"), 4);
+        // A multi-byte letter is one edit, not two bytes.
+        assert_eq!(d("ё", "е"), 1);
+    }
+
+    #[test]
+    fn the_asr_error_words_find_their_lexicon_word() {
+        // а->о
+        assert_eq!(nearest("карбанат"), found(1, &["карбонат"]));
+        // а->о
+        assert_eq!(nearest("хларид"), found(1, &["хлорид"]));
+        // а->о, as heard: `nearest_lexicon_words` does not apply the
+        // spelling fixes of `normalize::words`.
+        assert_eq!(nearest("гидраксид"), found(1, &["гидроксид"]));
+        // е->а at index 4 («серн-е-я» vs «серн-а-я»). «серная» is a word of the
+        // substance name «серная кислота»: see the multi-word test.
+        assert_eq!(nearest("сернея"), found(1, &["серная"]));
+    }
+
+    #[test]
+    fn two_edits_are_found_and_three_are_not() {
+        // к->г, then delete ж: 2. «гидроксида» is also 2 (к->г, ж->а): a tie.
+        assert_eq!(
+            nearest("кидроксидж"),
+            found(2, &["гидроксид", "гидроксида"])
+        );
+        // Exactly MAX_WORD_EDITS + 1: «карбонат» with а->е, о->е, а->и.
+        assert_eq!(MAX_WORD_EDITS, 2);
+        assert_eq!(levenshtein(&chars("кербенит"), &chars("карбонат")), 3);
+        assert_eq!(nearest("кербенит"), None);
+        // «гырдксд» is 4 from «гидроксид» (see the Levenshtein test).
+        assert_eq!(nearest("гырдксд"), None);
+        // Letters only: nothing within 2 edits.
+        assert_eq!(nearest("абвгдежзи"), None);
+    }
+
+    #[test]
+    fn a_vocabulary_word_a_short_word_and_non_words_give_none() {
+        assert_eq!(nearest("натрия"), None);
+        assert_eq!(nearest("хлорид"), None);
+        // Case and ё do not matter, as for lattice words.
+        assert_eq!(nearest("Хлорид"), None);
+        assert_eq!(nearest("КАРБАНАТ"), found(1, &["карбонат"]));
+        // 4 characters: one below the minimum, although «сера» is not far.
+        assert_eq!(MIN_CORRECTED_WORD_CHARS, 5);
+        assert_eq!(nearest("серо"), None);
+        // Length counts characters, not bytes: «серо» is 4 characters and 8
+        // bytes, and still too short.
+        assert!("серо".len() >= MIN_CORRECTED_WORD_CHARS);
+        assert_eq!(nearest("жлз"), None);
+        // Two words, empty, and punctuation are not one word.
+        assert_eq!(nearest("карбанат кальция"), None);
+        assert_eq!(nearest(""), None);
+    }
+
+    #[test]
+    fn the_shortest_word_is_corrected_and_the_one_below_it_is_not() {
+        // A vocabulary word of exactly MIN_CORRECTED_WORD_CHARS characters,
+        // with one letter broken.
+        let five = vocabulary_names(Lexicon::builtin())
+            .find(|w| w.chars().count() == MIN_CORRECTED_WORD_CHARS && !w.contains(' '))
+            .expect("the lexicon has a five-letter word");
+        let mut broken = chars(five);
+        broken[1] = 'ъ';
+        let broken: String = broken.into_iter().collect();
+        let (distance, words) = nearest_lexicon_words(&broken).expect("five letters are tried");
+        assert_eq!(distance, 1);
+        assert!(words.iter().any(|w| w == five), "{broken} -> {words:?}");
+        // The same break on a four-letter word is not tried.
+        let four: String = broken.chars().take(MIN_CORRECTED_WORD_CHARS - 1).collect();
+        assert_eq!(nearest_lexicon_words(&four), None);
+    }
+
+    #[test]
+    fn every_tie_is_returned_sorted() {
+        // «серный» (ы) and «серной» (о) differ in one letter; «сернуй» is one
+        // substitution from each. Sorted by code point: о (U+043E) < ы (U+044B).
+        assert_eq!(nearest("сернуй"), found(1, &["серной", "серный"]));
+    }
+
+    #[test]
+    fn a_word_of_a_multi_word_name_is_vocabulary_but_the_lattice_does_not_know_it() {
+        let lex = Lexicon::builtin();
+        // The substance name is two words and `known_word` compares one word
+        // with a whole name, so it does not accept «серная» alone.
+        assert!(vocabulary_names(lex).any(|n| n == "серная кислота"));
+        assert!(!vocabulary_names(lex).any(|n| n == "серная"));
+        // Taking the words apart makes «серная» a vocabulary word: itself it
+        // is not corrected, and its neighbour is.
+        assert_eq!(nearest("серная"), None);
+        assert_eq!(nearest("сернея"), found(1, &["серная"]));
+        // The second word of a name counts too: «кислота» -> «кислата».
+        assert_eq!(nearest("кислата"), found(1, &["кислота"]));
+    }
+
+    #[test]
+    fn a_huge_word_is_rejected_by_length_without_a_table() {
+        let huge = "а".repeat(1 << 20);
+        assert_eq!(nearest_lexicon_words(&huge), None);
+    }
+
+    fn prose_negative_words() -> Vec<String> {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../research/data/prose-negatives-v2.jsonl"
+        );
+        let text = std::fs::read_to_string(path).expect("prose-negatives-v2.jsonl");
+        let mut words = Vec::new();
+        let mut rows = 0;
+        for line in text.lines().filter(|l| !l.trim().is_empty()) {
+            let row: serde_json::Value = serde_json::from_str(line).expect("a JSON row");
+            let transcript = row["human_transcript"].as_str().expect("human_transcript");
+            // The words the lattice sees; only letters, as a number or a
+            // symbol is not a word to correct.
+            words.extend(
+                split_words(transcript)
+                    .into_iter()
+                    .filter(|w| w.chars().all(char::is_alphabetic))
+                    .filter(|w| w.chars().count() >= MIN_CORRECTED_WORD_CHARS),
+            );
+            rows += 1;
+        }
+        // A reader that found nothing would report "0 of 0" as safe.
+        assert_eq!(rows, 180, "prose-negatives-v2.jsonl rows");
+        words
+    }
+
+    #[test]
+    fn report_how_many_ordinary_words_get_an_answer() {
+        let words = prose_negative_words();
+        assert!(words.len() > 500, "only {} words read", words.len());
+        let distinct: BTreeSet<&String> = words.iter().collect();
+        let mut hits: Vec<(usize, String)> = distinct
+            .iter()
+            .filter_map(|w| {
+                let (d, near) = nearest_lexicon_words(w)?;
+                Some((d, format!("{w} -> {near:?} (d={d})")))
+            })
+            .collect();
+        hits.sort();
+        let by_distance = |d: usize| hits.iter().filter(|(hit_d, _)| *hit_d == d).count();
+        let occurrences = words
+            .iter()
+            .filter(|w| nearest_lexicon_words(w).is_some())
+            .count();
+        eprintln!(
+            "prose-negatives-v2: {} words >= {} chars, {} distinct; {} words ({} distinct) get an answer: d=1 {}, d=2 {}",
+            words.len(),
+            MIN_CORRECTED_WORD_CHARS,
+            distinct.len(),
+            occurrences,
+            hits.len(),
+            by_distance(1),
+            by_distance(2),
+        );
+        for (_, hit) in hits.iter().take(20) {
+            eprintln!("  {hit}");
+        }
     }
 }
