@@ -14,7 +14,7 @@ $PY research/asr/whisper_hypotheses.py greedy research/voice-samples/synthetic/q
   --model base --out /tmp/greedy.json
 ```
 
-Режим выборки (`best_of=N` при температуре больше нуля, seed обязателен):
+Режим выборки (`best_of=N` при температуре больше нуля; seed и `--best-of` обязательны):
 
 ```bash
 $PY research/asr/whisper_hypotheses.py sample research/voice-samples/synthetic/quadratic.caf \
@@ -26,7 +26,7 @@ $PY research/asr/whisper_hypotheses.py sample research/voice-samples/synthetic/q
 [Протокол вопроса 1](../protocol/question-1-nbest.md) собирает список из K гипотез отдельными прогонами скрипта. Каждый прогон отдаёт одну гипотезу:
 
 - гипотеза 1 — `greedy`;
-- гипотезы 2…K — `sample --best-of 1 --temperature T --seed s`, по одному прогону на каждый из K − 1 seed, в порядке seed. Совпадающие тексты не схлопываются. Флаг `--best-of 1` писать явно: по умолчанию у `sample` `best_of` = 5 (`DEFAULT_BEST_OF`).
+- гипотезы 2…K — `sample --best-of 1 --temperature T --seed s`, по одному прогону на каждый из K − 1 seed, в порядке seed. Совпадающие тексты не схлопываются. Флаг `--best-of` у `sample` обязателен: без него скрипт не запустится, поэтому режим не выбирается молча.
 
 `sample --best-of 5` — отдельный режим протокола: Whisper сам делает пять выборок и отдаёт одну, лучшую по `sum/len`. В список вопроса 1 его выход не входит. Температура и seed берутся из раздела «Запечатано» протокола; пока он пуст, числа в примерах выше — только для проверки скрипта.
 
