@@ -1,0 +1,654 @@
+{
+  "asr_error_phrases": [
+    {
+      "human_transcript": "карбанат кальция",
+      "id": "amb-asr-carbonate-001-a",
+      "target_action": "ast",
+      "variants": {
+        "d1_unique": {
+          "correct": true,
+          "text": "карбонат кальция"
+        },
+        "d2_unique": {
+          "correct": true,
+          "text": "карбонат кальция"
+        },
+        "none": {
+          "correct": false,
+          "text": "карбанат кальция"
+        }
+      }
+    },
+    {
+      "human_transcript": "хларид натрия",
+      "id": "amb-asr-chloride-001-a",
+      "target_action": "ast",
+      "variants": {
+        "d1_unique": {
+          "correct": true,
+          "text": "хлорид натрия"
+        },
+        "d2_unique": {
+          "correct": true,
+          "text": "хлорид натрия"
+        },
+        "none": {
+          "correct": false,
+          "text": "хларид натрия"
+        }
+      }
+    },
+    {
+      "human_transcript": "гидраксид железа три",
+      "id": "amb-asr-hydroxide-001-a",
+      "target_action": "ast",
+      "variants": {
+        "d1_unique": {
+          "correct": true,
+          "text": "гидроксид железа три"
+        },
+        "d2_unique": {
+          "correct": true,
+          "text": "гидроксид железа три"
+        },
+        "none": {
+          "correct": true,
+          "text": "гидраксид железа три"
+        }
+      }
+    },
+    {
+      "human_transcript": "кидроксидж лезо три",
+      "id": "amb-asr-hydroxide-001-b",
+      "target_action": "ast",
+      "variants": {
+        "d1_unique": {
+          "correct": true,
+          "text": "кидроксидж лезо три"
+        },
+        "d2_unique": {
+          "correct": true,
+          "text": "кидроксидж лезо три"
+        },
+        "none": {
+          "correct": true,
+          "text": "кидроксидж лезо три"
+        }
+      }
+    },
+    {
+      "human_transcript": "сернея кислота",
+      "id": "amb-asr-sulfuric-001-a",
+      "target_action": "ast",
+      "variants": {
+        "d1_unique": {
+          "correct": true,
+          "text": "серная кислота"
+        },
+        "d2_unique": {
+          "correct": true,
+          "text": "серная кислота"
+        },
+        "none": {
+          "correct": false,
+          "text": "сернея кислота"
+        }
+      }
+    },
+    {
+      "human_transcript": "гырдксд жлз тр",
+      "id": "amb-asr-unrepairable-001-a",
+      "target_action": "raw",
+      "variants": {
+        "d1_unique": {
+          "correct": true,
+          "text": "гырдксд жлз тр"
+        },
+        "d2_unique": {
+          "correct": true,
+          "text": "гырдксд жлз тр"
+        },
+        "none": {
+          "correct": true,
+          "text": "гырдксд жлз тр"
+        }
+      }
+    }
+  ],
+  "corpora": {
+    "ambiguous-v2": {
+      "dev_holdout_skipped": 9,
+      "variants": {
+        "d1_unique": {
+          "changed_phrases": [
+            {
+              "correct_after": true,
+              "correct_before": false,
+              "id": "amb-asr-carbonate-001-a",
+              "repaired": "карбонат кальция"
+            },
+            {
+              "correct_after": true,
+              "correct_before": false,
+              "id": "amb-asr-chloride-001-a",
+              "repaired": "хлорид натрия"
+            },
+            {
+              "correct_after": true,
+              "correct_before": true,
+              "id": "amb-asr-hydroxide-001-a",
+              "repaired": "гидроксид железа три"
+            },
+            {
+              "correct_after": true,
+              "correct_before": false,
+              "id": "amb-asr-sulfuric-001-a",
+              "repaired": "серная кислота"
+            }
+          ],
+          "correct": 32,
+          "false_scientific_rewrites": 0,
+          "newly_correct": 3,
+          "newly_wrong": 0,
+          "phrases": 49,
+          "ties_left": 0,
+          "words_replaced": 4
+        },
+        "d2_unique": {
+          "changed_phrases": [
+            {
+              "correct_after": true,
+              "correct_before": false,
+              "id": "amb-asr-carbonate-001-a",
+              "repaired": "карбонат кальция"
+            },
+            {
+              "correct_after": true,
+              "correct_before": false,
+              "id": "amb-asr-chloride-001-a",
+              "repaired": "хлорид натрия"
+            },
+            {
+              "correct_after": true,
+              "correct_before": true,
+              "id": "amb-asr-hydroxide-001-a",
+              "repaired": "гидроксид железа три"
+            },
+            {
+              "correct_after": true,
+              "correct_before": false,
+              "id": "amb-asr-sulfuric-001-a",
+              "repaired": "серная кислота"
+            },
+            {
+              "correct_after": false,
+              "correct_before": false,
+              "id": "amb-frame-between-zn-001-a",
+              "repaired": "реакция между цинком и соляная кислотой с образованием хлорида цинка и водорода"
+            },
+            {
+              "correct_after": true,
+              "correct_before": true,
+              "id": "amb-frame-result-zn-001-a",
+              "repaired": "цинк взаимодействует с соляная кислотой, в результате получается хлорид цинка и водород"
+            },
+            {
+              "correct_after": true,
+              "correct_before": true,
+              "id": "amb-frame-result-zn-001-b",
+              "repaired": "цинк реагирует с соляная кислотой, получается хлорид цинка и водород"
+            },
+            {
+              "correct_after": true,
+              "correct_before": true,
+              "id": "amb-neg-integral-001-a",
+              "repaired": "интегральная цинка курса"
+            },
+            {
+              "correct_after": true,
+              "correct_before": true,
+              "id": "amb-neg-reaction-001-a",
+              "repaired": "реакция была серной"
+            },
+            {
+              "correct_after": false,
+              "correct_before": false,
+              "id": "amb-order-parenthetical-001-a",
+              "repaired": "реакция, как мы сера обсуждали, идёт между натрием и хлором с образованием хлорида натрия"
+            }
+          ],
+          "correct": 32,
+          "false_scientific_rewrites": 0,
+          "newly_correct": 3,
+          "newly_wrong": 0,
+          "phrases": 49,
+          "ties_left": 11,
+          "words_replaced": 10
+        },
+        "none": {
+          "changed_phrases": [],
+          "correct": 29,
+          "false_scientific_rewrites": 0,
+          "newly_correct": 0,
+          "newly_wrong": 0,
+          "phrases": 49,
+          "ties_left": 0,
+          "words_replaced": 0
+        }
+      }
+    },
+    "dev-seed-v3": {
+      "dev_holdout_skipped": 21,
+      "variants": {
+        "d1_unique": {
+          "changed_phrases": [
+            {
+              "correct_after": true,
+              "correct_before": true,
+              "id": "raw-two-words-001-a",
+              "repaired": "он сказал два олова"
+            }
+          ],
+          "correct": 92,
+          "false_scientific_rewrites": 0,
+          "newly_correct": 0,
+          "newly_wrong": 0,
+          "phrases": 92,
+          "ties_left": 0,
+          "words_replaced": 1
+        },
+        "d2_unique": {
+          "changed_phrases": [
+            {
+              "correct_after": false,
+              "correct_before": true,
+              "id": "chem-methane-001-a",
+              "repaired": "титан"
+            },
+            {
+              "correct_after": false,
+              "correct_before": true,
+              "id": "chem-zinc-ferrite-001-a",
+              "repaired": "феррум цинка"
+            },
+            {
+              "correct_after": false,
+              "correct_before": true,
+              "id": "math-deriv-first-001-b",
+              "repaired": "серная производная эф по икс"
+            },
+            {
+              "correct_after": false,
+              "correct_before": true,
+              "id": "phys-compatible-lengths-001-a",
+              "repaired": "три сера плюс четыре сантиметра"
+            },
+            {
+              "correct_after": false,
+              "correct_before": true,
+              "id": "phys-integral-work-001-a",
+              "repaired": "интеграл пять ньютонов по два сера"
+            },
+            {
+              "correct_after": false,
+              "correct_before": true,
+              "id": "phys-inverse-metre-001-a",
+              "repaired": "один метр в минус серной"
+            },
+            {
+              "correct_after": false,
+              "correct_before": true,
+              "id": "phys-length-001-a",
+              "repaired": "три сера"
+            },
+            {
+              "correct_after": false,
+              "correct_before": true,
+              "id": "phys-mismatch-length-time-001-a",
+              "repaired": "три сера плюс четыре секунды"
+            },
+            {
+              "correct_after": false,
+              "correct_before": true,
+              "id": "phys-volt-001-a",
+              "repaired": "пять соль"
+            },
+            {
+              "correct_after": true,
+              "correct_before": true,
+              "id": "raw-ferrite-antenna-001-a",
+              "repaired": "феррум используется в антеннах"
+            },
+            {
+              "correct_after": true,
+              "correct_before": true,
+              "id": "raw-incomplete-second-derivative-001-a",
+              "repaired": "фтора производная"
+            },
+            {
+              "correct_after": true,
+              "correct_before": true,
+              "id": "raw-two-words-001-a",
+              "repaired": "он сказал два олова"
+            },
+            {
+              "correct_after": true,
+              "correct_before": true,
+              "id": "raw-violent-reaction-001-a",
+              "repaired": "реакция была серной"
+            }
+          ],
+          "correct": 83,
+          "false_scientific_rewrites": 0,
+          "newly_correct": 0,
+          "newly_wrong": 9,
+          "phrases": 92,
+          "ties_left": 1,
+          "words_replaced": 13
+        },
+        "none": {
+          "changed_phrases": [],
+          "correct": 92,
+          "false_scientific_rewrites": 0,
+          "newly_correct": 0,
+          "newly_wrong": 0,
+          "phrases": 92,
+          "ties_left": 0,
+          "words_replaced": 0
+        }
+      }
+    },
+    "nomenclature-v1": {
+      "dev_holdout_skipped": 0,
+      "variants": {
+        "d1_unique": {
+          "changed_phrases": [],
+          "correct": 53,
+          "false_scientific_rewrites": 0,
+          "newly_correct": 0,
+          "newly_wrong": 0,
+          "phrases": 53,
+          "ties_left": 0,
+          "words_replaced": 0
+        },
+        "d2_unique": {
+          "changed_phrases": [
+            {
+              "correct_after": false,
+              "correct_before": true,
+              "id": "material-zinc-ferrite-a",
+              "repaired": "феррум цинка"
+            },
+            {
+              "correct_after": false,
+              "correct_before": true,
+              "id": "material-zinc-ferrite-adj-a",
+              "repaired": "цинковый феррум"
+            },
+            {
+              "correct_after": true,
+              "correct_before": true,
+              "id": "prose-ferrite-unstable-a",
+              "repaired": "феррум оказался нестабильным"
+            },
+            {
+              "correct_after": true,
+              "correct_before": true,
+              "id": "prose-copper-complex-a",
+              "repaired": "комплекс меди изучали сера"
+            },
+            {
+              "correct_after": false,
+              "correct_before": true,
+              "id": "neg-ferrite-barium-a",
+              "repaired": "феррум бария"
+            },
+            {
+              "correct_after": false,
+              "correct_before": true,
+              "id": "neg-ferrite-copper-a",
+              "repaired": "феррум меди"
+            },
+            {
+              "correct_after": false,
+              "correct_before": true,
+              "id": "organic-octane-a",
+              "repaired": "титан"
+            },
+            {
+              "correct_after": false,
+              "correct_before": true,
+              "id": "organic-neg-methene-a",
+              "repaired": "селен"
+            },
+            {
+              "correct_after": false,
+              "correct_before": true,
+              "id": "organic-neg-methyne-a",
+              "repaired": "меди"
+            },
+            {
+              "correct_after": true,
+              "correct_before": true,
+              "id": "organic-prose-boiling-a",
+              "repaired": "пентан пирит при тридцати шести градусах"
+            },
+            {
+              "correct_after": true,
+              "correct_before": true,
+              "id": "organic-prose-isomers-a",
+              "repaired": "мы обсуждали титан и его изомеры"
+            }
+          ],
+          "correct": 46,
+          "false_scientific_rewrites": 4,
+          "newly_correct": 0,
+          "newly_wrong": 7,
+          "phrases": 53,
+          "ties_left": 1,
+          "words_replaced": 11
+        },
+        "none": {
+          "changed_phrases": [],
+          "correct": 53,
+          "false_scientific_rewrites": 0,
+          "newly_correct": 0,
+          "newly_wrong": 0,
+          "phrases": 53,
+          "ties_left": 0,
+          "words_replaced": 0
+        }
+      }
+    },
+    "prose-negatives-v2": {
+      "dev_holdout_skipped": 34,
+      "variants": {
+        "d1_unique": {
+          "changed_phrases": [
+            {
+              "correct_after": true,
+              "correct_before": true,
+              "id": "prose-reaction-frame-ion-marker-001",
+              "repaired": "Ион я впервые услышал это олово в школе."
+            }
+          ],
+          "correct": 146,
+          "false_scientific_rewrites": 0,
+          "newly_correct": 0,
+          "newly_wrong": 0,
+          "phrases": 146,
+          "ties_left": 1,
+          "words_replaced": 1
+        },
+        "d2_unique": {
+          "changed_phrases": [
+            {
+              "correct_after": true,
+              "correct_before": true,
+              "id": "prose-function-word-preposition-u-001",
+              "repaired": "Водород у нас закончился ещё сера."
+            },
+            {
+              "correct_after": true,
+              "correct_before": true,
+              "id": "prose-function-word-preposition-v-002",
+              "repaired": "Углерод в этой пробе явно литий."
+            },
+            {
+              "correct_after": true,
+              "correct_before": true,
+              "id": "prose-greek-word-alpha-omega-001",
+              "repaired": "Альфа и омега всей методики — кислота посуды."
+            },
+            {
+              "correct_after": true,
+              "correct_before": true,
+              "id": "prose-greek-word-kappa-001",
+              "repaired": "Каппа коэффициент взят из стирол статьи."
+            },
+            {
+              "correct_after": true,
+              "correct_before": true,
+              "id": "prose-greek-word-omega-001",
+              "repaired": "Омега три полезны для сосудов, так пирит."
+            },
+            {
+              "correct_after": true,
+              "correct_before": true,
+              "id": "prose-homonym-derivative-002",
+              "repaired": "Производная от этой идеи азота была опубликована позже."
+            },
+            {
+              "correct_after": true,
+              "correct_before": true,
+              "id": "prose-homonym-integral-001",
+              "repaired": "Интегральная цинка курса складывается из трёх частей."
+            },
+            {
+              "correct_after": true,
+              "correct_before": true,
+              "id": "prose-homonym-limit-002",
+              "repaired": "серу есть предел, и этому эксперименту тоже."
+            },
+            {
+              "correct_after": true,
+              "correct_before": true,
+              "id": "prose-homonym-limit-003",
+              "repaired": "Мы подошли к пределу того, что можно сделать за серу."
+            },
+            {
+              "correct_after": true,
+              "correct_before": true,
+              "id": "prose-homonym-solution-001",
+              "repaired": "Раствор проблемы нашёлся сам водой."
+            },
+            {
+              "correct_after": true,
+              "correct_before": true,
+              "id": "prose-homonym-sum-001",
+              "repaired": "Сумма нитрат превысила запланированную."
+            },
+            {
+              "correct_after": true,
+              "correct_before": true,
+              "id": "prose-homonym-work-001",
+              "repaired": "азота над ошибками заняла больше времени, чем сами опыты."
+            },
+            {
+              "correct_after": true,
+              "correct_before": true,
+              "id": "prose-number-ordinal-001",
+              "repaired": "Во хлором случае результат оказался устойчивее."
+            },
+            {
+              "correct_after": true,
+              "correct_before": true,
+              "id": "prose-paragraph-long-002",
+              "repaired": "Предел, до которого можно довести кислоту в наших условиях, определяется не методикой, а состоянием вытяжки."
+            },
+            {
+              "correct_after": true,
+              "correct_before": true,
+              "id": "prose-reaction-frame-forward-001",
+              "repaired": "медь магний в комитете превращается в бесконечное обсуждение."
+            },
+            {
+              "correct_after": true,
+              "correct_before": true,
+              "id": "prose-reaction-frame-interacts-003",
+              "repaired": "Эта методика олово взаимодействует с существующим оборудованием."
+            },
+            {
+              "correct_after": true,
+              "correct_before": true,
+              "id": "prose-reaction-frame-ion-marker-001",
+              "repaired": "Ион я впервые услышал это олово в школе."
+            },
+            {
+              "correct_after": true,
+              "correct_before": true,
+              "id": "prose-substance-mention-ammonia-001",
+              "repaired": "Аммиаком пахло по серу коридору."
+            },
+            {
+              "correct_after": true,
+              "correct_before": true,
+              "id": "prose-substance-mention-methane-001",
+              "repaired": "титан в этой меди нас не интересует."
+            },
+            {
+              "correct_after": true,
+              "correct_before": true,
+              "id": "prose-amount-compound-002",
+              "repaired": "Шланг оказался длиной три сера пять сантиметров."
+            },
+            {
+              "correct_after": true,
+              "correct_before": true,
+              "id": "prose-amount-gram-002",
+              "repaired": "На весах было двести граммов, хотя кали больше."
+            },
+            {
+              "correct_after": true,
+              "correct_before": true,
+              "id": "prose-amount-litre-001",
+              "repaired": "калий два литра воды в кастрюлю."
+            },
+            {
+              "correct_after": true,
+              "correct_before": true,
+              "id": "prose-conjunction-operand-amounts-001",
+              "repaired": "Отрезок был три сера и ещё четыре сера запаса."
+            }
+          ],
+          "correct": 146,
+          "false_scientific_rewrites": 0,
+          "newly_correct": 0,
+          "newly_wrong": 0,
+          "phrases": 146,
+          "ties_left": 8,
+          "words_replaced": 26
+        },
+        "none": {
+          "changed_phrases": [],
+          "correct": 146,
+          "false_scientific_rewrites": 0,
+          "newly_correct": 0,
+          "newly_wrong": 0,
+          "phrases": 146,
+          "ties_left": 0,
+          "words_replaced": 0
+        }
+      }
+    }
+  },
+  "note": "Each letter-run of human_transcript is replaced by its nearest lexicon word before interpret, at distance 1 (d1_unique) or at most 2 (d2_unique), only when exactly one word is nearest. Ties are never resolved: ties_left counts the words left alone because several lexicon words were equally near within the variant's limit. Correct means the harness's deterministic decision (first candidate, confidence at least 0.9, otherwise the words stay) equals the corpus target. The dev_holdout split was skipped before its text was read, so this is an evaluation of a fixed rule on the other splits, not a fit. The rule is research code and is not wired into lattice or interpret.",
+  "report": "word-repair-v1",
+  "rule": {
+    "auto_insert_threshold": 0.8999999761581421,
+    "domain": "auto",
+    "function": "sciwhisper_core::research::nearest_lexicon_words",
+    "max_word_edits": 2,
+    "min_corrected_word_chars": 5
+  }
+}
