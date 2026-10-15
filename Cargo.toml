@@ -29,6 +29,7 @@ description = "Compiler from transcribed Russian scientific speech to a typed st
 sciwhisper-core = { path = "crates/sciwhisper-core" }
 sciwhisper-asr = { path = "crates/sciwhisper-asr" }
 sciwhisper-eval = { path = "crates/sciwhisper-eval" }
+sciwhisper-grammar = { path = "crates/sciwhisper-grammar" }
 serde = { version = "1", features = ["derive"] }
 serde_yaml = "0.9"
 thiserror = "2"
