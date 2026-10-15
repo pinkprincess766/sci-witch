@@ -941,6 +941,23 @@ fn known_word(lex: &Lexicon, word: &str) -> bool {
             .any(|item| item.names.iter().any(|name| name == word))
 }
 
+/// Every name the lexicon reads as chemistry: element names, anion class
+/// names and substance names. A substance name may be several words
+/// («серная кислота»); it is yielded whole. [`known_word`] accepts a word
+/// exactly when it is one of these items (a test pins that), so a caller that
+/// wants the vocabulary does not restate the rule.
+pub(crate) fn vocabulary_names(lex: &Lexicon) -> impl Iterator<Item = &str> {
+    lex.elements_by_name
+        .keys()
+        .chain(lex.anion_classes.keys())
+        .map(String::as_str)
+        .chain(
+            lex.substances
+                .iter()
+                .flat_map(|item| item.names.iter().map(String::as_str)),
+        )
+}
+
 /// One vowel swapped, at a position that is not the first character, for the
 /// first repair that lands on a word the lexicon knows.
 fn repair_one(lex: &Lexicon, word: &str) -> Option<String> {
@@ -1519,5 +1536,123 @@ mod tests {
         unique.sort();
         unique.dedup();
         assert_eq!(keys.len(), unique.len(), "a reading appears twice");
+    }
+
+    // ---- word-level correction (research) against VowelRepair
+
+    #[test]
+    fn the_vocabulary_is_what_known_word_accepts() {
+        let lex = Lexicon::builtin();
+        let names: Vec<&str> = vocabulary_names(lex).collect();
+        // A vacuous loop would pass anything.
+        assert!(names.len() > 300, "only {} names", names.len());
+        // Everything listed is known, if it is one word...
+        for name in &names {
+            if !name.contains(' ') {
+                assert!(known_word(lex, name), "{name} is listed but not known");
+            }
+        }
+        // ...and everything known is listed: probe with every word of every
+        // corpus transcript, and with the listed names themselves.
+        let listed: std::collections::HashSet<&str> = names.iter().copied().collect();
+        for word in corpus_words() {
+            assert_eq!(
+                known_word(lex, &word),
+                listed.contains(word.as_str()),
+                "{word}"
+            );
+        }
+    }
+
+    /// Words of every `human_transcript` under `research/data`, normalised
+    /// the way the lattice normalises them, plus the raw spoken forms of the
+    /// ASR-error rows (before the spelling fixes of `normalize::words`).
+    fn corpus_words() -> Vec<String> {
+        let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../../research/data");
+        let mut files: Vec<_> = std::fs::read_dir(dir)
+            .expect("research/data")
+            .map(|entry| entry.expect("dir entry").path())
+            .filter(|path| path.extension().is_some_and(|e| e == "jsonl"))
+            .collect();
+        files.sort();
+        let mut words = Vec::new();
+        for path in &files {
+            let text = std::fs::read_to_string(path).expect("a corpus");
+            for line in text.lines().filter(|l| !l.trim().is_empty()) {
+                let row: serde_json::Value = serde_json::from_str(line).expect("a JSON row");
+                let transcript = row["human_transcript"].as_str().unwrap_or_default();
+                words.extend(crate::normalize::words(transcript));
+                words.extend(
+                    transcript
+                        .split_whitespace()
+                        .map(crate::normalize::normalize_word),
+                );
+            }
+        }
+        assert!(files.len() >= 8, "only {} corpora", files.len());
+        words.sort();
+        words.dedup();
+        words
+    }
+
+    fn assert_nearest_contains_the_repair(word: &str) {
+        let lex = Lexicon::builtin();
+        let repaired = repair_one(lex, word).unwrap_or_else(|| panic!("{word} is not repaired"));
+        let (distance, nearest) = crate::research::nearest_lexicon_words(word)
+            .unwrap_or_else(|| panic!("{word}: nearest_lexicon_words found nothing"));
+        assert_eq!(distance, 1, "{word}");
+        assert!(
+            nearest.contains(&repaired),
+            "{word} -> {repaired}: {nearest:?}"
+        );
+    }
+
+    #[test]
+    fn nearest_lexicon_words_contains_every_vowel_repair_on_hand_cases() {
+        // а->о, а->о, а->о (as heard, before the spelling fix of normalize::words).
+        for word in ["карбанат", "хларид", "гидраксид"] {
+            assert_nearest_contains_the_repair(word);
+        }
+    }
+
+    #[test]
+    fn nearest_lexicon_words_contains_every_vowel_repair_in_the_corpora() {
+        let lex = Lexicon::builtin();
+        let mut checked = 0;
+        for word in corpus_words() {
+            if word.chars().count() < MIN_REPAIR_WORD_CHARS
+                || !word.chars().all(char::is_alphabetic)
+                || known_word(lex, &word)
+            {
+                continue;
+            }
+            if repair_one(lex, &word).is_some() {
+                assert_nearest_contains_the_repair(&word);
+                checked += 1;
+            }
+        }
+        eprintln!("{checked} distinct repaired words checked");
+        // Includes at least the asr-error rows of ambiguous-v2.
+        assert!(checked >= 3, "only {checked} repaired words in the corpora");
+    }
+
+    #[test]
+    fn the_asr_error_rows_split_into_repaired_and_not_repaired_words() {
+        // Which words of the six asr-error phrases VowelRepair reaches, and
+        // which only word-level correction can: a fixed table, so a change in
+        // either side is visible.
+        let lex = Lexicon::builtin();
+        let repaired = ["карбанат", "хларид", "гидраксид"];
+        let not_repaired = ["сернея", "кидроксидж", "гырдксд", "жлз", "тр", "лезо"];
+        for word in repaired {
+            assert!(repair_one(lex, word).is_some(), "{word}");
+        }
+        for word in not_repaired {
+            assert!(repair_one(lex, word).is_none(), "{word}");
+        }
+        // «сернея» and «кидроксидж» are reached by word-level correction.
+        assert!(crate::research::nearest_lexicon_words("сернея").is_some());
+        assert!(crate::research::nearest_lexicon_words("кидроксидж").is_some());
+        assert!(crate::research::nearest_lexicon_words("гырдксд").is_none());
     }
 }
