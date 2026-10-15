@@ -1,0 +1,287 @@
+{
+  "corpora": {
+    "ambiguous-v2": {
+      "math": {
+        "max_nodes": 59,
+        "max_packed_entries": 61,
+        "max_tokens": 7,
+        "max_trees": 3,
+        "phrases": 9,
+        "sum_nodes": 370,
+        "sum_packed_entries": 376,
+        "sum_trees": 15
+      },
+      "physics": {
+        "max_nodes": 59,
+        "max_packed_entries": 61,
+        "max_tokens": 7,
+        "max_trees": 3,
+        "phrases": 9,
+        "sum_nodes": 370,
+        "sum_packed_entries": 376,
+        "sum_trees": 15
+      }
+    },
+    "dev-seed-v3": {
+      "math": {
+        "max_nodes": 82,
+        "max_packed_entries": 87,
+        "max_tokens": 9,
+        "max_trees": 6,
+        "phrases": 39,
+        "sum_nodes": 1444,
+        "sum_packed_entries": 1457,
+        "sum_trees": 52
+      },
+      "physics": {
+        "max_nodes": 82,
+        "max_packed_entries": 87,
+        "max_tokens": 9,
+        "max_trees": 8,
+        "phrases": 59,
+        "sum_nodes": 2137,
+        "sum_packed_entries": 2183,
+        "sum_trees": 113
+      }
+    },
+    "nomenclature-v1": {
+      "math": {
+        "max_nodes": 39,
+        "max_packed_entries": 39,
+        "max_tokens": 5,
+        "max_trees": 1,
+        "phrases": 4,
+        "sum_nodes": 110,
+        "sum_packed_entries": 110,
+        "sum_trees": 4
+      },
+      "physics": {
+        "max_nodes": 39,
+        "max_packed_entries": 39,
+        "max_tokens": 5,
+        "max_trees": 1,
+        "phrases": 4,
+        "sum_nodes": 110,
+        "sum_packed_entries": 110,
+        "sum_trees": 4
+      }
+    },
+    "prose-negatives-v2": {
+      "math": {
+        "max_nodes": 0,
+        "max_packed_entries": 0,
+        "max_tokens": 0,
+        "max_trees": 0,
+        "phrases": 0,
+        "sum_nodes": 0,
+        "sum_packed_entries": 0,
+        "sum_trees": 0
+      },
+      "physics": {
+        "max_nodes": 0,
+        "max_packed_entries": 0,
+        "max_tokens": 0,
+        "max_trees": 0,
+        "phrases": 0,
+        "sum_nodes": 0,
+        "sum_packed_entries": 0,
+        "sum_trees": 0
+      }
+    }
+  },
+  "largest": [
+    {
+      "corpus": "dev-seed-v3",
+      "mode": "physics",
+      "nodes": 52,
+      "packed_entries": 58,
+      "text": "девять целых восемьдесят одна метра на секунду в квадрате",
+      "tokens": 5,
+      "trees": 8
+    },
+    {
+      "corpus": "dev-seed-v3",
+      "mode": "physics",
+      "nodes": 59,
+      "packed_entries": 62,
+      "text": "интеграл пять ньютонов по два метра",
+      "tokens": 6,
+      "trees": 6
+    },
+    {
+      "corpus": "dev-seed-v3",
+      "mode": "math",
+      "nodes": 82,
+      "packed_entries": 87,
+      "text": "интеграл эф дэ икс",
+      "tokens": 4,
+      "trees": 6
+    },
+    {
+      "corpus": "dev-seed-v3",
+      "mode": "physics",
+      "nodes": 82,
+      "packed_entries": 87,
+      "text": "интеграл эф дэ икс",
+      "tokens": 4,
+      "trees": 6
+    },
+    {
+      "corpus": "dev-seed-v3",
+      "mode": "physics",
+      "nodes": 58,
+      "packed_entries": 61,
+      "text": "производная десять метров по пять секунд",
+      "tokens": 6,
+      "trees": 6
+    },
+    {
+      "corpus": "dev-seed-v3",
+      "mode": "physics",
+      "nodes": 47,
+      "packed_entries": 49,
+      "text": "пять вольт плюс три ампера",
+      "tokens": 5,
+      "trees": 4
+    },
+    {
+      "corpus": "dev-seed-v3",
+      "mode": "physics",
+      "nodes": 47,
+      "packed_entries": 49,
+      "text": "три метра плюс четыре сантиметра",
+      "tokens": 5,
+      "trees": 4
+    },
+    {
+      "corpus": "dev-seed-v3",
+      "mode": "physics",
+      "nodes": 47,
+      "packed_entries": 49,
+      "text": "три метра плюс четыре секунды",
+      "tokens": 5,
+      "trees": 4
+    },
+    {
+      "corpus": "ambiguous-v2",
+      "mode": "math",
+      "nodes": 45,
+      "packed_entries": 47,
+      "text": "корень из икс плюс один",
+      "tokens": 4,
+      "trees": 3
+    },
+    {
+      "corpus": "ambiguous-v2",
+      "mode": "physics",
+      "nodes": 45,
+      "packed_entries": 47,
+      "text": "корень из икс плюс один",
+      "tokens": 4,
+      "trees": 3
+    },
+    {
+      "corpus": "dev-seed-v3",
+      "mode": "math",
+      "nodes": 45,
+      "packed_entries": 47,
+      "text": "корень из икс плюс один",
+      "tokens": 4,
+      "trees": 3
+    },
+    {
+      "corpus": "dev-seed-v3",
+      "mode": "physics",
+      "nodes": 45,
+      "packed_entries": 47,
+      "text": "корень из икс плюс один",
+      "tokens": 4,
+      "trees": 3
+    },
+    {
+      "corpus": "ambiguous-v2",
+      "mode": "math",
+      "nodes": 59,
+      "packed_entries": 61,
+      "text": "корень из икс плюс один равно два",
+      "tokens": 6,
+      "trees": 3
+    },
+    {
+      "corpus": "ambiguous-v2",
+      "mode": "physics",
+      "nodes": 59,
+      "packed_entries": 61,
+      "text": "корень из икс плюс один равно два",
+      "tokens": 6,
+      "trees": 3
+    },
+    {
+      "corpus": "dev-seed-v3",
+      "mode": "physics",
+      "nodes": 32,
+      "packed_entries": 34,
+      "text": "синус трёх метров",
+      "tokens": 3,
+      "trees": 3
+    },
+    {
+      "corpus": "dev-seed-v3",
+      "mode": "math",
+      "nodes": 33,
+      "packed_entries": 34,
+      "text": "аш два о",
+      "tokens": 3,
+      "trees": 2
+    },
+    {
+      "corpus": "dev-seed-v3",
+      "mode": "physics",
+      "nodes": 33,
+      "packed_entries": 34,
+      "text": "аш два о",
+      "tokens": 3,
+      "trees": 2
+    },
+    {
+      "corpus": "ambiguous-v2",
+      "mode": "math",
+      "nodes": 44,
+      "packed_entries": 45,
+      "text": "аш два эс о четыре",
+      "tokens": 5,
+      "trees": 2
+    },
+    {
+      "corpus": "ambiguous-v2",
+      "mode": "physics",
+      "nodes": 44,
+      "packed_entries": 45,
+      "text": "аш два эс о четыре",
+      "tokens": 5,
+      "trees": 2
+    },
+    {
+      "corpus": "dev-seed-v3",
+      "mode": "math",
+      "nodes": 44,
+      "packed_entries": 45,
+      "text": "аш два эс о четыре",
+      "tokens": 5,
+      "trees": 2
+    }
+  ],
+  "largest_cap": 20,
+  "longest_phrase": {
+    "corpus": "dev-seed-v3",
+    "mode": "math",
+    "nodes": 62,
+    "packed_entries": 62,
+    "text": "икс в квадрате плюс два икс минус три равно нулю",
+    "tokens": 9,
+    "trees": 1
+  },
+  "note": "The shared packed parse forest has one node per (nonterminal, span); it is not Scott's binarised SPPF, so a packed entry lists all children of a production at once. On these phrases nodes outnumber trees, because the phrases are short and the grammar chains many single-child nonterminals, so sharing saves nothing here; it pays only when the tree count grows faster than the span count, as in long sums. Every record of the four corpora is used, whatever its split, because the numbers describe the grammar and nothing is fitted; phrases the grammar rejects have no forest, so a corpus with none of them has zero rows. The ambiguous-addition family is not in math.ebnf, so longest_phrase reports the corpus phrase with the most tokens instead.",
+  "start": "math_input",
+  "version": "grammar-forest-v1"
+}
