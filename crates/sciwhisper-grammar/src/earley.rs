@@ -12,6 +12,9 @@ use std::collections::{HashMap, HashSet};
 
 use crate::ebnf::{is_terminal, Expr, Grammar};
 
+mod forest;
+pub use forest::{parse_forest, Forest, ForestNode, ForestOutcome};
+
 /// Longest token sequence the recogniser will look at.
 ///
 /// A dictated formula is a handful of words; 256 tokens is already far
@@ -1508,8 +1511,8 @@ mod brute_force {
     use std::collections::HashMap;
 
     use super::{
-        count_parses, derivations, lower, pre_order_yield, productions, Bnf, CountOutcome,
-        DerivationOutcome, ParseCount, Sym, MAX_PARSES,
+        count_parses, derivations, lower, parse_forest, pre_order_yield, productions, Bnf,
+        CountOutcome, DerivationOutcome, ForestOutcome, ParseCount, Sym, MAX_PARSES,
     };
     use crate::ebnf::parse;
 
@@ -1664,6 +1667,40 @@ mod brute_force {
         }
     }
 
+    /// `parse_forest` against `derivations` and `count_parses` on the same
+    /// input: same refusal; when the count is exact, the forest lists the
+    /// same trees and counts as many; a cyclic count gives `TooMany`.
+    fn check_forest(src: &str, tokens: &[&str], counted: CountOutcome) {
+        let grammar = parse(src).expect("generated grammar parses");
+        let got = parse_forest(&grammar, "s", tokens);
+        match (counted, got) {
+            (CountOutcome::Rejected { furthest: a }, ForestOutcome::Rejected { furthest: b }) => {
+                assert_eq!(a, b, "{src}")
+            }
+            (CountOutcome::Counted(ParseCount::AtLeastMax), ForestOutcome::TooMany) => {}
+            (CountOutcome::Counted(ParseCount::Exact(want)), ForestOutcome::Forest(forest)) => {
+                assert_eq!(
+                    forest.tree_count(),
+                    u64::from(want),
+                    "{src}\ntokens {tokens:?}"
+                );
+                let DerivationOutcome::Derivations(trees) = derivations(&grammar, "s", tokens)
+                else {
+                    panic!("{src}\ntokens {tokens:?}: the count is exact");
+                };
+                assert_eq!(forest.trees(), trees, "{src}\ntokens {tokens:?}");
+            }
+            // A finite count above the cap: only the forest can count it.
+            (CountOutcome::Counted(ParseCount::AtLeastMax), ForestOutcome::Forest(forest)) => {
+                assert!(
+                    forest.tree_count() > u64::from(MAX_PARSES),
+                    "{src}\ntokens {tokens:?}"
+                );
+            }
+            (counted, got) => panic!("{src}\ntokens {tokens:?}: {counted:?} vs {got:?}"),
+        }
+    }
+
     /// Random three-rule grammars with recursion, optionals, repeats and
     /// nullable cycles. Each defence in the counter (the empty-factor rule
     /// in `mul`, the nullable-remainder guard in `seq`) was removed in turn
@@ -1691,6 +1728,7 @@ mod brute_force {
                 &tokens,
             );
             check_derivations(&src, &tokens, got);
+            check_forest(&src, &tokens, got);
             match (want, got) {
                 (None, CountOutcome::Rejected { .. }) => {}
                 (Some(want), CountOutcome::Counted(got)) if want == got => {

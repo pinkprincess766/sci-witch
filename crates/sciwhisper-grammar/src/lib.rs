@@ -13,8 +13,9 @@
 //!
 //! [`count_parses`] counts derivation trees of an accepted token string
 //! from the Earley chart. It is the ambiguity measure for the grammar
-//! report. It does not build a packed forest and it is not consulted by
-//! the product parser.
+//! report. [`parse_forest`] builds a shared packed parse forest from the
+//! same chart (not Scott's binarised SPPF; see [`Forest`]). Neither is
+//! consulted by the product parser.
 //!
 //! [`productions`] lists the lowered BNF productions with stable ids, and
 //! [`derivations`] returns every derivation tree of an accepted sentence as
@@ -28,7 +29,8 @@ pub mod likelihood;
 pub mod pcfg;
 
 pub use earley::{
-    count_parses, derivations, productions, recognise, CountOutcome, DerivationOutcome, ParseCount,
-    Production, Recognition, Symbol, MAX_ITEMS, MAX_PARSES, MAX_TOKENS,
+    count_parses, derivations, parse_forest, productions, recognise, CountOutcome,
+    DerivationOutcome, Forest, ForestNode, ForestOutcome, ParseCount, Production, Recognition,
+    Symbol, MAX_ITEMS, MAX_PARSES, MAX_TOKENS,
 };
 pub use ebnf::{parse, Expr, Grammar, Rule};
