@@ -15,21 +15,47 @@
 //!   is no normalisation, so case, `ё` and punctuation stay as spoken, and
 //!   «два,» is one word. This is not the split `word_error_rate` uses, which
 //!   lowercases and folds `ё` first.
+//! - `earley_parses`: `count_parses` on `docs/grammar/math.ebnf` from its start
+//!   symbol, over `math_token_classes` of the text. The mode follows
+//!   `routed_domain`: `Mathematics` is math mode, `Physics` is physics mode,
+//!   and any other domain is `None`, because the math grammar does not
+//!   describe it. A tokenizer error is `TokenizeFailed`. The grammar is
+//!   compiled into the binary. No bound is hidden: `AtLeastMax`, `TooLong`
+//!   and `TooManyItems` are separate values, and `Rejected` is not `Exact(0)`.
 //!
 //! Not computed, so absent here. Nothing fills them with a mean or a guess:
 //!
 //! - Whisper token log-prob (mean and minimum): the harness has no per-token
 //!   output. `AsrHypothesis::score` is one number per hypothesis, not that.
 //! - `no_speech_prob`: not in the eval report.
-//! - Earley parse count: `count_parses` lives in `sciwhisper-grammar`, which
-//!   this crate does not depend on; adding that dependency is the owner's call.
 //! - PCFG `log P`: the repository has no PCFG.
 //! - Domain agreement in `route`: `route` returns only the chosen domain and
 //!   keeps no counter. No counter is invented here, because the protocol does
 //!   not define one.
 
+use std::sync::OnceLock;
+
 use sciwhisper_core::lattice::{self, LatticeOptions};
+use sciwhisper_core::research::math_token_classes;
 use sciwhisper_core::{interpret, Domain, InterpretOptions};
+use sciwhisper_grammar::{count_parses, CountOutcome, Grammar, ParseCount};
+
+/// What `count_parses` said about the text, one value per outcome.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EarleyParses {
+    /// Derivation trees, up to and including `MAX_PARSES`.
+    Exact(u32),
+    /// More than `MAX_PARSES` trees, or a nullable cycle.
+    AtLeastMax,
+    /// The grammar does not accept the token classes.
+    Rejected,
+    /// More tokens than `MAX_TOKENS`; the chart was not built.
+    TooLong,
+    /// The chart passed `MAX_ITEMS`; it was abandoned.
+    TooManyItems,
+    /// `math_token_classes` returned an error, so there was nothing to parse.
+    TokenizeFailed,
+}
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct TextFeatures {
@@ -37,6 +63,39 @@ pub struct TextFeatures {
     pub lattice_candidates: usize,
     pub routed_domain: Domain,
     pub words: usize,
+    /// `None` when `routed_domain` is neither `Mathematics` nor `Physics`.
+    pub earley_parses: Option<EarleyParses>,
+}
+
+fn math_grammar() -> &'static Grammar {
+    static GRAMMAR: OnceLock<Grammar> = OnceLock::new();
+    GRAMMAR.get_or_init(|| {
+        sciwhisper_grammar::parse(include_str!("../../../docs/grammar/math.ebnf"))
+            .expect("docs/grammar/math.ebnf must parse")
+    })
+}
+
+fn earley_parses(text: &str, domain: Domain) -> Option<EarleyParses> {
+    let physics = match domain {
+        Domain::Mathematics => false,
+        Domain::Physics => true,
+        _ => return None,
+    };
+    let Ok(classes) = math_token_classes(text, physics) else {
+        return Some(EarleyParses::TokenizeFailed);
+    };
+    let refs: Vec<&str> = classes.iter().map(String::as_str).collect();
+    let grammar = math_grammar();
+    let start = grammar
+        .start()
+        .expect("docs/grammar/math.ebnf must have a start symbol");
+    Some(match count_parses(grammar, start, &refs) {
+        CountOutcome::Counted(ParseCount::Exact(n)) => EarleyParses::Exact(n),
+        CountOutcome::Counted(ParseCount::AtLeastMax) => EarleyParses::AtLeastMax,
+        CountOutcome::Rejected { .. } => EarleyParses::Rejected,
+        CountOutcome::TooLong => EarleyParses::TooLong,
+        CountOutcome::TooManyItems => EarleyParses::TooManyItems,
+    })
 }
 
 pub fn text_features(text: &str) -> TextFeatures {
@@ -57,6 +116,7 @@ pub fn text_features(text: &str) -> TextFeatures {
         lattice_candidates: lattice.candidates.len(),
         routed_domain: result.domain,
         words: text.split_whitespace().count(),
+        earley_parses: earley_parses(text, result.domain),
     }
 }
 
@@ -78,6 +138,7 @@ mod tests {
                 lattice_candidates: 2,
                 routed_domain: Domain::Mathematics,
                 words: 5,
+                earley_parses: Some(EarleyParses::Exact(1)),
             }
         );
     }
@@ -91,6 +152,7 @@ mod tests {
                 lattice_candidates: 2,
                 routed_domain: Domain::Chemistry,
                 words: 7,
+                earley_parses: None,
             }
         );
     }
@@ -107,6 +169,7 @@ mod tests {
                 lattice_candidates: 1,
                 routed_domain: Domain::Chemistry,
                 words: 4,
+                earley_parses: None,
             }
         );
     }
@@ -120,6 +183,7 @@ mod tests {
                 lattice_candidates: 1,
                 routed_domain: Domain::Auto,
                 words: 0,
+                earley_parses: None,
             }
         );
     }
@@ -129,5 +193,71 @@ mod tests {
     #[test]
     fn words_are_whitespace_pieces_of_the_raw_text() {
         assert_eq!(text_features("  Два,   ёж  ").words, 2);
+    }
+
+    // Ambiguity is the point of this feature: the count is the number of
+    // derivation trees, 6 for both modes in `grammar-differential-v2.json`.
+    #[test]
+    fn an_ambiguous_phrase_has_its_known_parse_count() {
+        let features = text_features("интеграл эф дэ икс");
+        assert_eq!(features.routed_domain, Domain::Mathematics);
+        assert_eq!(features.earley_parses, Some(EarleyParses::Exact(6)));
+    }
+
+    // The math grammar does not describe chemistry, prose that the keyword
+    // guess sends to chemistry, or domains that are not decided.
+    #[test]
+    fn chemistry_has_no_parse_count() {
+        let features = text_features("хлорид натрия");
+        assert_eq!(features.routed_domain, Domain::Chemistry);
+        assert_eq!(features.earley_parses, None);
+    }
+
+    #[test]
+    fn a_math_phrase_is_not_counted_under_a_domain_the_grammar_does_not_describe() {
+        for domain in [Domain::Chemistry, Domain::Plain, Domain::Auto] {
+            assert_eq!(earley_parses("икс плюс один", domain), None, "{domain:?}");
+        }
+    }
+
+    // «три метра» is a quantity, so the math tokenizer refuses the unit word.
+    // The count 4 exists only because `Physics` selects physics mode.
+    #[test]
+    fn a_physics_phrase_is_counted_in_physics_mode() {
+        let text = "три метра плюс четыре сантиметра";
+        assert!(math_token_classes(text, false).is_err());
+        let features = text_features(text);
+        assert_eq!(features.routed_domain, Domain::Physics);
+        assert_eq!(features.earley_parses, Some(EarleyParses::Exact(4)));
+        assert_eq!(
+            earley_parses(text, Domain::Mathematics),
+            Some(EarleyParses::TokenizeFailed)
+        );
+    }
+
+    // A rejected sentence is not a sentence with zero trees.
+    #[test]
+    fn a_sentence_the_grammar_rejects_is_rejected_not_zero() {
+        let features = text_features("икс плюс");
+        assert_eq!(features.routed_domain, Domain::Mathematics);
+        assert_eq!(features.earley_parses, Some(EarleyParses::Rejected));
+    }
+
+    // Prose that the router sends to mathematics has no token classes.
+    #[test]
+    fn prose_routed_to_mathematics_fails_to_tokenize() {
+        let features = text_features("я вчера ходил в магазин");
+        assert_eq!(features.routed_domain, Domain::Mathematics);
+        assert_eq!(features.earley_parses, Some(EarleyParses::TokenizeFailed));
+    }
+
+    // 129 «икс» and 128 «плюс» are 257 tokens, one past `MAX_TOKENS`.
+    #[test]
+    fn a_sentence_past_the_token_cap_is_too_long() {
+        let text = vec!["икс"; 129].join(" плюс ");
+        assert_eq!(
+            earley_parses(&text, Domain::Mathematics),
+            Some(EarleyParses::TooLong)
+        );
     }
 }
