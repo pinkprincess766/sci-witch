@@ -30,7 +30,6 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 # Longest audio accepted: one Whisper window. Longer audio is refused, not cut.
 MAX_AUDIO_S = float(CHUNK_LENGTH)
 DEFAULT_LANGUAGE = "ru"
-DEFAULT_BEST_OF = 5
 DEVICE = "cpu"  # the only device the notes in ASR_SCORES_RU.md were checked on
 FP16 = False
 MODEL_CACHE_DIR = Path(os.getenv("XDG_CACHE_HOME", Path.home() / ".cache")) / "whisper"
@@ -187,7 +186,8 @@ def build_parser():
         if mode == "sample":
             p.add_argument("--temperature", type=float, required=True)
             p.add_argument("--seed", type=int, required=True)
-            p.add_argument("--best-of", type=int, default=DEFAULT_BEST_OF)
+            # Required: 1 is a plain sample, 5 is the separate best-of-five mode.
+            p.add_argument("--best-of", type=int, required=True)
     return parser
 
 
