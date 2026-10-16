@@ -40,6 +40,15 @@ class WindowLimit(unittest.TestCase):
 
 
 class SampleModeArguments(unittest.TestCase):
+    def test_best_of_must_be_given(self):
+        # No silent default: a forgotten flag would turn a plain sample into
+        # the best-of-five mode.
+        argv = ["sample", "x.wav", "--temperature", "0.6", "--seed", "1", "--out", "x.json"]
+        with self.assertRaises(SystemExit):
+            wh.build_parser().parse_args(argv)
+        args = wh.build_parser().parse_args(argv + ["--best-of", "1"])
+        self.assertEqual(args.best_of, 1)
+
     def test_zero_temperature_is_refused(self):
         args = argparse.Namespace(
             mode="sample", audio="x.wav", model="base", language="ru",

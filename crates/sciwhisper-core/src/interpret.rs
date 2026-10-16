@@ -20,6 +20,22 @@ impl Default for InterpretOptions {
     }
 }
 
+/// The structural level of a parse the grammar accepted without warnings.
+/// A parse level, not a probability (see `AGENTS.md`).
+pub(crate) const CLEAN_PARSE_LEVEL: f32 = 0.95;
+/// The structural level of a parse the grammar itself flagged, for example
+/// as ambiguous. A parse level, not a probability.
+pub(crate) const FLAGGED_PARSE_LEVEL: f32 = 0.7;
+
+/// The level for a parse that is `clean` (no grammar warnings) or not.
+pub(crate) fn structural_level(clean: bool) -> f32 {
+    if clean {
+        CLEAN_PARSE_LEVEL
+    } else {
+        FLAGGED_PARSE_LEVEL
+    }
+}
+
 pub fn interpret(text: &str, opts: InterpretOptions) -> InterpretationResult {
     let lex = Lexicon::builtin();
     let nums = NumberLex::new();
@@ -64,7 +80,7 @@ pub fn interpret(text: &str, opts: InterpretOptions) -> InterpretationResult {
                 })
                 .collect();
             let alternatives = parsed.alternatives;
-            let structural_confidence = if warnings.is_empty() { 0.95 } else { 0.7 };
+            let structural_confidence = structural_level(warnings.is_empty());
             warnings.extend(crate::validate::semantic_warnings(&parsed.node));
             InterpretationResult {
                 ast: parsed.node,

@@ -22,7 +22,9 @@ use std::sync::OnceLock;
 use serde::{Deserialize, Serialize};
 
 use crate::ast::{Chemical, Domain, Math, Node, Warning};
-use crate::interpret::{interpret, InterpretOptions};
+use crate::interpret::{
+    interpret, structural_level, InterpretOptions, CLEAN_PARSE_LEVEL, FLAGGED_PARSE_LEVEL,
+};
 
 const DICTATION_YAML: &str = include_str!("../data/domains/common/dictation.yaml");
 const DICTATION_SCHEMA: u32 = 1;
@@ -73,6 +75,15 @@ const INLINE_MIN_CONFIDENCE: f32 = 0.9;
 /// but complete parse is still shown — with its warnings and alternatives
 /// attached, and with the lower confidence that says so.
 const WHOLE_UTTERANCE_MIN_CONFIDENCE: f32 = 0.7;
+
+// Inline rewriting takes only clean parses; a whole utterance also takes a
+// flagged one. Moving a parse level or a threshold across the other would
+// silently change which phrases become formulas, so it does not compile.
+const _: () = {
+    assert!(CLEAN_PARSE_LEVEL >= INLINE_MIN_CONFIDENCE);
+    assert!(FLAGGED_PARSE_LEVEL < INLINE_MIN_CONFIDENCE);
+    assert!(FLAGGED_PARSE_LEVEL >= WHOLE_UTTERANCE_MIN_CONFIDENCE);
+};
 
 /// What the caller wants done with the ordinary words around the science.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1607,7 +1618,7 @@ pub fn interpret_utterance(text: &str, options: UtteranceOptions) -> UtteranceRe
             };
             result.warnings = span.warnings.clone();
             result.document = assemble(text, std::slice::from_ref(&span), &drops);
-            result.confidence = if span.warnings.is_empty() { 0.95 } else { 0.7 };
+            result.confidence = structural_level(span.warnings.is_empty());
             result.decision = Decision::Accepted;
             result.segments = segments;
             result.spans = vec![span];
@@ -1839,7 +1850,7 @@ pub fn interpret_utterance(text: &str, options: UtteranceOptions) -> UtteranceRe
         .flat_map(|span| span.warnings.iter().cloned())
         .collect();
     result.document = assemble(text, &spans, &drops);
-    result.confidence = if warnings.is_empty() { 0.95 } else { 0.7 };
+    result.confidence = structural_level(warnings.is_empty());
     result.decision = if ambiguous {
         Decision::Ambiguous
     } else {
@@ -2262,6 +2273,12 @@ fn trim_edges(text: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn structural_level_maps_clean_and_flagged_parses() {
+        assert_eq!(structural_level(true), 0.95);
+        assert_eq!(structural_level(false), 0.7);
+    }
 
     fn read(text: &str, mode: UtteranceMode) -> UtteranceResult {
         interpret_utterance(
