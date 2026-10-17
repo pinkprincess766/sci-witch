@@ -17,6 +17,12 @@ use sha2::{Digest, Sha256};
 pub const CONSENT_LOCAL_TEXT: &str = "Согласие voice-local-v1\nЯ разрешаю sci-witch сохранять короткие записи моего голоса и подтверждённый мною текст для локальной проверки качества. Голос может позволить узнать меня: код диктора не делает его анонимным. Записи, сведения о микрофоне и обстановке остаются в выбранной папке. Экспорт создаёт ещё одну локальную копию, без отправки и разрешения на публикацию. Для передачи другим людям нужно отдельное согласие. Команда revoke удаляет записи этой сессии; ранее экспортированные или переданные копии нужно удалить отдельно. Автоматическое обучение не выполняется.\n";
 const LIMIT: u64 = 8 * 1024 * 1024;
 pub const MAX_TASKS: usize = 1000;
+/// Longest environment or microphone description, in bytes.
+pub const MAX_LABEL_BYTES: usize = 200;
+/// Longest task transcript or terminal input line, in bytes.
+pub const MAX_LINE_BYTES: usize = 8192;
+/// Largest take on disk: 60 s of 16-bit mono 16 kHz PCM plus the header.
+pub const MAX_WAV_BYTES: u64 = 2_000_000;
 /// Longest card text a free task may show, in bytes.
 pub const MAX_CARD_BYTES: usize = 1024;
 /// Typed to confirm a read task: the speaker said the phrase exactly.
@@ -256,7 +262,7 @@ fn validate_plan(plan: &Plan) -> Result<()> {
         return Err("Код диктора: spk и две цифры, от spk01 до spk99; используйте один код для одного человека".into());
     }
     if plan.environment.trim().is_empty()
-        || plan.environment.len() > 200
+        || plan.environment.len() > MAX_LABEL_BYTES
         || plan.environment.contains(['\n', '\r'])
     {
         return Err("Обстановка должна быть краткой, без личных данных".into());
@@ -281,7 +287,7 @@ fn validate_plan(plan: &Plan) -> Result<()> {
                 task.provenance,
                 Provenance::HandcraftedText | Provenance::SyntheticText
             )
-            || task.human_transcript.len() > 8192
+            || task.human_transcript.len() > MAX_LINE_BYTES
         {
             return Err("Задания должны быть текстовыми и принадлежать одному split".into());
         }
@@ -575,7 +581,7 @@ impl Session {
             }
             let path = item.path().join("audio.wav");
             regular(&path)?;
-            if fs::metadata(&path).map_err(err)?.len() > 2_000_000 {
+            if fs::metadata(&path).map_err(err)?.len() > MAX_WAV_BYTES {
                 return Err("Аудио превышает предел 60 секунд".into());
             }
             let facts = describe_wav(&path).map_err(err)?;
@@ -610,11 +616,11 @@ impl Session {
         if transcript.trim() != record.human_transcript {
             return Err("Произнесённый текст отличается от задания. Перезапишите: эталон относится только к исходной фразе".into());
         }
-        if microphone.trim().is_empty() || microphone.len() > 200 {
+        if microphone.trim().is_empty() || microphone.len() > MAX_LABEL_BYTES {
             return Err("Неверное описание микрофона".into());
         }
         regular(wav)?;
-        if fs::metadata(wav).map_err(err)?.len() > 2_000_000 {
+        if fs::metadata(wav).map_err(err)?.len() > MAX_WAV_BYTES {
             return Err("Аудио слишком велико".into());
         }
         let stage = tempfile::Builder::new()
