@@ -180,6 +180,22 @@ fn declined_or_invalid_consent_never_creates_a_session() {
 }
 
 #[test]
+fn consent_dates_follow_the_gregorian_century_rule_and_the_year_range() {
+    // Divisible by 400 is a leap year; by 100 but not 400 is not.
+    assert!(valid_date("2000-02-29"));
+    assert!(!valid_date("2100-02-29"));
+    // Month and day bounds on both sides.
+    assert!(valid_date("2026-12-31"));
+    assert!(!valid_date("2026-13-01"));
+    assert!(!valid_date("2026-00-10"));
+    assert!(!valid_date("2026-04-31"));
+    assert!(!valid_date("2026-01-00"));
+    // Years outside 2000..=9999 are refused.
+    assert!(valid_date("2000-01-01"));
+    assert!(!valid_date("1999-12-31"));
+}
+
+#[test]
 fn mistaken_transcript_and_duplicate_confirmation_do_not_replace_gold_or_audio() {
     let dir = tempfile::tempdir().unwrap();
     let p = plan_for_test();
