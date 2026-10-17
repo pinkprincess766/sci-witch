@@ -20,6 +20,9 @@ use crate::lexicon::Lexicon;
 /// Recursion guard. An artificially deep or hand-built AST abstains instead
 /// of exhausting the stack.
 const MAX_DEPTH: u32 = 128;
+/// Most digits after the decimal point in a numeric exponent. Keeps the
+/// denominator `10^k` comfortably inside `i32`; longer decimals abstain.
+const MAX_FRACTION_DIGITS: usize = 9;
 
 /// Base dimensions in fixed order: mass, length, time, current,
 /// temperature, amount of substance, luminous intensity.
@@ -648,8 +651,7 @@ fn parse_number(text: &str) -> Option<Exponent> {
     {
         return None;
     }
-    // Keep 10^k comfortably inside i32; longer decimals abstain.
-    if fraction.len() > 9 {
+    if fraction.len() > MAX_FRACTION_DIGITS {
         return None;
     }
     let digits = format!("{integer}{fraction}");
@@ -689,6 +691,14 @@ mod tests {
     use crate::ast::{
         Case, DerivativeKind, FunctionKind, GroupKind, LimitDirection, Symbol, UnitFactor,
     };
+
+    #[test]
+    fn the_fraction_digit_limit_holds_on_both_sides() {
+        let decimal = |digits: usize| format!("0.{}1", "0".repeat(digits - 1));
+        assert!(parse_number(&decimal(MAX_FRACTION_DIGITS)).is_some());
+        assert!(parse_number(&decimal(MAX_FRACTION_DIGITS + 1)).is_none());
+        assert!(parse_number(&format!("-{}", decimal(MAX_FRACTION_DIGITS))).is_some());
+    }
 
     fn dim(symbol: &str) -> Dimension {
         Lexicon::builtin()
