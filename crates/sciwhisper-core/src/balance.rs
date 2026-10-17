@@ -160,6 +160,10 @@ fn rref(a: &mut [Vec<Frac>]) -> Option<Vec<usize>> {
 /// difference of two products of three stored values, at most `2 * B^3`, and
 /// `2 * (2^42)^3 = 2^127 > i128::MAX`, so `B <= 2^42 - 1`. The derivation is
 /// in `docs/compiler/BALANCE_KERNEL_RU.md`.
+/// Largest stoichiometric coefficient the balancer will suggest. A larger
+/// minimal solution is almost certainly a mis-heard formula, so it abstains.
+const MAX_COEFFICIENT: u32 = 9999;
+
 const HADAMARD_LIMIT: u128 = (1 << 42) - 1;
 
 /// Exact sum of squares, `None` if it does not fit `u128`.
@@ -270,7 +274,7 @@ pub fn balance_equation(equation: &Equation) -> Option<Vec<u32>> {
         .iter()
         .map(|&v| u32::try_from(v / common).ok())
         .collect();
-    coeffs.filter(|c| c.iter().all(|&v| v > 0 && v <= 9999))
+    coeffs.filter(|c| c.iter().all(|&v| (1..=MAX_COEFFICIENT).contains(&v)))
 }
 
 /// Renders `equation` with `coeffs` (one per `left ++ right` species) applied,
@@ -676,6 +680,33 @@ mod tests {
             right: vec![two_species(2 * u + 3 * v, 2 * v + 3 * u)],
             condition: None,
         }
+    }
+
+    /// `E{n}` -> `n E`: the unique balance is `[1, n]`.
+    fn split_equation(n: u32) -> Equation {
+        let atom = |count: u32| {
+            Species::new(Formula {
+                parts: vec![Part::Atom {
+                    symbol: "E0".to_string(),
+                    count,
+                }],
+            })
+        };
+        Equation {
+            left: vec![atom(n)],
+            arrow: Arrow::Forward,
+            right: vec![atom(1)],
+            condition: None,
+        }
+    }
+
+    #[test]
+    fn the_coefficient_limit_holds_on_both_sides() {
+        assert_eq!(
+            balance_equation(&split_equation(MAX_COEFFICIENT)),
+            Some(vec![1, MAX_COEFFICIENT])
+        );
+        assert_eq!(balance_equation(&split_equation(MAX_COEFFICIENT + 1)), None);
     }
 
     #[test]
