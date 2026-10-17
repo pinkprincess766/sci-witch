@@ -11,7 +11,7 @@ use std::sync::mpsc;
 
 use clap::{Args as ClapArgs, Subcommand, ValueEnum};
 use sciwhisper_eval::schema::Split;
-use store::{err, Confirmation, ConsentKind, Result, Session};
+use store::{err, Confirmation, ConsentKind, Result, Session, MAX_LINE_BYTES};
 
 #[derive(ClapArgs)]
 pub struct Args {
@@ -127,10 +127,10 @@ impl Console {
             loop {
                 let mut line = String::new();
                 // Bound terminal input even when somebody pastes a huge file.
-                let mut limited = std::io::Read::take(&mut stdin, 8193);
+                let mut limited = std::io::Read::take(&mut stdin, MAX_LINE_BYTES as u64 + 1);
                 match limited.read_line(&mut line) {
                     Ok(0) | Err(_) => break,
-                    Ok(_) if line.len() > 8192 => break,
+                    Ok(_) if line.len() > MAX_LINE_BYTES => break,
                     Ok(_) => {
                         if tx.send(line.trim().to_owned()).is_err() {
                             break;

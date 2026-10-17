@@ -88,6 +88,23 @@ fn only_16_bit_mono_16_khz_takes_are_accepted() {
 }
 
 #[test]
+fn the_microphone_length_limit_holds_on_both_sides() {
+    let dir = tempfile::tempdir().unwrap();
+    let p = plan_for_test();
+    let s = Session::create(&dir.path().join("session"), p.clone()).unwrap();
+    let text = &p.tasks[0].human_transcript;
+    let too_long = "m".repeat(MAX_LABEL_BYTES + 1);
+    let error = s
+        .accept(0, &wav(dir.path()), text, &too_long)
+        .expect_err("refused");
+    assert!(error.contains("микрофона"), "{error}");
+    assert!(s.takes().unwrap().is_empty());
+    let longest = "m".repeat(MAX_LABEL_BYTES);
+    s.accept(0, &wav(dir.path()), text, &longest).unwrap();
+    assert_eq!(s.takes().unwrap().len(), 1);
+}
+
+#[test]
 fn a_take_replaced_by_another_format_is_refused_on_resume_and_export() {
     let dir = tempfile::tempdir().unwrap();
     let p = plan_for_test();
