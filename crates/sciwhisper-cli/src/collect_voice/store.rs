@@ -15,7 +15,8 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 pub const CONSENT_LOCAL_TEXT: &str = "Согласие voice-local-v1\nЯ разрешаю sci-witch сохранять короткие записи моего голоса и подтверждённый мною текст для локальной проверки качества. Голос может позволить узнать меня: код диктора не делает его анонимным. Записи, сведения о микрофоне и обстановке остаются в выбранной папке. Экспорт создаёт ещё одну локальную копию, без отправки и разрешения на публикацию. Для передачи другим людям нужно отдельное согласие. Команда revoke удаляет записи этой сессии; ранее экспортированные или переданные копии нужно удалить отдельно. Автоматическое обучение не выполняется.\n";
-const LIMIT: u64 = 8 * 1024 * 1024;
+/// Largest plan or session file loaded into memory, in bytes.
+pub const MAX_FILE_BYTES: u64 = 8 * 1024 * 1024;
 pub const MAX_TASKS: usize = 1000;
 /// Longest environment or microphone description, in bytes.
 pub const MAX_LABEL_BYTES: usize = 200;
@@ -196,10 +197,10 @@ pub fn read_limited(path: &Path) -> Result<Vec<u8>> {
     let mut bytes = Vec::new();
     File::open(path)
         .map_err(err)?
-        .take(LIMIT + 1)
+        .take(MAX_FILE_BYTES + 1)
         .read_to_end(&mut bytes)
         .map_err(err)?;
-    if bytes.len() as u64 > LIMIT {
+    if bytes.len() as u64 > MAX_FILE_BYTES {
         return Err("Файл превышает предел 8 МиБ".into());
     }
     Ok(bytes)
@@ -380,10 +381,12 @@ pub fn plan(
     environment: String,
     consent: ConsentKind,
 ) -> Result<Plan> {
-    let text = std::str::from_utf8(source).map_err(err)?;
-    if source.len() as u64 > LIMIT {
+    // Size before UTF-8: a huge file of bad bytes is a size error, not a
+    // decoding error. The caller learns the limit that actually fired.
+    if source.len() as u64 > MAX_FILE_BYTES {
         return Err("План слишком велик".into());
     }
+    let text = std::str::from_utf8(source).map_err(err)?;
     let (corpus, cards) = split_free_tasks(text)?;
     let dataset = Dataset::parse_jsonl(&corpus).map_err(err)?;
     let mut families = BTreeMap::new();
