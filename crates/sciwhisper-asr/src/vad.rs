@@ -194,6 +194,13 @@ fn analyse(samples: &[f32], hz: u32, cfg: &VadConfig) -> Frames {
     }
 }
 
+/// Quantile of frame levels taken as "loud". The gap from the noise floor
+/// to this level is the recording's dynamic range.
+const LOUD_QUANTILE: f32 = 0.95;
+/// Zero-crossing rate at or above which a frame that has not reached the
+/// enter level still counts as a fricative («с», «ш», «ф»).
+const FRICATIVE_ZCR: f32 = 0.15;
+
 /// Marks the speech in `samples`, which must already be mono at `hz`.
 pub fn detect(samples: &[f32], hz: u32, cfg: &VadConfig) -> VadResult {
     let frames = analyse(samples, hz, cfg);
@@ -209,7 +216,7 @@ pub fn detect(samples: &[f32], hz: u32, cfg: &VadConfig) -> VadResult {
     let mut sorted = frames.db.clone();
     sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
     let floor = quantile(&sorted, cfg.noise_quantile);
-    let loud = quantile(&sorted, 0.95);
+    let loud = quantile(&sorted, LOUD_QUANTILE);
 
     let empty = VadResult {
         segments: Vec::new(),
@@ -236,7 +243,7 @@ pub fn detect(samples: &[f32], hz: u32, cfg: &VadConfig) -> VadResult {
     for (i, &level) in frames.db.iter().enumerate() {
         let start = i * frames.hop;
         let end = (start + frames.frame).min(samples.len());
-        let fricative = level >= exit && frames.zcr[i] >= 0.15;
+        let fricative = level >= exit && frames.zcr[i] >= FRICATIVE_ZCR;
         let speechy = match open {
             Some(_) => level >= exit || fricative,
             None => level >= enter || (fricative && level >= enter - cfg.exit_margin_db),
@@ -433,5 +440,71 @@ mod tests {
         // Same decision, shifted by exactly the gain.
         assert_eq!(a.segments, b.segments);
         assert!((b.noise_floor_db - a.noise_floor_db - 32.0).abs() < 1.0);
+    }
+
+    /// Constant amplitude. `gap` is the run of each sign inside the loud
+    /// region, so every frame fully inside it has one zero-crossing rate.
+    fn signed_burst(
+        total_ms: usize,
+        quiet: f32,
+        loud: f32,
+        from_ms: usize,
+        to_ms: usize,
+        gap: usize,
+    ) -> Vec<f32> {
+        let from = ms(from_ms);
+        let to = ms(to_ms);
+        (0..ms(total_ms))
+            .map(|i| {
+                if !(from..to).contains(&i) {
+                    quiet
+                } else if ((i - from) / gap).is_multiple_of(2) {
+                    loud
+                } else {
+                    -loud
+                }
+            })
+            .collect()
+    }
+
+    fn interior_zcr(samples: &[f32], from_ms: usize, to_ms: usize) -> (f32, f32) {
+        let frames = analyse(samples, HZ, &VadConfig::default());
+        let from = ms(from_ms);
+        let to = ms(to_ms);
+        let mut lo = f32::MAX;
+        let mut hi = 0.0_f32;
+        for (i, &z) in frames.zcr.iter().enumerate() {
+            let start = i * frames.hop;
+            let end = start + frames.frame;
+            if start >= from && end <= to {
+                lo = lo.min(z);
+                hi = hi.max(z);
+            }
+        }
+        (lo, hi)
+    }
+
+    #[test]
+    fn a_level_between_exit_and_enter_opens_only_above_the_fricative_zcr() {
+        // 8.5 dB is between the default exit margin (5) and enter margin (9),
+        // and still clears `min_dynamic_range_db` (8). Only the fricative
+        // rule can open a segment at this level.
+        let quiet = 0.01_f32;
+        let loud = quiet * 10.0_f32.powf(8.5 / 20.0);
+        let below = signed_burst(2000, quiet, loud, 400, 1200, 7);
+        let above = signed_burst(2000, quiet, loud, 400, 1200, 6);
+        let (_blo, bhi) = interior_zcr(&below, 400, 1200);
+        let (alo, _ahi) = interior_zcr(&above, 400, 1200);
+        assert!(
+            bhi < FRICATIVE_ZCR,
+            "gap 7 must stay under the fricative line, got {bhi}"
+        );
+        assert!(
+            alo >= FRICATIVE_ZCR,
+            "gap 6 must clear the fricative line, got {alo}"
+        );
+        let cfg = VadConfig::default();
+        assert!(!detect(&below, HZ, &cfg).has_speech(), "zcr {bhi}");
+        assert!(detect(&above, HZ, &cfg).has_speech(), "zcr {alo}");
     }
 }
