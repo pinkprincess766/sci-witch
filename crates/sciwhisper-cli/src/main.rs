@@ -233,6 +233,13 @@ fn run(cli: Cli) -> Result<(), String> {
     }
 }
 
+fn audio_file_label(path: &std::path::Path) -> String {
+    path.file_name().map_or_else(
+        || path.display().to_string(),
+        |name| name.to_string_lossy().into_owned(),
+    )
+}
+
 fn run_corpus(
     dir: PathBuf,
     domain: &str,
@@ -260,7 +267,7 @@ fn run_corpus(
     println!("corpus: {} files in {}", files.len(), dir.display());
     let mut ok = 0usize;
     for f in &files {
-        print!("{} … ", f.file_name().unwrap().to_string_lossy());
+        print!("{} … ", audio_file_label(f));
         match from_audio(
             f,
             PipelineOptions {
@@ -570,5 +577,14 @@ mod tests {
     fn the_self_test_and_the_demo_phrases_still_compile() {
         run_self_test().expect("self-test");
         run_demo().expect("demo");
+    }
+
+    #[test]
+    fn a_corpus_path_without_a_file_name_does_not_panic() {
+        assert_eq!(audio_file_label(std::path::Path::new("a/b.wav")), "b.wav");
+        // `..` has a file name, so the old unwrap did not panic here.
+        assert_eq!(audio_file_label(std::path::Path::new("..")), "..");
+        // `/` has none. The label is the path itself.
+        assert_eq!(audio_file_label(std::path::Path::new("/")), "/");
     }
 }
