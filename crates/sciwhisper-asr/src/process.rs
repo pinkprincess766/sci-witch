@@ -71,6 +71,16 @@ impl Finished {
 /// Reaching this means a descendant is still holding the pipe, and the run
 /// returns with whatever was captured rather than waiting on it.
 const READER_GRACE: Duration = Duration::from_secs(2);
+/// First pause while polling a child that has not exited. It doubles until
+/// `POLL_MAX`, so a fast process is noticed quickly and a long one does not
+/// wake every few milliseconds.
+const POLL_START: Duration = Duration::from_millis(5);
+/// Ceiling of the pause in `wait_until`.
+const POLL_MAX: Duration = Duration::from_millis(100);
+
+fn next_nap(nap: Duration) -> Duration {
+    (nap * 2).min(POLL_MAX)
+}
 
 /// Runs a prepared command to completion, or kills it — and everything it
 /// started — at the deadline.
@@ -265,7 +275,7 @@ fn wait_until(
     timeout: Duration,
 ) -> std::io::Result<Option<std::process::ExitStatus>> {
     let deadline = Instant::now() + timeout;
-    let mut nap = Duration::from_millis(5);
+    let mut nap = POLL_START;
     loop {
         match child.try_wait() {
             Ok(Some(status)) => return Ok(Some(status)),
@@ -275,8 +285,8 @@ fn wait_until(
         if Instant::now() >= deadline {
             return Ok(None);
         }
-        std::thread::sleep(nap.min(Duration::from_millis(100)));
-        nap = (nap * 2).min(Duration::from_millis(100));
+        std::thread::sleep(nap);
+        nap = next_nap(nap);
     }
 }
 
@@ -527,5 +537,20 @@ exit 0
     fn the_timeout_can_be_configured_but_never_to_zero() {
         // The parser refuses nonsense rather than turning the deadline off.
         assert!(timeout_from_env().is_none() || timeout_from_env().unwrap() > Duration::ZERO);
+    }
+
+    #[test]
+    fn the_poll_backoff_reaches_the_ceiling_and_stays_there() {
+        let mut nap = POLL_START;
+        let mut steps = 0usize;
+        while nap < POLL_MAX {
+            let next = next_nap(nap);
+            assert!(next > nap, "{next:?} did not grow from {nap:?}");
+            nap = next;
+            steps += 1;
+            assert!(steps < 20, "backoff did not reach {POLL_MAX:?}");
+        }
+        assert_eq!(nap, POLL_MAX);
+        assert_eq!(next_nap(nap), POLL_MAX);
     }
 }
