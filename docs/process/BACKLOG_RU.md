@@ -1,4 +1,4 @@
-# Список задач (на 15.10.2026)
+# Список задач (на 18.10.2026)
 
 Задачи для работы с агентами, в первую очередь с Grok. Каждая — законченный
 кусок с проверяемым результатом. Общие правила — [`AGENTS.md`](../../AGENTS.md);
@@ -274,6 +274,23 @@
   числа сравниваются так же, как раньше, поэтому расстояние меняется только
   там, где в одном поле встречаются число и строка.
 - **Размер.** Малый.
+
+### D5. Именованные пределы — **сделано** (18.10.2026)
+
+Короткая запись о пределах, которые перестали быть голыми числами. B2 не
+меняется: эталона на больших целых в `main` нет.
+
+- `CLEAN_PARSE_LEVEL` и `FLAGGED_PARSE_LEVEL` в
+  `crates/sciwhisper-core/src/interpret.rs`, пороги рядом с
+  `INLINE_MIN_CONFIDENCE` в `crates/sciwhisper-core/src/utterance.rs`
+  (#98, 16.10.2026).
+- `MAX_LABEL_BYTES`, `MAX_LINE_BYTES`, `MAX_WAV_BYTES` в
+  `crates/sciwhisper-cli/src/collect_voice/store.rs`; тест
+  `the_microphone_length_limit_holds_on_both_sides` (#101, 17.10.2026).
+- `MAX_COEFFICIENT` в `crates/sciwhisper-core/src/balance.rs`; тест
+  `the_coefficient_limit_holds_on_both_sides` (#102, 17.10.2026).
+- `MAX_FRACTION_DIGITS` в `crates/sciwhisper-core/src/dimension.rs`; тест
+  `the_fraction_digit_limit_holds_on_both_sides` (#103, 17.10.2026).
 
 ## E. Ждёт решения владельца
 
