@@ -91,7 +91,7 @@ impl NumberLex {
             value += n;
             used += 1;
             last_class = class;
-            if used > 6 {
+            if used >= MAX_NUMBER_WORDS {
                 break;
             }
         }
@@ -124,6 +124,11 @@ impl NumberLex {
         Some((int_part.to_string(), j - i))
     }
 }
+
+/// Most number-words `consume_int` will take. The school lexicon chains at
+/// most a hundred, a ten and a digit (three words); the cap stops a longer
+/// compatible run, if the lexicon ever grows one, from becoming one integer.
+pub(crate) const MAX_NUMBER_WORDS: usize = 7;
 
 fn load_builtin() -> NumberLex {
     let parsed: NumberLexYaml =
@@ -227,5 +232,17 @@ mod tests {
         let w = ws("шестьсот тридцать два");
         let (n, _) = lex.consume_number(&w, 0).unwrap();
         assert_eq!(n, "632");
+    }
+
+    #[test]
+    fn three_compatible_words_are_read_and_a_fourth_number_word_is_not() {
+        // Hundred, ten, digit is the longest chain `compatible` allows.
+        // A fourth digit is a number-word and is still left unread.
+        let lex = NumberLex::new();
+        let w = ws("девятьсот девяносто девять девять");
+        let (n, used) = lex.consume_int(&w, 0).unwrap();
+        assert_eq!(n, 999);
+        assert_eq!(used, 3);
+        assert!(used < MAX_NUMBER_WORDS);
     }
 }
