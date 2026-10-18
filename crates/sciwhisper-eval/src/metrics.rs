@@ -76,6 +76,13 @@ pub fn proportion(numerator: usize, denominator: usize) -> Proportion {
     }
 }
 
+/// Lower end of a 95% percentile interval, in percent.
+pub const CI95_LOW_PERCENTILE: f64 = 2.5;
+/// Upper end of a 95% percentile interval, in percent.
+pub const CI95_HIGH_PERCENTILE: f64 = 97.5;
+/// The 95th percentile, in percent.
+pub const P95: f64 = 95.0;
+
 /// Deterministic percentile bootstrap over per-example indicators. Used for
 /// the headline rate, where resampling examples is the natural notion of
 /// uncertainty; the seed is fixed so two runs agree exactly.
@@ -98,8 +105,8 @@ pub fn bootstrap_proportion(indicators: &[bool], seed: u64, resamples: usize) ->
         means.push(hits as f64 / denominator as f64);
     }
     means.sort_by(|a, b| a.partial_cmp(b).expect("bootstrap means are finite"));
-    let low = means[percentile_index(means.len(), 2.5)];
-    let high = means[percentile_index(means.len(), 97.5)];
+    let low = means[percentile_index(means.len(), CI95_LOW_PERCENTILE)];
+    let high = means[percentile_index(means.len(), CI95_HIGH_PERCENTILE)];
     let n = denominator as f64;
     Proportion {
         numerator,
@@ -180,8 +187,8 @@ pub fn cluster_bootstrap_proportion(
         numerator,
         denominator,
         value: Some(numerator as f64 / denominator as f64),
-        ci95_low: Some(means[percentile_index(means.len(), 2.5)]),
-        ci95_high: Some(means[percentile_index(means.len(), 97.5)]),
+        ci95_low: Some(means[percentile_index(means.len(), CI95_LOW_PERCENTILE)]),
+        ci95_high: Some(means[percentile_index(means.len(), CI95_HIGH_PERCENTILE)]),
         ci_method: CiMethod::ClusterBootstrap,
         zero_count_upper95: None,
     }
@@ -570,10 +577,16 @@ mod tests {
     }
 
     #[test]
+    fn a_95_percent_interval_is_95_points_wide() {
+        assert_eq!(95.0, CI95_HIGH_PERCENTILE - CI95_LOW_PERCENTILE);
+        assert_eq!(95.0, P95);
+    }
+
+    #[test]
     fn percentiles_use_nearest_rank_on_a_hand_table() {
         let mut values = vec![10u64, 20, 30, 40, 50, 60, 70, 80, 90, 100];
         assert_eq!(percentile_u64(&mut values, 50.0), Some(50));
-        assert_eq!(percentile_u64(&mut values, 95.0), Some(100));
+        assert_eq!(percentile_u64(&mut values, P95), Some(100));
         let mut single = vec![7u64];
         assert_eq!(percentile_u64(&mut single, 50.0), Some(7));
         assert_eq!(percentile_u64(&mut Vec::new(), 50.0), None);
