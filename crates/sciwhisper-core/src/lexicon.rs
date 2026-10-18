@@ -1281,4 +1281,13 @@ grouping:
             assert_eq!(parsed.confidence, 0.0, "{spoken}");
         }
     }
+
+    #[test]
+    fn a_stem_of_three_characters_is_kept_and_two_are_not() {
+        // «вода» + «а» leaves «вод» (3). «она» + «а» leaves «он» (2).
+        assert_eq!(russian_stem("вода"), Some("вод"));
+        assert_eq!(russian_stem("она"), None);
+        // Two short words share the two-letter stem «он» and must not glue.
+        assert!(!same_russian_stem("она", "ону"));
+    }
 }
