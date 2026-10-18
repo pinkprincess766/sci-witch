@@ -241,6 +241,13 @@ struct OpenaiSegment {
     avg_logprob: Option<f32>,
 }
 
+/// A segment above this `no_speech_prob` looks like silence. The comparison
+/// is strict: a probability equal to the threshold is still speech.
+const NO_SPEECH_PROB_THRESHOLD: f32 = 0.6;
+/// With every segment over `NO_SPEECH_PROB_THRESHOLD`, a transcript shorter
+/// than this is not speech. Three characters are kept.
+const NO_SPEECH_MAX_CHARS: usize = 3;
+
 pub fn parse_openai_json(s: &str) -> Result<Transcript> {
     let parsed: OpenaiJson = serde_json::from_str(s)?;
     let segments: Vec<Segment> = parsed
@@ -259,8 +266,8 @@ pub fn parse_openai_json(s: &str) -> Result<Transcript> {
         || (!segments.is_empty()
             && segments
                 .iter()
-                .all(|g| g.no_speech_prob.unwrap_or(0.0) > 0.6)
-            && text.chars().count() < 3);
+                .all(|g| g.no_speech_prob.unwrap_or(0.0) > NO_SPEECH_PROB_THRESHOLD)
+            && text.chars().count() < NO_SPEECH_MAX_CHARS);
     Ok(Transcript {
         text,
         language: parsed.language,
@@ -492,6 +499,36 @@ mod tests {
         }"#;
         let t = parse_openai_json(raw).unwrap();
         assert!(t.no_speech);
+    }
+
+    fn openai_json(text: &str, segments: &str) -> String {
+        format!(r#"{{"text":"{text}","segments":[{segments}]}}"#)
+    }
+
+    #[test]
+    fn no_speech_holds_on_both_sides_of_the_threshold() {
+        // Exactly 0.6, two characters: still speech. `>` would swallow it.
+        let at =
+            parse_openai_json(&openai_json("ок", r#"{"text":"ок","no_speech_prob":0.6}"#)).unwrap();
+        assert!(!at.no_speech, "{at:?}");
+        // Just over the probability, and shorter than three characters.
+        let over = parse_openai_json(&openai_json("ок", r#"{"text":"ок","no_speech_prob":0.61}"#))
+            .unwrap();
+        assert!(over.no_speech, "{over:?}");
+        // Three characters stay, even when the probability is high.
+        let three = parse_openai_json(&openai_json(
+            "три",
+            r#"{"text":"три","no_speech_prob":0.95}"#,
+        ))
+        .unwrap();
+        assert!(!three.no_speech, "{three:?}");
+        // One segment under the threshold keeps the whole transcript.
+        let mixed = parse_openai_json(&openai_json(
+            "аб",
+            r#"{"text":"а","no_speech_prob":0.1},{"text":"б","no_speech_prob":0.99}"#,
+        ))
+        .unwrap();
+        assert!(!mixed.no_speech, "{mixed:?}");
     }
 
     #[test]
