@@ -74,7 +74,7 @@ pub fn record(
     seconds: u64,
     input: &mpsc::Receiver<String>,
 ) -> Result<Option<PreparedAudio>> {
-    if !(1..=60).contains(&seconds) {
+    if !(1..=MAX_RECORDING_SECS).contains(&seconds) {
         return Err("Длительность записи: 1–60 секунд".into());
     }
     let device = cpal::default_host()
@@ -128,6 +128,17 @@ pub fn record(
     capture::write_temp_wav(&samples, hz).map(Some).map_err(err)
 }
 
+/// Longest take `record` will start, in seconds.
+const MAX_RECORDING_SECS: u64 = 60;
+
+/// How long playback may run: the longest take, plus a few seconds for the
+/// player to open the file and exit. A take of `MAX_RECORDING_SECS` must
+/// not be killed for being exactly that long.
+const PLAYBACK_TIMEOUT: Duration = Duration::from_secs(MAX_RECORDING_SECS + 5);
+
+/// How often the playback loop checks whether the player has exited.
+const PLAYBACK_POLL: Duration = Duration::from_millis(30);
+
 pub fn playback(path: &Path) -> Result<()> {
     #[cfg(target_os = "windows")]
     let mut command = {
@@ -154,7 +165,7 @@ pub fn playback(path: &Path) -> Result<()> {
         .stderr(Stdio::null())
         .spawn()
         .map_err(|e| format!("Не удалось открыть проигрыватель: {e}"))?;
-    let deadline = Instant::now() + Duration::from_secs(65);
+    let deadline = Instant::now() + PLAYBACK_TIMEOUT;
     loop {
         if let Some(status) = child.try_wait().map_err(err)? {
             return if status.success() {
@@ -168,13 +179,17 @@ pub fn playback(path: &Path) -> Result<()> {
             let _ = child.wait();
             return Err("Проигрыватель превысил время ожидания".into());
         }
-        std::thread::sleep(Duration::from_millis(30));
+        std::thread::sleep(PLAYBACK_POLL);
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn playback_timeout_is_longer_than_the_longest_take() {
+        assert!(PLAYBACK_TIMEOUT > Duration::from_secs(MAX_RECORDING_SECS));
+    }
     #[test]
     fn capture_is_bounded_downmixed_and_preserves_silence() {
         let mut b = Buffer::default();
