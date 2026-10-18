@@ -314,4 +314,23 @@ mod tests {
         zero["classes"][0]["min_carbons"] = serde_yaml::Value::from(0);
         assert!(Organic::load(&serde_yaml::to_string(&zero).unwrap()).is_err());
     }
+
+    #[test]
+    fn a_carbon_count_is_kept_at_the_limit_and_refused_past_it() {
+        let base: serde_yaml::Value = serde_yaml::from_str(ORGANIC_YAML).unwrap();
+        let load = |carbons: u32| {
+            let mut table = base.clone();
+            table["stems"][0]["carbons"] = serde_yaml::Value::from(carbons);
+            Organic::load(&serde_yaml::to_string(&table).unwrap())
+        };
+        assert!(load(MAX_CARBONS).is_ok());
+        for carbons in [0, MAX_CARBONS + 1] {
+            let err = load(carbons).expect_err("must be refused");
+            assert!(
+                err.to_string().contains("допустимо 1..=10"),
+                "{carbons}: {err}"
+            );
+        }
+        assert!(Organic::builtin().parse("декан").is_ok());
+    }
 }
