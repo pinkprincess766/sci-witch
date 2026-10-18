@@ -987,3 +987,38 @@ fn an_exported_and_ingested_v2_session_passes_the_corpus_schema_and_wrong_ones_d
         .expect_err("serde accepts only the underscore split name");
     assert!(error.message.contains("dev-holdout"), "{error}");
 }
+
+#[test]
+fn read_limited_accepts_the_limit_and_refuses_one_byte_over() {
+    let dir = tempfile::tempdir().unwrap();
+    let at_limit = dir.path().join("at-limit.bin");
+    let over = dir.path().join("over.bin");
+    fs::write(&at_limit, vec![b'a'; MAX_FILE_BYTES as usize]).unwrap();
+    fs::write(&over, vec![b'a'; MAX_FILE_BYTES as usize + 1]).unwrap();
+    assert_eq!(
+        read_limited(&at_limit).unwrap().len() as u64,
+        MAX_FILE_BYTES
+    );
+    let err = read_limited(&over).unwrap_err();
+    assert!(err.contains("8 МиБ"), "{err}");
+}
+
+#[test]
+fn an_oversize_plan_with_invalid_utf8_is_refused_for_its_size() {
+    let source = vec![0xFFu8; MAX_FILE_BYTES as usize + 1];
+    let err = match plan(
+        &source,
+        Split::Train,
+        "spk01".into(),
+        "2026-09-12".into(),
+        "quiet_room".into(),
+        ConsentKind::RuV2,
+    ) {
+        Ok(_) => panic!("an oversize plan must be refused"),
+        Err(err) => err,
+    };
+    assert!(
+        err.contains("велик"),
+        "size must be checked before UTF-8, got {err}"
+    );
+}
