@@ -1321,6 +1321,8 @@ fn repair_span(
                 break;
             }
             *budget -= 1;
+            #[cfg(test)]
+            BUDGETED_PARSES.with(|n| n.set(n.get() + 1));
             let mut merged: Vec<String> = original[..start].to_vec();
             merged.extend_from_slice(repair);
             merged.extend_from_slice(&original[end..]);
@@ -1385,6 +1387,8 @@ fn substitute_span(
                 return Repair::None;
             }
             *budget -= 1;
+            #[cfg(test)]
+            BUDGETED_PARSES.with(|n| n.set(n.get() + 1));
             let mut merged = original.to_vec();
             merged.extend_from_slice(to);
             match choose(read_span(
@@ -1404,6 +1408,8 @@ fn substitute_span(
                 return Repair::None;
             }
             *budget -= 1;
+            #[cfg(test)]
+            BUDGETED_PARSES.with(|n| n.set(n.get() + 1));
             let start = occurrences[0];
             let mut merged: Vec<String> = original[..start].to_vec();
             merged.extend_from_slice(to);
@@ -1965,6 +1971,8 @@ fn grow_span(
             break;
         }
         *budget -= 1;
+        #[cfg(test)]
+        BUDGETED_PARSES.with(|n| n.set(n.get() + 1));
         let (start_byte, end_byte) = utterance.byte_range(word, end);
         let source = &utterance.text[start_byte..end_byte];
         match choose(read_span(
@@ -2271,6 +2279,21 @@ fn trim_edges(text: &str) -> String {
 }
 
 #[cfg(test)]
+thread_local! {
+    static BUDGETED_PARSES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(test)]
+fn reset_budgeted_parses() {
+    BUDGETED_PARSES.with(|n| n.set(0));
+}
+
+#[cfg(test)]
+fn budgeted_parses() -> usize {
+    BUDGETED_PARSES.with(|n| n.get())
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -2531,5 +2554,24 @@ mod tests {
         assert!(interpretation.confidence > 0.0);
         assert!(matches!(interpretation.ast, Node::Document(_)));
         assert_eq!(result.decision, Decision::Accepted);
+    }
+
+    #[test]
+    fn parsing_stops_at_the_attempt_budget() {
+        // «гидроксид» is a cue, and a run of them does not parse as one
+        // formula. Eighty words spend 3104 attempts and stop on their own,
+        // short of the budget. One hundred twenty would spend 5664, so the
+        // cap is what stops the search.
+        //
+        // The whole-utterance attempt takes the first unit with
+        // `saturating_sub`, outside the four `*budget -= 1` sites this
+        // counter watches. Those sites therefore stop at
+        // `MAX_PARSE_ATTEMPTS - 1`.
+        reset_budgeted_parses();
+        let text = "гидроксид ".repeat(120);
+        let result = read(text.trim(), UtteranceMode::MixedText);
+        let spent = budgeted_parses();
+        assert_eq!(spent, MAX_PARSE_ATTEMPTS - 1, "{spent}");
+        let _ = result.decision;
     }
 }
