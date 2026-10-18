@@ -18,6 +18,10 @@ use crate::vad;
 pub const TARGET_HZ: u32 = 16_000;
 const RECORDING_TEMP_PREFIX: &str = "sciwhisper-recording-";
 const PREPARED_AUDIO_TEMP_PREFIX: &str = "sciwhisper-audio-";
+/// A take shorter than this is a click, not a recording.
+const MIN_RECORDING_MS: u32 = 100;
+/// How often `record_wav` checks the clock while a timed take is running.
+const CAPTURE_POLL: Duration = Duration::from_millis(30);
 
 /// Names of every input device the default host reports, best-effort (a
 /// device whose name briefly fails to query is skipped, not fatal).
@@ -162,7 +166,8 @@ fn finalize_samples(
     channels: usize,
 ) -> Result<Recording> {
     let samples = buf.lock().unwrap().clone();
-    if samples.len() < (sample_rate as usize / 10) {
+    let min_samples = u64::from(sample_rate) * u64::from(MIN_RECORDING_MS) / 1000;
+    if (samples.len() as u64) < min_samples {
         return Err(Error::Audio("recording too short".into()));
     }
     let mono = if channels <= 1 {
@@ -224,7 +229,7 @@ pub fn record_wav(max_secs: Option<u64>, device: Option<&str>) -> Result<Recordi
     if let Some(secs) = max_secs {
         let start = std::time::Instant::now();
         while start.elapsed() < Duration::from_secs(secs) {
-            thread::sleep(Duration::from_millis(30));
+            thread::sleep(CAPTURE_POLL);
         }
         stop.store(true, Ordering::SeqCst);
     } else {
@@ -537,5 +542,28 @@ mod tests {
         if let Err(e) = select_device(None) {
             assert!(matches!(e, Error::NoMicrophone));
         }
+    }
+
+    fn audio_error(samples: Vec<f32>) -> String {
+        match finalize_samples(
+            std::sync::Arc::new(std::sync::Mutex::new(samples)),
+            16_000,
+            1,
+        ) {
+            Err(err) => err.to_string(),
+            Ok(_) => panic!("expected an audio error"),
+        }
+    }
+
+    #[test]
+    fn a_take_under_a_tenth_of_a_second_is_too_short_without_a_microphone() {
+        let short = audio_error(vec![0.0; 1599]);
+        assert!(short.contains("recording too short"), "{short}");
+
+        let at_limit = audio_error(vec![0.0; 1600]);
+        assert!(
+            at_limit.contains("тишина"),
+            "1600 samples clear the length check, got {at_limit}"
+        );
     }
 }
