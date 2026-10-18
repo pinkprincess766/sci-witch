@@ -15,7 +15,7 @@ use crate::canonical::CANONICAL_SCHEMA_VERSION;
 use crate::evaluate::{evaluate_record, ErrorStage, EvalConfig, ExampleOutcome, RECALL_K_GRID};
 use crate::metrics::{
     bootstrap_proportion, percentile_u64, proportion, recall_at_k, severity_report, Proportion,
-    SeverityReport,
+    SeverityReport, P95,
 };
 use crate::oracle::{
     bottleneck_table, component_isolation, first_blocking, oracle_replacement, BottleneckTable,
@@ -396,7 +396,7 @@ pub fn build_report(inputs: &Inputs<'_>) -> Result<Report, String> {
         notes: notes(),
         timing: Timing {
             latency_us_p50: percentile_u64(&mut latencies, 50.0),
-            latency_us_p95: percentile_u64(&mut latencies, 95.0),
+            latency_us_p95: percentile_u64(&mut latencies, P95),
         },
     })
 }
@@ -570,7 +570,7 @@ fn compute_metrics(
         reranker_readiness: readiness,
         candidates: CandidateStats {
             p50: percentile_u64(&mut counts.clone(), 50.0),
-            p95: percentile_u64(&mut counts.clone(), 95.0),
+            p95: percentile_u64(&mut counts.clone(), P95),
             max: counts.iter().copied().max(),
             examples_with_more_than_one_candidate: ambiguous,
             examples_with_more_than_one_ast_candidate: ambiguous_ast,
