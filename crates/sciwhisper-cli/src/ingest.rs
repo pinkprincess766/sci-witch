@@ -488,6 +488,36 @@ mod tests {
         }
     }
 
+    fn audio_with_consent(fields: &str) -> String {
+        format!(r#"{{"file":"audio/spk01-0001.wav","consent":{{{fields}}}}}"#)
+    }
+
+    #[test]
+    fn consent_must_be_a_granted_boolean_with_a_name_and_a_date() {
+        // Each body keeps consent-ru-v2 and breaks one of the three checks.
+        let cases = [
+            r#""granted":false,"statement_id":"consent-ru-v2","date":"2026-09-05""#,
+            r#""granted":"true","statement_id":"consent-ru-v2","date":"2026-09-05""#,
+            r#""statement_id":"consent-ru-v2","date":"2026-09-05""#,
+            r#""granted":true,"statement_id":"consent-ru-v2","date":"""#,
+            r#""granted":true,"statement_id":"consent-ru-v2","date":"   ""#,
+            r#""granted":true,"statement_id":"consent-ru-v2""#,
+            r#""granted":true,"statement_id":"  ","date":"2026-09-05""#,
+        ];
+        for fields in cases {
+            let (_dir, options) = setup(true, &audio_with_consent(fields), "");
+            let mut called = false;
+            let error = run(options_ref(&options), &mut |_| {
+                called = true;
+                Ok("вода".into())
+            })
+            .unwrap_err();
+            assert!(error.contains("must be granted"), "{fields}: {error}");
+            assert!(!called, "{fields}: transcribed before consent was checked");
+            assert!(!options.output.exists(), "{fields}: wrote an output file");
+        }
+    }
+
     #[test]
     fn consent_ru_v2_is_accepted() {
         let (_dir, options) = setup(true, &audio_with_statement("consent-ru-v2"), "");
