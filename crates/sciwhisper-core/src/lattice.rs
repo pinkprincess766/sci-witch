@@ -1655,4 +1655,37 @@ mod tests {
         assert!(crate::research::nearest_lexicon_words("кидроксидж").is_some());
         assert!(crate::research::nearest_lexicon_words("гырдксд").is_none());
     }
+
+    #[test]
+    fn at_most_two_words_receive_a_vowel_repair() {
+        let lex = Lexicon::builtin();
+        let words = ["карбанат", "хларид", "гидраксид"]
+            .map(str::to_string)
+            .to_vec();
+        let (out, swaps) = repair_words(lex, &words).expect("each word repairs");
+        assert_eq!(swaps.len(), MAX_REPAIRED_WORDS);
+        assert_eq!(out[0], repair_one(lex, &words[0]).unwrap());
+        assert_eq!(out[1], repair_one(lex, &words[1]).unwrap());
+        assert_eq!(out[2], words[2], "the third word stays as heard");
+    }
+
+    #[test]
+    fn a_fronted_product_tries_at_most_four_rotations() {
+        let text = "с образованием zzz и zzz и zzz и zzz и zzz и zzz";
+        let mut builder = Builder::new(text, LatticeOptions::default());
+        let cuts = connective_starts(builder.lex, &builder.words);
+        assert!(
+            cuts.len() > MAX_ROTATIONS,
+            "the phrase needs a cut past the cap, got {cuts:?}"
+        );
+        builder.product_rotation();
+        assert_eq!(builder.attempts, MAX_ROTATIONS);
+        assert!(
+            builder
+                .out
+                .iter()
+                .all(|candidate| !candidate.origins.contains(&Origin::ProductClauseRotated)),
+            "a rotation parsed, so the loop returned before the cap"
+        );
+    }
 }
