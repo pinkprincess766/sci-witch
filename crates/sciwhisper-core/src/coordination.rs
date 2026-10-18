@@ -952,3 +952,68 @@ impl MaterialClasses {
         ))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The shipped prefixes stop at «дека» = 10, so `builtin().hydrate` cannot
+    /// spell 0, 24 or 25. The stem is the one in `coordination.yaml`; the
+    /// prefixes exist only in this table, to reach the comparisons.
+    fn table() -> Coordination {
+        let stem = Coordination::builtin()
+            .hydrate_stems
+            .iter()
+            .find(|stem| stem.as_str() == "гидрат")
+            .expect("coordination.yaml lists the stem гидрат");
+        let yaml = format!(
+            r#"
+schema_version: 1
+prefixes:
+  - {{spoken: к24, value: 24}}
+  - {{spoken: к25, value: 25}}
+  - {{spoken: к0, value: 0}}
+ligands:
+  - id: aqua
+    iupac_2005: аква
+    stems: [аква]
+    formula: H2O
+    charge: 0
+    max_multiplicity: 1
+anionic_centers: []
+cationic_centers: []
+electron_names: []
+ion_lead_ins: []
+hydrate_stems: [{stem}]
+oxidation_markers: []
+roman_numerals: {{}}
+"#
+        );
+        Coordination::load(&yaml).expect("test table")
+    }
+
+    #[test]
+    fn hydrate_water_count_holds_on_both_sides_of_the_limit() {
+        let builtin = Coordination::builtin();
+        assert!(
+            builtin.prefixes.iter().all(|(_, n)| (1..=10).contains(n)),
+            "the shipped lexicon has no prefix for 0 or for 24"
+        );
+        assert_eq!(builtin.hydrate("декагидрат"), Some(Ok(10)));
+
+        let table = table();
+        assert_eq!(table.hydrate("к24гидрат"), Some(Ok(24)));
+        assert_eq!(
+            table.hydrate("к25гидрат"),
+            Some(Err(Refusal::OutOfRange {
+                what: "число молекул воды",
+                value: 25,
+                limit: MAX_HYDRATE_WATERS,
+            }))
+        );
+        assert_eq!(
+            table.hydrate("к0гидрат"),
+            Some(Err(Refusal::ZeroMultiplicity("молекул воды")))
+        );
+    }
+}
