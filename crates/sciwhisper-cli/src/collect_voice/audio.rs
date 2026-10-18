@@ -117,7 +117,7 @@ pub fn record(
     if let Some(error) = &buffer.error {
         return Err(error.clone());
     }
-    if buffer.mono.len() < config.sample_rate.0 as usize / 10 {
+    if is_too_short(buffer.mono.len(), config.sample_rate.0) {
         return Err("Запись слишком короткая".into());
     }
     // Both values own temporary files. Return an independent 16 kHz copy,
@@ -183,6 +183,16 @@ pub fn playback(path: &Path) -> Result<()> {
     }
 }
 
+/// A take shorter than this is a click, not a recording. 100 ms is
+/// `sample_rate / 10` at the rates `record` accepts.
+const MIN_RECORDING_MS: u32 = 100;
+
+/// True when `samples` cover less than `MIN_RECORDING_MS` at `hz`.
+fn is_too_short(samples: usize, hz: u32) -> bool {
+    let min_samples = u64::from(hz) * u64::from(MIN_RECORDING_MS) / 1000;
+    (samples as u64) < min_samples
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -202,5 +212,13 @@ mod tests {
         let mut b = Buffer::default();
         append(&mut b, &[f32::NAN], 1, 10);
         assert!(b.error.is_some());
+    }
+    #[test]
+    fn a_take_under_a_tenth_of_a_second_is_too_short() {
+        // 16 kHz: 100 ms is 1600 samples. 48 kHz: 4800.
+        assert!(is_too_short(1599, 16_000));
+        assert!(!is_too_short(1600, 16_000));
+        assert!(is_too_short(4799, 48_000));
+        assert!(!is_too_short(4800, 48_000));
     }
 }
