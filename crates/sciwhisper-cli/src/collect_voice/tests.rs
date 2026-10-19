@@ -145,6 +145,31 @@ fn a_take_replaced_by_another_format_is_refused_on_resume_and_export() {
 }
 
 #[test]
+fn the_wav_size_limit_holds_on_both_sides_at_accept_and_on_resume() {
+    let dir = tempfile::tempdir().unwrap();
+    let p = plan_for_test();
+    let s = Session::create(&dir.path().join("session"), p.clone()).unwrap();
+    let text = &p.tasks[0].human_transcript;
+    // Not a WAV at all: the size is checked before the header is read, so
+    // only the size decides which error comes back.
+    let at_limit = dir.path().join("at_limit.wav");
+    let over = dir.path().join("over.wav");
+    fs::write(&at_limit, vec![0u8; MAX_WAV_BYTES as usize]).unwrap();
+    fs::write(&over, vec![0u8; MAX_WAV_BYTES as usize + 1]).unwrap();
+    let error = s.accept(0, &over, text, "Mic").expect_err("too big");
+    assert!(error.contains("слишком велико"), "{error}");
+    let error = s.accept(0, &at_limit, text, "Mic").expect_err("not a WAV");
+    assert!(!error.contains("слишком велико"), "{error}");
+    assert!(s.takes().unwrap().is_empty());
+
+    // A saved take later replaced by an oversized file is refused on resume.
+    s.accept(0, &wav(dir.path()), text, "Mic").unwrap();
+    fs::copy(&over, s.root.join("takes/0000/audio.wav")).unwrap();
+    let error = s.takes().err().expect("resume refused");
+    assert!(error.contains("превышает предел"), "{error}");
+}
+
+#[test]
 fn session_resumes_and_exports_the_exact_author_target_and_real_audio() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("session");
