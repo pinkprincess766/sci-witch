@@ -105,6 +105,30 @@ fn the_microphone_length_limit_holds_on_both_sides() {
 }
 
 #[test]
+fn the_task_transcript_length_limit_holds_on_both_sides() {
+    let with_transcript = |len: usize| {
+        let mut row = read_row();
+        row.insert("human_transcript".into(), "a".repeat(len).into());
+        plan_from(&[row])
+    };
+    let longest = with_transcript(MAX_LINE_BYTES).expect("MAX_LINE_BYTES loads");
+    assert_eq!(longest.tasks[0].human_transcript.len(), MAX_LINE_BYTES);
+    let error = with_transcript(MAX_LINE_BYTES + 1)
+        .err()
+        .expect("one byte too many");
+    assert!(error.contains("Задания должны быть текстовыми"), "{error}");
+    // The limit counts bytes, not characters: 4097 two-byte letters are
+    // 8194 bytes and are refused although they are fewer than 8192 chars.
+    let mut row = read_row();
+    row.insert(
+        "human_transcript".into(),
+        "я".repeat(MAX_LINE_BYTES / 2 + 1).into(),
+    );
+    let error = plan_from(&[row]).err().expect("bytes, not chars");
+    assert!(error.contains("Задания должны быть текстовыми"), "{error}");
+}
+
+#[test]
 fn a_take_replaced_by_another_format_is_refused_on_resume_and_export() {
     let dir = tempfile::tempdir().unwrap();
     let p = plan_for_test();
