@@ -1670,6 +1670,38 @@ mod tests {
     }
 
     #[test]
+    fn the_shortest_repairable_word_holds_on_both_sides() {
+        let lex = Lexicon::builtin();
+        // Four letters: the swap would land on a known word, and the length
+        // guard alone keeps «мидь» as heard.
+        let short = "мидь";
+        assert_eq!(short.chars().count(), MIN_REPAIR_WORD_CHARS - 1);
+        assert_eq!(repair_one(lex, short).as_deref(), Some("медь"));
+        assert!(repair_words(lex, &[short.to_string()]).is_none());
+        // Five letters: repaired.
+        let long = "колий";
+        assert_eq!(long.chars().count(), MIN_REPAIR_WORD_CHARS);
+        let (out, swaps) = repair_words(lex, &[long.to_string()]).expect("five letters repair");
+        assert_eq!(out, ["калий"]);
+        assert_eq!(swaps, [(long.to_string(), "калий".to_string())]);
+    }
+
+    /// Passing wrongly: a short word skipped by the guard does not use up one
+    /// of the `MAX_REPAIRED_WORDS` repairs.
+    #[test]
+    fn a_short_word_does_not_count_against_the_repair_cap() {
+        let lex = Lexicon::builtin();
+        let words = ["мидь", "мидь", "карбанат", "хларид"]
+            .map(str::to_string)
+            .to_vec();
+        let (out, swaps) = repair_words(lex, &words).expect("the long words repair");
+        assert_eq!(swaps.len(), MAX_REPAIRED_WORDS);
+        assert_eq!(&out[..2], &words[..2], "short words stay as heard");
+        assert_eq!(out[2], repair_one(lex, &words[2]).unwrap());
+        assert_eq!(out[3], repair_one(lex, &words[3]).unwrap());
+    }
+
+    #[test]
     fn a_fronted_product_tries_at_most_four_rotations() {
         let text = "с образованием zzz и zzz и zzz и zzz и zzz и zzz";
         let mut builder = Builder::new(text, LatticeOptions::default());
