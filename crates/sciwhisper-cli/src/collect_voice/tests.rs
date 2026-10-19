@@ -797,6 +797,38 @@ fn the_card_length_limit_holds_on_both_sides() {
     assert!(with_card(MAX_CARD_BYTES + 1).is_err());
 }
 
+/// `n` read tasks, each its own family so the plan is otherwise valid.
+fn read_rows(n: usize) -> Vec<Row> {
+    (0..n)
+        .map(|i| {
+            let mut row = read_row();
+            row.insert("family_id".into(), format!("bulk-{i:04}").into());
+            row.insert("id".into(), format!("bulk-{i:04}-a").into());
+            row
+        })
+        .collect()
+}
+
+#[test]
+fn the_task_count_limit_holds_on_both_sides() {
+    let at_limit = plan_from(&read_rows(MAX_TASKS)).expect("MAX_TASKS tasks load");
+    assert_eq!(at_limit.tasks.len(), MAX_TASKS);
+    let error = plan_from(&read_rows(MAX_TASKS + 1))
+        .err()
+        .expect("one task too many");
+    assert!(error.contains("Неверный план заданий"), "{error}");
+    // Session::create checks the plan again: a plan edited past the limit
+    // after it was built is refused there too.
+    let dir = tempfile::tempdir().unwrap();
+    let mut grown = at_limit;
+    grown.tasks.push(grown.tasks[0].clone());
+    let error = Session::create(&dir.path().join("session"), grown)
+        .err()
+        .expect("refused");
+    assert!(error.contains("Неверный план заданий"), "{error}");
+    assert!(!dir.path().join("session").exists());
+}
+
 #[test]
 fn a_session_file_where_cards_and_pending_disagree_is_refused() {
     let dir = tempfile::tempdir().unwrap();
