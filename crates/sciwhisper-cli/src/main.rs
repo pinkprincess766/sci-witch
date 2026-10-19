@@ -582,9 +582,9 @@ mod tests {
     #[test]
     fn a_corpus_path_without_a_file_name_does_not_panic() {
         assert_eq!(audio_file_label(std::path::Path::new("a/b.wav")), "b.wav");
-        // `..` has a file name, so the old unwrap did not panic here.
+        // `..` and `/` have no file name (`file_name` is None), so the old
+        // unwrap panicked on both. The label is the path itself.
         assert_eq!(audio_file_label(std::path::Path::new("..")), "..");
-        // `/` has none. The label is the path itself.
         assert_eq!(audio_file_label(std::path::Path::new("/")), "/");
     }
 }
