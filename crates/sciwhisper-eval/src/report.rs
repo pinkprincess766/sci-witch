@@ -113,6 +113,32 @@ pub struct RerankerReadiness {
     pub note: String,
 }
 
+/// The pre-registered admission rule of [`RerankerReadiness`]: examples with
+/// more than one distinct scientific AST, examples with the gold answer
+/// present but not first, and ambiguous examples in each of the train and
+/// validation splits. The same numbers are the admission gate of
+/// `research/reranker/program.md`; changing one here is a new program version.
+const REQUIRED_AMBIGUOUS: usize = 50;
+const REQUIRED_GOLD_NOT_FIRST: usize = 20;
+const REQUIRED_PER_SPLIT: usize = 10;
+/// The splits a ranking model is trained and validated on. Ambiguity found
+/// only in another split (a holdout) does not let the model be fitted.
+const RERANKER_SPLITS: [&str; 2] = ["train", "validation"];
+
+/// Whether the corpus meets every count of the admission rule at once.
+fn reranker_is_ready(
+    ambiguous_ast: usize,
+    gold_not_first: usize,
+    ambiguous_by_split: &BTreeMap<String, usize>,
+) -> bool {
+    let enough_per_split = RERANKER_SPLITS
+        .iter()
+        .all(|split| ambiguous_by_split.get(*split).copied().unwrap_or(0) >= REQUIRED_PER_SPLIT);
+    ambiguous_ast >= REQUIRED_AMBIGUOUS
+        && gold_not_first >= REQUIRED_GOLD_NOT_FIRST
+        && enough_per_split
+}
+
 #[derive(Clone, Debug, Serialize)]
 pub struct Metrics {
     pub examples: usize,
@@ -500,15 +526,7 @@ fn compute_metrics(
         .filter(|outcome| outcome.gold_rank.is_some_and(|rank| rank > 1))
         .count();
     let scientific_examples = ast_records.len();
-    const REQUIRED_AMBIGUOUS: usize = 50;
-    const REQUIRED_GOLD_NOT_FIRST: usize = 20;
-    const REQUIRED_PER_SPLIT: usize = 10;
-    let enough_per_split = ["train", "validation"]
-        .iter()
-        .all(|split| ambiguous_by_split.get(*split).copied().unwrap_or(0) >= REQUIRED_PER_SPLIT);
-    let sufficient = ambiguous_ast >= REQUIRED_AMBIGUOUS
-        && gold_not_first >= REQUIRED_GOLD_NOT_FIRST
-        && enough_per_split;
+    let sufficient = reranker_is_ready(ambiguous_ast, gold_not_first, &ambiguous_by_split);
     let readiness = RerankerReadiness {
         scientific_examples,
         examples_with_at_least_two_distinct_ast_candidates: ambiguous_ast,
@@ -1116,6 +1134,47 @@ mod tests {
         );
         assert_eq!(readiness.verdict, "insufficient");
         assert!(readiness.note.contains("statistically meaningless"));
+    }
+
+    fn splits(train: usize, validation: usize) -> BTreeMap<String, usize> {
+        BTreeMap::from([
+            ("train".to_string(), train),
+            ("validation".to_string(), validation),
+        ])
+    }
+
+    #[test]
+    fn the_reranker_admission_rule_holds_on_every_side() {
+        let (a, g, p) = (
+            REQUIRED_AMBIGUOUS,
+            REQUIRED_GOLD_NOT_FIRST,
+            REQUIRED_PER_SPLIT,
+        );
+        assert!(
+            reranker_is_ready(a, g, &splits(p, p)),
+            "every count at its minimum"
+        );
+        // One short on any single count is enough to refuse.
+        assert!(!reranker_is_ready(a - 1, g, &splits(p, p)));
+        assert!(!reranker_is_ready(a, g - 1, &splits(p, p)));
+        assert!(!reranker_is_ready(a, g, &splits(p - 1, p)));
+        assert!(!reranker_is_ready(a, g, &splits(p, p - 1)));
+    }
+
+    /// Passing wrongly: plenty of ambiguity, all of it in a holdout split or
+    /// in train alone, must not admit a model that cannot be validated.
+    #[test]
+    fn ambiguity_outside_train_and_validation_does_not_admit_a_reranker() {
+        let (a, g, p) = (
+            REQUIRED_AMBIGUOUS,
+            REQUIRED_GOLD_NOT_FIRST,
+            REQUIRED_PER_SPLIT,
+        );
+        let holdout = BTreeMap::from([("dev_holdout".to_string(), 10 * p)]);
+        assert!(!reranker_is_ready(10 * a, 10 * g, &holdout));
+        let train_only = BTreeMap::from([("train".to_string(), 10 * p)]);
+        assert!(!reranker_is_ready(10 * a, 10 * g, &train_only));
+        assert!(!reranker_is_ready(10 * a, 10 * g, &BTreeMap::new()));
     }
 
     #[test]
