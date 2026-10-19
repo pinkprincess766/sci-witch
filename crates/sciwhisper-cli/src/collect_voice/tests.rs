@@ -1022,3 +1022,33 @@ fn an_oversize_plan_with_invalid_utf8_is_refused_for_its_size() {
         "size must be checked before UTF-8, got {err}"
     );
 }
+
+fn plan_with_environment(environment: &str) -> Result<Plan> {
+    let source = serde_json::to_string(&read_row()).unwrap();
+    plan(
+        source.as_bytes(),
+        Split::Train,
+        "spk01".into(),
+        "2026-09-12".into(),
+        environment.into(),
+        ConsentKind::RuV2,
+    )
+}
+
+#[test]
+fn the_environment_label_is_short_one_line_and_not_blank() {
+    assert!(plan_with_environment("quiet_room").is_ok());
+    assert!(plan_with_environment(&"e".repeat(MAX_LABEL_BYTES)).is_ok());
+    for (case, environment) in [
+        ("over the limit", "e".repeat(MAX_LABEL_BYTES + 1)),
+        ("empty", String::new()),
+        ("blank", "   ".into()),
+        ("two lines", "quiet\nroom".into()),
+        ("carriage return", "quiet\rroom".into()),
+    ] {
+        let error = plan_with_environment(&environment)
+            .err()
+            .unwrap_or_else(|| panic!("{case}: must be refused"));
+        assert!(error.contains("Обстановка"), "{case}: {error}");
+    }
+}
