@@ -24,6 +24,14 @@ pub const MAX_LABEL_BYTES: usize = 200;
 pub const MAX_LINE_BYTES: usize = 8192;
 /// Largest take on disk: 60 s of 16-bit mono 16 kHz PCM plus the header.
 pub const MAX_WAV_BYTES: u64 = 2_000_000;
+/// Shortest and longest take a session stores, in seconds of audio as
+/// measured from the file. The recorder uses the same bounds (`audio.rs`:
+/// `MIN_RECORDING_MS`, `MAX_RECORDING_SECS`).
+pub const MIN_TAKE_SECS: f64 = 0.1;
+pub const MAX_TAKE_SECS: f64 = 60.0;
+/// The same bounds in samples at the required 16 kHz, for the header check.
+pub const MIN_TAKE_SAMPLES: u32 = (MIN_TAKE_SECS * REQUIRED_SAMPLE_RATE_HZ as f64) as u32;
+pub const MAX_TAKE_SAMPLES: u32 = (MAX_TAKE_SECS * REQUIRED_SAMPLE_RATE_HZ as f64) as u32;
 /// Longest card text a free task may show, in bytes.
 pub const MAX_CARD_BYTES: usize = 1024;
 /// Typed to confirm a read task: the speaker said the phrase exactly.
@@ -473,7 +481,7 @@ fn directory(path: &Path) -> Result<()> {
 fn check_pcm(path: &Path) -> Result<()> {
     let reader = hound::WavReader::open(path).map_err(err)?;
     check_format(reader.spec(), path).map_err(err)?;
-    if !(1600..=960000).contains(&reader.duration()) {
+    if !(MIN_TAKE_SAMPLES..=MAX_TAKE_SAMPLES).contains(&reader.duration()) {
         return Err("Нужен PCM16 моно WAV 16 кГц продолжительностью 0,1–60 секунд".into());
     }
     Ok(())
@@ -635,7 +643,7 @@ impl Session {
         let facts = describe_wav(&stage.path().join("audio.wav")).map_err(err)?;
         if facts.sample_rate_hz != REQUIRED_SAMPLE_RATE_HZ
             || facts.channels != u32::from(REQUIRED_CHANNELS)
-            || !(0.1..=60.0).contains(&facts.duration_secs)
+            || !(MIN_TAKE_SECS..=MAX_TAKE_SECS).contains(&facts.duration_secs)
         {
             return Err("Нужен моно WAV 16 кГц продолжительностью 0,1–60 секунд".into());
         }

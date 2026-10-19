@@ -87,6 +87,62 @@ fn only_16_bit_mono_16_khz_takes_are_accepted() {
     assert_eq!(s.takes().unwrap().len(), 1);
 }
 
+/// A silent 16 kHz mono 16-bit WAV of exactly `samples` samples.
+fn wav_of_samples(dir: &std::path::Path, name: &str, samples: u32) -> std::path::PathBuf {
+    let path = dir.join(name);
+    let spec = hound::WavSpec {
+        channels: 1,
+        sample_rate: 16_000,
+        bits_per_sample: 16,
+        sample_format: hound::SampleFormat::Int,
+    };
+    let mut writer = hound::WavWriter::create(&path, spec).unwrap();
+    for _ in 0..samples {
+        writer.write_sample(0i16).unwrap();
+    }
+    writer.finalize().unwrap();
+    path
+}
+
+#[test]
+fn the_take_duration_limit_holds_on_both_sides() {
+    let dir = tempfile::tempdir().unwrap();
+    let p = plan_for_test();
+    let s = Session::create(&dir.path().join("session"), p.clone()).unwrap();
+    let text = &p.tasks[0].human_transcript;
+    let (shortest, longest) = (MIN_TAKE_SAMPLES, MAX_TAKE_SAMPLES);
+    for (name, samples) in [("short.wav", shortest - 1), ("long.wav", longest + 1)] {
+        let path = wav_of_samples(dir.path(), name, samples);
+        let error = s.accept(0, &path, text, "Mic").expect_err(name);
+        assert!(error.contains("0,1–60 секунд"), "{name}: {error}");
+    }
+    assert!(s.takes().unwrap().is_empty());
+    // One task each: a task holds a single take.
+    for (idx, name, samples) in [(0, "shortest.wav", shortest), (1, "longest.wav", longest)] {
+        let path = wav_of_samples(dir.path(), name, samples);
+        s.accept(idx, &path, &p.tasks[idx].human_transcript, "Mic")
+            .unwrap_or_else(|e| panic!("{name}: {e}"));
+    }
+    assert_eq!(s.takes().unwrap().len(), 2);
+}
+
+#[test]
+fn the_take_bounds_in_samples_are_the_bounds_in_seconds() {
+    // The names replace the literals 1600 and 960000; the values are unchanged.
+    assert_eq!((MIN_TAKE_SAMPLES, MAX_TAKE_SAMPLES), (1_600, 960_000));
+    assert_eq!(f64::from(MIN_TAKE_SAMPLES) / 16_000.0, MIN_TAKE_SECS);
+    assert_eq!(f64::from(MAX_TAKE_SAMPLES) / 16_000.0, MAX_TAKE_SECS);
+}
+
+#[test]
+fn the_longest_take_fits_under_the_wav_size_limit() {
+    // 16-bit mono 16 kHz is 32 000 bytes a second, plus a 44-byte header. If
+    // the size limit were tighter, a valid long take would be refused as
+    // "too big" before its duration was ever read.
+    let longest_bytes = (MAX_TAKE_SECS * 32_000.0) as u64 + 44;
+    assert!(longest_bytes <= MAX_WAV_BYTES, "{longest_bytes}");
+}
+
 #[test]
 fn the_microphone_length_limit_holds_on_both_sides() {
     let dir = tempfile::tempdir().unwrap();
