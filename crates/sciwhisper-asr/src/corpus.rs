@@ -220,4 +220,34 @@ mod tests {
             assert!(error.contains("16000 Гц"), "{error}");
         }
     }
+
+    /// Passing wrongly: a float header with the right rate, channel count and
+    /// bit depth matches every number in the rule, and is still not PCM.
+    #[test]
+    fn a_float_header_is_refused_even_when_every_number_matches() {
+        let path = std::path::Path::new("float.wav");
+        let pcm = hound::WavSpec {
+            channels: REQUIRED_CHANNELS,
+            sample_rate: REQUIRED_SAMPLE_RATE_HZ,
+            bits_per_sample: REQUIRED_BITS_PER_SAMPLE,
+            sample_format: hound::SampleFormat::Int,
+        };
+        assert!(check_format(pcm, path).is_ok());
+        let float = hound::WavSpec {
+            sample_format: hound::SampleFormat::Float,
+            ..pcm
+        };
+        let error = check_format(float, path).unwrap_err().to_string();
+        assert!(error.contains("float"), "{error}");
+        assert!(error.contains("PCM без сжатия"), "{error}");
+        // The common float layout, 32-bit, is refused too, and the message
+        // names both what was found and what is needed.
+        let float32 = hound::WavSpec {
+            bits_per_sample: 32,
+            ..float
+        };
+        let error = check_format(float32, path).unwrap_err().to_string();
+        assert!(error.contains("32 бит, float"), "{error}");
+        assert!(error.contains("16 бит"), "{error}");
+    }
 }
