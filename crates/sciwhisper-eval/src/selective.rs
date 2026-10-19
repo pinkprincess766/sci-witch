@@ -584,6 +584,82 @@ mod tests {
         assert!(report.calibration.aurc.is_some());
     }
 
+    /// `answers` scored answers at one confidence level, `errors` of them wrong.
+    fn one_level(answers: usize, errors: usize) -> Vec<Decision> {
+        (0..answers)
+            .map(|i| decision(true, 0.7, i >= errors, i < errors))
+            .collect()
+    }
+
+    #[test]
+    fn the_error_count_needed_to_fit_holds_on_both_sides() {
+        // Plenty of examples, so only the error count decides.
+        let short = evaluate_decisions(&one_level(100, MIN_ERRORS_TO_FIT - 1), 0.9);
+        assert_eq!(short.calibration.errors, MIN_ERRORS_TO_FIT - 1);
+        assert!(
+            short
+                .calibration
+                .verdict
+                .contains("нельзя выбрать по данным"),
+            "{}",
+            short.calibration.verdict
+        );
+        let enough = evaluate_decisions(&one_level(100, MIN_ERRORS_TO_FIT), 0.9);
+        assert_eq!(enough.calibration.errors, MIN_ERRORS_TO_FIT);
+        assert!(
+            enough.calibration.verdict.contains("достаточно"),
+            "{}",
+            enough.calibration.verdict
+        );
+    }
+
+    #[test]
+    fn the_examples_needed_per_level_hold_on_both_sides() {
+        // Enough errors, so only the size of the level decides. Every answer
+        // here is wrong, which keeps the error count at the level's size.
+        let thin = evaluate_decisions(
+            &one_level(MIN_EXAMPLES_PER_LEVEL - 1, MIN_EXAMPLES_PER_LEVEL - 1),
+            0.9,
+        );
+        assert!(!thin.calibration.levels[0].trustworthy);
+        assert!(
+            thin.calibration.verdict.contains("калибровка не читается"),
+            "{}",
+            thin.calibration.verdict
+        );
+        let full = evaluate_decisions(
+            &one_level(MIN_EXAMPLES_PER_LEVEL, MIN_EXAMPLES_PER_LEVEL),
+            0.9,
+        );
+        assert!(full.calibration.levels[0].trustworthy);
+        assert!(
+            full.calibration.verdict.contains("достаточно"),
+            "{}",
+            full.calibration.verdict
+        );
+    }
+
+    /// Answers that were never scored as an AST do not count as errors: a
+    /// corpus of wrong abstentions must not look like enough evidence.
+    #[test]
+    fn errors_outside_the_scored_answers_do_not_unlock_fitting() {
+        let mut decisions: Vec<Decision> = (0..100)
+            .map(|_| decision(false, 0.0, false, false))
+            .collect();
+        decisions.extend(one_level(MIN_EXAMPLES_PER_LEVEL, 0));
+        let report = evaluate_decisions(&decisions, 0.9);
+        assert_eq!(report.calibration.errors, 0);
+        assert_eq!(report.calibration.scored_examples, MIN_EXAMPLES_PER_LEVEL);
+        assert!(
+            report
+                .calibration
+                .verdict
+                .contains("нельзя выбрать по данным"),
+            "{}",
+            report.calibration.verdict
+        );
+    }
+
     /// A level with a handful of examples is noise, and is marked as such.
     #[test]
     fn a_thin_level_is_not_read_as_evidence() {
