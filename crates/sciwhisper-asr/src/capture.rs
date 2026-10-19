@@ -165,7 +165,14 @@ fn finalize_samples(
     sample_rate: u32,
     channels: usize,
 ) -> Result<Recording> {
-    let samples = buf.lock().unwrap().clone();
+    // A poisoned buffer means the audio callback panicked mid-write: the
+    // samples may be cut anywhere, so the take is refused, not finalized.
+    let samples = buf
+        .lock()
+        .map_err(|_| {
+            Error::Audio("recording buffer is poisoned: the audio callback failed".into())
+        })?
+        .clone();
     let min_samples = u64::from(sample_rate) * u64::from(MIN_RECORDING_MS) / 1000;
     if (samples.len() as u64) < min_samples {
         return Err(Error::Audio("recording too short".into()));
@@ -262,8 +269,11 @@ where
                 if stop.load(Ordering::Relaxed) {
                     return;
                 }
-                let mut g = buf.lock().unwrap();
-                g.extend(data.iter().map(|s| s.to_f32()));
+                // Never panic on the audio thread: a poisoned buffer is
+                // reported by `finalize_samples` when the take ends.
+                if let Ok(mut g) = buf.lock() {
+                    g.extend(data.iter().map(|s| s.to_f32()));
+                }
             },
             err_fn,
             None,
@@ -552,6 +562,24 @@ mod tests {
         ) {
             Err(err) => err.to_string(),
             Ok(_) => panic!("expected an audio error"),
+        }
+    }
+
+    #[test]
+    fn a_poisoned_sample_buffer_is_an_audio_error_not_a_panic() {
+        let buf = std::sync::Arc::new(std::sync::Mutex::new(vec![0.1f32; 16_000]));
+        let held = buf.clone();
+        let panicked = std::thread::spawn(move || {
+            let _guard = held.lock().unwrap();
+            panic!("the audio callback failed while holding the buffer");
+        })
+        .join();
+        assert!(panicked.is_err());
+        assert!(buf.is_poisoned());
+        match finalize_samples(buf, 16_000, 1) {
+            Err(Error::Audio(message)) => assert!(message.contains("poisoned"), "{message}"),
+            Err(other) => panic!("expected an audio error, got {other}"),
+            Ok(_) => panic!("a poisoned buffer must not become a recording"),
         }
     }
 
