@@ -437,7 +437,7 @@ fn print_pipeline(
     json: bool,
 ) -> Result<(), String> {
     if result.transcript.no_speech {
-        eprintln!("тишина — Whisper не дал текста, вставка пропущена");
+        eprintln!("тишина — Whisper не дал текста, компилировать нечего");
         return Ok(());
     }
     if json {
