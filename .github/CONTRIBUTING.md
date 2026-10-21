@@ -1,20 +1,29 @@
-# Как участвовать в SciWhisper
+# Как участвовать в sci-witch
 
-Спасибо за помощь. SciWhisper особенно нуждается в воспроизводимых примерах русской научной речи, а не в больших недетерминированных переписываниях.
+Спасибо за помощь. sci-witch особенно нуждается в воспроизводимых примерах русской научной речи, а не в больших недетерминированных переписываниях.
 
 ## Перед изменением кода
 
-1. Прочитайте [спецификацию](../docs/compiler/SPECIFICATION_RU.md), [архитектуру](../docs/compiler/ARCHITECTURE_RU.md) и подходящее решение из `docs/decisions/`.
+1. Прочитайте [спецификацию](../docs/compiler/COMPILER_CONTRACT_RU.md), [архитектуру](../docs/compiler/ARCHITECTURE_RU.md) и подходящее решение из `docs/decisions/`.
 2. Не смешивайте ASR, parser и renderer в одном изменении без необходимости.
 3. Для нового выражения сначала добавьте минимальный failing test.
 4. Не добавляйте облачную зависимость или автоматическое скачивание в runtime.
 
 ## Проверки
 
+Источник правил — [AGENTS.md](../AGENTS.md).
+
+Все пять — во временном `CARGO_TARGET_DIR`:
+
 ```bash
+cargo test --workspace --locked
+cargo test -p sciwhisper-core --release --locked
+cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo fmt --all -- --check
-cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace
+git diff --check
+```
+
+```bash
 cargo run -p sciwhisper-cli -- self-test
 ```
 
@@ -39,4 +48,4 @@ cargo run -p sciwhisper-cli -- self-test
 
 ## Лицензия вклада
 
-Отправляя изменение для включения в SciWhisper, вы соглашаетесь лицензировать его на условиях Apache License 2.0 без дополнительных условий, если явно не указано иное. Данные и словари должны иметь лицензию, совместимую с [CC BY 4.0](../DATA_LICENSE.md), и сопровождаться указанием источника.
+Отправляя изменение для включения в sci-witch, вы соглашаетесь лицензировать его на условиях Apache License 2.0 без дополнительных условий, если явно не указано иное. Данные и словари должны иметь лицензию, совместимую с [CC BY 4.0](../DATA_LICENSE.md), и сопровождаться указанием источника.
