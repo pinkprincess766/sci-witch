@@ -58,7 +58,7 @@ enum Command {
         #[arg(long, default_value = "unicode")]
         renderer: String,
         /// Stop after N seconds (Enter still stops earlier).
-        #[arg(long)]
+        #[arg(long, value_parser = clap::value_parser!(u64).range(1..))]
         seconds: Option<u64>,
         #[arg(long)]
         model: Option<String>,
@@ -158,6 +158,7 @@ fn run(cli: Cli) -> Result<(), String> {
             whisper,
             mic,
         } => {
+            let renderer = parse_renderer_choice(&renderer)?;
             let domain: Domain = domain.parse()?;
             eprintln!("SciWhisper поверх Whisper. Домен: {}", domain.as_str());
             let result = from_microphone(
@@ -183,6 +184,7 @@ fn run(cli: Cli) -> Result<(), String> {
             json,
             whisper,
         } => {
+            let renderer = parse_renderer_choice(&renderer)?;
             let domain: Domain = domain.parse()?;
             if !audio.exists() {
                 return Err(format!("audio not found: {}", audio.display()));
@@ -411,7 +413,29 @@ fn run_demo() -> Result<(), String> {
     Ok(())
 }
 
-fn print_pipeline(result: &PipelineResult, renderer: &str, json: bool) -> Result<(), String> {
+/// `all` prints every renderer. Anything else is one [`Renderer`], kept with
+/// the spelling the user typed so the label line does not change.
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum RendererChoice {
+    All,
+    One { renderer: Renderer, spelled: String },
+}
+
+fn parse_renderer_choice(raw: &str) -> Result<RendererChoice, String> {
+    if raw == "all" {
+        return Ok(RendererChoice::All);
+    }
+    raw.parse::<Renderer>().map(|renderer| RendererChoice::One {
+        renderer,
+        spelled: raw.to_string(),
+    })
+}
+
+fn print_pipeline(
+    result: &PipelineResult,
+    renderer: &RendererChoice,
+    json: bool,
+) -> Result<(), String> {
     if result.transcript.no_speech {
         eprintln!("тишина — Whisper не дал текста, вставка пропущена");
         return Ok(());
@@ -439,19 +463,18 @@ fn print_pipeline(result: &PipelineResult, renderer: &str, json: bool) -> Result
         eprintln!("не разобрано как научная конструкция — показан сырой транскрипт Whisper");
     }
     match renderer {
-        "all" => {
+        RendererChoice::All => {
             println!("unicode: {}", result.unicode);
             println!("latex:   {}", result.latex);
             println!("omml:    {}", result.omml);
         }
-        other => {
-            let r: Renderer = other.parse()?;
-            let s = match r {
+        RendererChoice::One { renderer, spelled } => {
+            let s = match renderer {
                 Renderer::Unicode => &result.unicode,
                 Renderer::Latex => &result.latex,
                 Renderer::Omml => &result.omml,
             };
-            println!("{other}: {s}");
+            println!("{spelled}: {s}");
         }
     }
     print_warnings(&result.interpretation.warnings);
@@ -506,6 +529,9 @@ fn run_format(
     json: bool,
     text: Vec<String>,
 ) -> Result<(), String> {
+    let domain: Domain = domain.parse().map_err(|e: String| e)?;
+    let mode: UtteranceMode = mode.parse().map_err(|e: String| e)?;
+    let renderer = parse_renderer_choice(renderer)?;
     let spoken = if text.is_empty() {
         let mut buf = String::new();
         io::stdin()
@@ -515,8 +541,6 @@ fn run_format(
     } else {
         text.join(" ")
     };
-    let domain: Domain = domain.parse().map_err(|e: String| e)?;
-    let mode: UtteranceMode = mode.parse().map_err(|e: String| e)?;
     // One parse, then three views of the same structure.
     let utterance = interpret_utterance(
         spoken.trim(),
@@ -548,15 +572,14 @@ fn run_format(
         );
         return Ok(());
     }
-    match renderer {
-        "all" => {
+    match &renderer {
+        RendererChoice::All => {
             println!("unicode: {}", show(Renderer::Unicode));
             println!("latex:   {}", show(Renderer::Latex));
             println!("omml:    {}", show(Renderer::Omml));
         }
-        other => {
-            let r: Renderer = other.parse().map_err(|e: String| e)?;
-            println!("{}", show(r));
+        RendererChoice::One { renderer, .. } => {
+            println!("{}", show(*renderer));
         }
     }
     print_warnings(&result.warnings);
@@ -586,5 +609,105 @@ mod tests {
         // unwrap panicked on both. The label is the path itself.
         assert_eq!(audio_file_label(std::path::Path::new("..")), "..");
         assert_eq!(audio_file_label(std::path::Path::new("/")), "/");
+    }
+
+    #[test]
+    fn parse_renderer_choice_accepts_all_and_the_cli_spellings() {
+        assert_eq!(parse_renderer_choice("all").unwrap(), RendererChoice::All);
+        for (raw, renderer) in [
+            ("unicode", Renderer::Unicode),
+            ("tex", Renderer::Latex),
+            ("word", Renderer::Omml),
+        ] {
+            match parse_renderer_choice(raw).unwrap() {
+                RendererChoice::One {
+                    renderer: got,
+                    spelled,
+                } => {
+                    assert_eq!(got, renderer, "{raw}");
+                    assert_eq!(spelled, raw);
+                }
+                RendererChoice::All => panic!("{raw} is one renderer"),
+            }
+        }
+        assert!(parse_renderer_choice("bogus").is_err());
+    }
+
+    #[test]
+    fn rec_rejects_zero_seconds_and_accepts_one() {
+        assert!(Cli::try_parse_from(["sciwhisper", "rec", "--seconds", "0"]).is_err());
+        let parsed = Cli::try_parse_from(["sciwhisper", "rec", "--seconds", "1"]).unwrap();
+        match parsed.command {
+            Command::Rec { seconds, .. } => assert_eq!(seconds, Some(1)),
+            _ => panic!("expected rec"),
+        }
+    }
+
+    #[test]
+    fn format_rejects_an_unknown_domain_without_reading_stdin() {
+        // cargo's own stdin is already at EOF, so a read would return at once
+        // and the assertion would pass even if domain were parsed afterwards.
+        // A pipe whose write end stays open blocks that read.
+        let error = domain_error_with_blocked_stdin();
+        assert!(error.contains("unknown domain"), "{error}");
+        assert!(error.contains("'bad'"), "{error}");
+    }
+
+    fn domain_error_with_blocked_stdin() -> String {
+        #[cfg(unix)]
+        {
+            use std::sync::mpsc;
+            use std::thread;
+            use std::time::Duration;
+
+            extern "C" {
+                fn pipe(fds: *mut i32) -> i32;
+                fn dup(fd: i32) -> i32;
+                fn dup2(oldfd: i32, newfd: i32) -> i32;
+                fn close(fd: i32) -> i32;
+            }
+
+            struct StdinRestore {
+                saved: i32,
+                pipe: [i32; 2],
+            }
+            impl Drop for StdinRestore {
+                fn drop(&mut self) {
+                    unsafe {
+                        dup2(self.saved, 0);
+                        close(self.saved);
+                        close(self.pipe[0]);
+                        close(self.pipe[1]);
+                    }
+                }
+            }
+
+            unsafe {
+                let mut pipe_fds = [0i32; 2];
+                assert_eq!(pipe(pipe_fds.as_mut_ptr()), 0, "pipe");
+                let saved = dup(0);
+                assert!(saved >= 0, "dup stdin");
+                assert_eq!(dup2(pipe_fds[0], 0), 0, "redirect stdin");
+                let restore = StdinRestore {
+                    saved,
+                    pipe: pipe_fds,
+                };
+                let (tx, rx) = mpsc::channel();
+                thread::spawn(move || {
+                    let _ = tx.send(run_format("bad", "mixed", "unicode", false, vec![]));
+                });
+                let result = rx.recv_timeout(Duration::from_secs(2));
+                drop(restore);
+                match result {
+                    Ok(Err(error)) => error,
+                    Ok(Ok(())) => panic!("bad domain was accepted"),
+                    Err(_) => panic!("run_format read stdin before checking the domain"),
+                }
+            }
+        }
+        #[cfg(not(unix))]
+        {
+            run_format("bad", "mixed", "unicode", false, vec![]).expect_err("bad domain")
+        }
     }
 }
