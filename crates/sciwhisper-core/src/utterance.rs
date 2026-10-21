@@ -122,7 +122,12 @@ impl std::str::FromStr for UtteranceMode {
             "scientific" | "scientific_only" | "scientific-only" | "научный" => {
                 Ok(UtteranceMode::ScientificOnly)
             }
-            other => Err(format!("unknown dictation mode '{other}'")),
+            _ => Err(format!(
+                "unknown dictation mode '{s}'; expected one of: {}",
+                [UtteranceMode::MixedText, UtteranceMode::ScientificOnly]
+                    .map(UtteranceMode::as_str)
+                    .join(", ")
+            )),
         }
     }
 }
@@ -2296,6 +2301,30 @@ fn budgeted_parses() -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn every_mode_synonym_parses_and_a_bogus_name_lists_the_canonical_ones() {
+        let accepted = [
+            ("mixed", UtteranceMode::MixedText),
+            ("mixed_text", UtteranceMode::MixedText),
+            ("mixed-text", UtteranceMode::MixedText),
+            ("смешанный", UtteranceMode::MixedText),
+            ("scientific", UtteranceMode::ScientificOnly),
+            ("scientific_only", UtteranceMode::ScientificOnly),
+            ("scientific-only", UtteranceMode::ScientificOnly),
+            ("научный", UtteranceMode::ScientificOnly),
+            ("MIXED", UtteranceMode::MixedText),
+        ];
+        for (raw, mode) in accepted {
+            assert_eq!(raw.parse::<UtteranceMode>().unwrap(), mode, "{raw}");
+        }
+        let error = "Bogus".parse::<UtteranceMode>().unwrap_err();
+        assert!(error.contains("'Bogus'"), "{error}");
+        assert!(!error.contains("'bogus'"), "{error}");
+        for name in ["mixed", "scientific"] {
+            assert!(error.contains(name), "{name} missing from {error}");
+        }
+    }
 
     #[test]
     fn structural_level_maps_clean_and_flagged_parses() {
