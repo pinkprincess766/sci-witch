@@ -462,6 +462,52 @@ mod tests {
     use super::*;
     use std::ffi::OsStr;
 
+    fn hand_report(
+        backend: std::result::Result<(String, BackendOrigin, EngineKind), String>,
+        model_ready: bool,
+        microphones: Vec<&str>,
+    ) -> DoctorReport {
+        DoctorReport {
+            backend,
+            model: "small".into(),
+            model_ready,
+            microphones: microphones.into_iter().map(str::to_string).collect(),
+        }
+    }
+
+    #[test]
+    fn a_missing_engine_names_the_reason_and_not_its_type() {
+        let text = hand_report(Err("нет".into()), false, vec![]).render();
+        assert!(text.contains("движок распознавания: НЕ НАЙДЕН"), "{text}");
+        assert!(text.contains("причина: нет"), "{text}");
+        assert!(text.contains("модель готова: нет"), "{text}");
+        assert!(text.contains("микрофон: не найден"), "{text}");
+        assert!(text.contains("сеть: не используется"), "{text}");
+        // Passing wrongly: an error report that also printed the engine type
+        // would still satisfy the lines above.
+        assert!(!text.contains("тип движка"), "{text}");
+    }
+
+    #[test]
+    fn whisper_cpp_names_its_kind_and_each_microphone() {
+        let text = hand_report(
+            Ok((
+                "whisper-cli".into(),
+                BackendOrigin::Configured,
+                EngineKind::WhisperCpp,
+            )),
+            false,
+            vec!["Встроенный", "USB"],
+        )
+        .render();
+        assert!(text.contains("тип движка: whisper.cpp"), "{text}");
+        assert!(text.contains("модель готова: нет"), "{text}");
+        assert!(text.contains("\n  Встроенный\n"), "{text}");
+        assert!(text.contains("\n  USB"), "{text}");
+        assert!(text.contains("сеть: не используется"), "{text}");
+        assert!(!text.contains("микрофон: не найден"), "{text}");
+    }
+
     #[test]
     fn parses_openai_json_transcript() {
         let raw = r#"{
