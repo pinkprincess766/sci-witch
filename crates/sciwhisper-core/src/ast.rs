@@ -636,7 +636,18 @@ impl std::str::FromStr for Domain {
             "mathematics" | "math" | "математика" => Ok(Domain::Mathematics),
             "physics" | "phys" | "физика" => Ok(Domain::Physics),
             "plain" | "text" => Ok(Domain::Plain),
-            other => Err(format!("unknown domain '{other}'")),
+            _ => Err(format!(
+                "unknown domain '{s}'; expected one of: {}",
+                [
+                    Domain::Auto,
+                    Domain::Chemistry,
+                    Domain::Mathematics,
+                    Domain::Physics,
+                    Domain::Plain,
+                ]
+                .map(Domain::as_str)
+                .join(", ")
+            )),
         }
     }
 }
@@ -655,7 +666,9 @@ impl std::str::FromStr for Renderer {
             "unicode" | "plain" => Ok(Renderer::Unicode),
             "latex" | "tex" => Ok(Renderer::Latex),
             "omml" | "word" => Ok(Renderer::Omml),
-            other => Err(format!("unknown renderer '{other}'")),
+            _ => Err(format!(
+                "unknown renderer '{s}'; expected one of: unicode, latex, omml"
+            )),
         }
     }
 }
@@ -696,6 +709,56 @@ impl InterpretationResult {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn every_domain_synonym_parses_and_a_bogus_name_lists_the_canonical_ones() {
+        let accepted = [
+            ("auto", Domain::Auto),
+            ("chemistry", Domain::Chemistry),
+            ("chem", Domain::Chemistry),
+            ("химия", Domain::Chemistry),
+            ("mathematics", Domain::Mathematics),
+            ("math", Domain::Mathematics),
+            ("математика", Domain::Mathematics),
+            ("physics", Domain::Physics),
+            ("phys", Domain::Physics),
+            ("физика", Domain::Physics),
+            ("plain", Domain::Plain),
+            ("text", Domain::Plain),
+            ("CHEMISTRY", Domain::Chemistry),
+        ];
+        for (raw, domain) in accepted {
+            assert_eq!(raw.parse::<Domain>().unwrap(), domain, "{raw}");
+        }
+        let error = "Bogus".parse::<Domain>().unwrap_err();
+        assert!(error.contains("'Bogus'"), "{error}");
+        assert!(!error.contains("'bogus'"), "{error}");
+        for name in ["auto", "chemistry", "mathematics", "physics", "plain"] {
+            assert!(error.contains(name), "{name} missing from {error}");
+        }
+    }
+
+    #[test]
+    fn every_renderer_synonym_parses_and_a_bogus_name_lists_the_canonical_ones() {
+        let accepted = [
+            ("unicode", Renderer::Unicode),
+            ("plain", Renderer::Unicode),
+            ("latex", Renderer::Latex),
+            ("tex", Renderer::Latex),
+            ("omml", Renderer::Omml),
+            ("word", Renderer::Omml),
+            ("TEX", Renderer::Latex),
+        ];
+        for (raw, renderer) in accepted {
+            assert_eq!(raw.parse::<Renderer>().unwrap(), renderer, "{raw}");
+        }
+        let error = "Bogus".parse::<Renderer>().unwrap_err();
+        assert!(error.contains("'Bogus'"), "{error}");
+        assert!(!error.contains("'bogus'"), "{error}");
+        for name in ["unicode", "latex", "omml"] {
+            assert!(error.contains(name), "{name} missing from {error}");
+        }
+    }
 
     #[test]
     fn atom_counts_reports_overflow_instead_of_wrapping() {
