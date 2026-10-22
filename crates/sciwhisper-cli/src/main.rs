@@ -602,7 +602,6 @@ mod tests {
             NO_SPEECH_LINE,
             "тишина — Whisper не дал текста, компилировать нечего"
         );
-        assert!(!NO_SPEECH_LINE.contains("вставк"));
     }
 
     /// The eight phrases `self-test` and `demo` show must keep compiling to
