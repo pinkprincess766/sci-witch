@@ -431,13 +431,16 @@ fn parse_renderer_choice(raw: &str) -> Result<RendererChoice, String> {
     })
 }
 
+/// Whisper heard nothing. The CLI does not insert text anywhere.
+const NO_SPEECH_LINE: &str = "тишина — Whisper не дал текста, вставка пропущена";
+
 fn print_pipeline(
     result: &PipelineResult,
     renderer: &RendererChoice,
     json: bool,
 ) -> Result<(), String> {
     if result.transcript.no_speech {
-        eprintln!("тишина — Whisper не дал текста, вставка пропущена");
+        eprintln!("{NO_SPEECH_LINE}");
         return Ok(());
     }
     if json {
@@ -592,6 +595,15 @@ fn run_format(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn silence_says_there_is_nothing_to_compile() {
+        assert_eq!(
+            NO_SPEECH_LINE,
+            "тишина — Whisper не дал текста, компилировать нечего"
+        );
+        assert!(!NO_SPEECH_LINE.contains("вставк"));
+    }
 
     /// The eight phrases `self-test` and `demo` show must keep compiling to
     /// the strings written next to them; the commands print and exit, so
