@@ -432,7 +432,7 @@ fn parse_renderer_choice(raw: &str) -> Result<RendererChoice, String> {
 }
 
 /// Whisper heard nothing. The CLI does not insert text anywhere.
-const NO_SPEECH_LINE: &str = "тишина — Whisper не дал текста, вставка пропущена";
+const NO_SPEECH_LINE: &str = "тишина — Whisper не дал текста, компилировать нечего";
 
 fn print_pipeline(
     result: &PipelineResult,
