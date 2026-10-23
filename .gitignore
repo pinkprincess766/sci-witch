@@ -41,3 +41,7 @@ Desktop.ini
 
 # Personal Claude Code settings
 .claude/settings.local.json
+
+# voice-v2 audio (research/protocol/voice-v2.md): WAV not committed
+voice-v2-audio/
+research/**/voice-v2*/
