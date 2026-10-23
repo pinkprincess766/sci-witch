@@ -36,6 +36,19 @@ class Guard(unittest.TestCase):
         nb.refuse_test_voice("/tmp/x/tts-denis/s0/a.wav")
 
 
+class OutputNames(unittest.TestCase):
+    def test_same_stem_different_stage(self):
+        names = nb.output_names(["/r/tts-denis/s0/a.wav", "/r/tts-denis/s1/a.wav"])
+        self.assertEqual(names, ["s0__a.nbest.json", "s1__a.nbest.json"])
+
+    def test_single_input(self):
+        self.assertEqual(nb.output_names(["/r/s0/a.wav"]), ["a.nbest.json"])
+
+    def test_collision_fails(self):
+        with self.assertRaises(SystemExit):
+            nb.output_names(["/r/s0/a.wav", "/r/s0/a.flac"])
+
+
 class Canonical(unittest.TestCase):
     def test_order_independent(self):
         self.assertEqual(nb.canonical({"b": 1, "a": 2.5}), nb.canonical({"a": 2.5, "b": 1}))

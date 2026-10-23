@@ -18,12 +18,14 @@ does not read the cache (use it to check that recomputation is byte-identical).
 Output is canonical JSON (sorted keys, fixed separators), so two runs on the
 same inputs and environment are expected to be byte-identical.
 
-Guard: refuses audio of the test voice (tts-dmitri). No RQ1 scoring here.
+Guard: refuses audio whose path names the test voice (tts-dmitri). The check is
+path-based, not content-based. No RQ1 scoring here.
 """
 
 import argparse
 import hashlib
 import json
+import os
 import platform
 import sys
 from pathlib import Path
@@ -102,14 +104,44 @@ def decode_one(model, mel, language, run):
     return hyp
 
 
-def nbest(audio, k, model_name, language, cache_dir, use_cache):
-    refuse_test_voice(audio)
+def output_names(audio_paths):
+    """Output file name per input, from its path relative to the inputs' common root.
+
+    `root/s0/a.wav` -> `s0__a.nbest.json`. A single input gives `a.nbest.json`.
+    Raises SystemExit if two inputs map to the same name.
+    """
+    resolved = [Path(a).resolve() for a in audio_paths]
+    if len(resolved) == 1:
+        root = resolved[0].parent
+    else:
+        root = Path(os.path.commonpath([str(r.parent) for r in resolved]))
+    names = []
+    for r in resolved:
+        rel = r.relative_to(root).with_suffix("")
+        names.append("__".join(rel.parts) + ".nbest.json")
+    seen = {}
+    for a, n in zip(audio_paths, names):
+        if n in seen:
+            raise SystemExit(f"output name collision: {seen[n]} and {a} -> {n}")
+        seen[n] = a
+    return names
+
+
+def load_model(model_name):
+    """(model, environment) loaded and hashed once per process."""
     wh.torch.use_deterministic_algorithms(True)
     model_path = wh.model_file_path(model_name)
     env = environment(model_name, model_path)
+    model = wh.whisper.load_model(model_name, device=wh.DEVICE,
+                                  download_root=str(wh.MODEL_CACHE_DIR))
+    return model, env
+
+
+def nbest(audio, k, model, env, language, cache_dir, use_cache):
+    refuse_test_voice(audio)
     audio_sha = wh.sha256_of(audio)
     runs = plan(k)
-    model = mel = None
+    mel = None
     hypotheses = []
     for run in runs:
         key = cache_key(env, audio_sha, language, run)
@@ -117,10 +149,8 @@ def nbest(audio, k, model_name, language, cache_dir, use_cache):
         if use_cache and path is not None and path.is_file():
             hypotheses.append(json.loads(path.read_text(encoding="utf-8")))
             continue
-        if model is None:
+        if mel is None:
             window, _ = wh.load_window(audio)
-            model = wh.whisper.load_model(model_name, device=wh.DEVICE,
-                                          download_root=str(wh.MODEL_CACHE_DIR))
             mel = wh.whisper.log_mel_spectrogram(window, model.dims.n_mels)
         hyp = decode_one(model, mel, language, run)
         if path is not None and use_cache:
@@ -152,11 +182,14 @@ def main(argv=None):
     args = p.parse_args(argv)
     for a in args.audio:
         refuse_test_voice(a)
+    names = output_names(args.audio)
+    plan(args.k)
+    model, env = load_model(args.model)
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    for a in args.audio:
-        doc = nbest(Path(a), args.k, args.model, args.language, args.cache_dir, not args.no_cache)
-        out = out_dir / f"{Path(a).stem}.nbest.json"
+    for a, name in zip(args.audio, names):
+        doc = nbest(Path(a), args.k, model, env, args.language, args.cache_dir, not args.no_cache)
+        out = out_dir / name
         out.write_text(canonical(doc), encoding="utf-8")
         print(f"{out}: {[h['text'] for h in doc['hypotheses']]!r}", file=sys.stderr)
 
