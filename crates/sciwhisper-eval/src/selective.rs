@@ -27,7 +27,9 @@ use std::collections::BTreeMap;
 use serde::Serialize;
 
 use crate::evaluate::ExampleOutcome;
-use crate::metrics::{proportion, Proportion};
+use crate::metrics::{
+    percentile_index, proportion, Pcg32, Proportion, CI95_HIGH_PERCENTILE, CI95_LOW_PERCENTILE,
+};
 
 /// Thresholds the curve is reported at.
 ///
@@ -325,6 +327,149 @@ pub fn aurc(scores: &[f64], correct: &[bool]) -> Option<f64> {
     Some(risk_sum / ranked.len() as f64)
 }
 
+/// One point of the risk–coverage curve: the top `answered` examples by
+/// score are answered, `risk` is the expected share of wrong ones among them
+/// (ties handled exactly as in [`aurc`]).
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct RiskCoveragePoint {
+    pub answered: usize,
+    pub coverage: f64,
+    pub risk: f64,
+}
+
+/// The full risk–coverage curve, one point per coverage level `k = 1..=n`.
+/// The mean of the `risk` column is [`aurc`]. `None` on the same inputs
+/// [`aurc`] rejects.
+#[cfg_attr(
+    not(test),
+    expect(dead_code, reason = "not yet wired into a report; tested below")
+)]
+pub fn risk_coverage_curve(scores: &[f64], correct: &[bool]) -> Option<Vec<RiskCoveragePoint>> {
+    if scores.is_empty() || scores.len() != correct.len() || scores.iter().any(|s| s.is_nan()) {
+        return None;
+    }
+    let n = scores.len();
+    let mut ranked: Vec<(f64, bool)> = scores
+        .iter()
+        .copied()
+        .zip(correct.iter().copied())
+        .collect();
+    ranked.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(Ordering::Equal));
+    let mut points = Vec::with_capacity(n);
+    let mut answered = 0usize;
+    let mut wrong_before = 0usize;
+    for block in ranked.chunk_by(|a, b| a.0 == b.0) {
+        let size = block.len();
+        let wrong = block.iter().filter(|(_, right)| !right).count();
+        for j in 1..=size {
+            let expected_wrong = wrong_before as f64 + (j * wrong) as f64 / size as f64;
+            let k = answered + j;
+            points.push(RiskCoveragePoint {
+                answered: k,
+                coverage: k as f64 / n as f64,
+                risk: expected_wrong / k as f64,
+            });
+        }
+        answered += size;
+        wrong_before += wrong;
+    }
+    Some(points)
+}
+
+/// AURC with a percentile 95% interval from a bootstrap over **phrase
+/// families** (question 2, deviation of 26.10.2026): a resample draws as
+/// many families as there are, with replacement, pools their examples and
+/// recomputes [`aurc`]. Draw rule `next_u32() % k`, nearest-rank
+/// percentiles, as in `cluster_bootstrap_proportion`.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct AurcBootstrap {
+    pub examples: usize,
+    pub errors: usize,
+    pub families: usize,
+    pub aurc: f64,
+    pub ci95_low: f64,
+    pub ci95_high: f64,
+    pub ci_method: &'static str,
+    pub bootstrap_unit: &'static str,
+    pub resamples: usize,
+    pub seed: u64,
+}
+
+/// Frozen in `research/protocol/question-2-calibration.md`.
+#[cfg_attr(
+    not(test),
+    expect(dead_code, reason = "not yet wired into a report; tested below")
+)]
+pub const RQ2_BOOTSTRAP_SEED: u64 = 20_261_025;
+#[cfg_attr(
+    not(test),
+    expect(dead_code, reason = "not yet wired into a report; tested below")
+)]
+pub const RQ2_BOOTSTRAP_RESAMPLES: usize = 10_000;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AurcBootstrapError {
+    /// Fewer than two non-empty families: one cluster says nothing about
+    /// between-family variation, so no interval is reported.
+    TooFewFamilies,
+    ZeroResamples,
+    /// NaN score or empty input.
+    BadInput,
+}
+
+/// Each inner `Vec` is one family's `(score, correct)` pairs. Empty
+/// families are dropped up front.
+#[cfg_attr(
+    not(test),
+    expect(dead_code, reason = "not yet wired into a report; tested below")
+)]
+pub fn aurc_family_bootstrap(
+    families: &[Vec<(f64, bool)>],
+    seed: u64,
+    resamples: usize,
+) -> Result<AurcBootstrap, AurcBootstrapError> {
+    let families: Vec<&Vec<(f64, bool)>> = families.iter().filter(|f| !f.is_empty()).collect();
+    if families.len() < 2 {
+        return Err(AurcBootstrapError::TooFewFamilies);
+    }
+    if resamples == 0 {
+        return Err(AurcBootstrapError::ZeroResamples);
+    }
+    let pooled = |chosen: &mut dyn Iterator<Item = &Vec<(f64, bool)>>| {
+        let (mut s, mut c) = (Vec::new(), Vec::new());
+        for family in chosen {
+            for &(score, right) in family {
+                s.push(score);
+                c.push(right);
+            }
+        }
+        (s, c)
+    };
+    let (scores, correct) = pooled(&mut families.iter().copied());
+    let point = aurc(&scores, &correct).ok_or(AurcBootstrapError::BadInput)?;
+    let mut rng = Pcg32::new(seed);
+    let k = families.len();
+    let mut values = Vec::with_capacity(resamples);
+    for _ in 0..resamples {
+        let mut draw = (0..k).map(|_| families[(rng.next_u32() as usize) % k]);
+        let (s, c) = pooled(&mut draw);
+        values.push(aurc(&s, &c).ok_or(AurcBootstrapError::BadInput)?);
+    }
+    values.sort_by(|a, b| a.partial_cmp(b).expect("aurc values are finite"));
+    Ok(AurcBootstrap {
+        examples: scores.len(),
+        errors: correct.iter().filter(|r| !**r).count(),
+        families: k,
+        aurc: point,
+        ci95_low: values[percentile_index(values.len(), CI95_LOW_PERCENTILE)],
+        ci95_high: values[percentile_index(values.len(), CI95_HIGH_PERCENTILE)],
+        ci_method: "percentile",
+        bootstrap_unit: "phrase_family",
+        resamples,
+        seed,
+    })
+}
+
 /// A number in `[0, 1]` that is claimed to be a probability.
 ///
 /// The only way in is [`Probability::new`], and there is no `From` for `f32`
@@ -493,6 +638,65 @@ pub fn expected_calibration_error(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn toy_families() -> Vec<Vec<(f64, bool)>> {
+        vec![
+            vec![(0.9, true), (0.8, true)],
+            vec![(0.7, false), (0.95, true)],
+            vec![(0.5, false), (0.6, true)],
+            vec![(0.99, true), (0.4, false)],
+        ]
+    }
+
+    #[test]
+    fn risk_coverage_curve_matches_hand_table_and_averages_to_aurc() {
+        // Sorted: 0.9 R, 0.7 W, 0.5 W, 0.3 R.
+        let scores = [0.3, 0.9, 0.5, 0.7];
+        let correct = [true, true, false, false];
+        let curve = risk_coverage_curve(&scores, &correct).unwrap();
+        let risks: Vec<f64> = curve.iter().map(|p| p.risk).collect();
+        let expected = [0.0, 0.5, 2.0 / 3.0, 0.5];
+        for (got, want) in risks.iter().zip(expected) {
+            assert!((got - want).abs() < 1e-12);
+        }
+        assert_eq!(curve.last().unwrap().coverage, 1.0);
+        let mean = risks.iter().sum::<f64>() / 4.0;
+        assert!((mean - aurc(&scores, &correct).unwrap()).abs() < 1e-12);
+        assert!(risk_coverage_curve(&[], &[]).is_none());
+    }
+
+    #[test]
+    fn aurc_family_bootstrap_is_deterministic_and_brackets_the_point() {
+        let families = toy_families();
+        let a =
+            aurc_family_bootstrap(&families, RQ2_BOOTSTRAP_SEED, RQ2_BOOTSTRAP_RESAMPLES).unwrap();
+        let b =
+            aurc_family_bootstrap(&families, RQ2_BOOTSTRAP_SEED, RQ2_BOOTSTRAP_RESAMPLES).unwrap();
+        assert_eq!(a, b);
+        assert_eq!((a.examples, a.errors, a.families), (8, 3, 4));
+        assert!(a.ci95_low <= a.aurc && a.aurc <= a.ci95_high);
+        assert!(a.ci95_low < a.ci95_high);
+        let pooled: Vec<(f64, bool)> = families.concat();
+        let s: Vec<f64> = pooled.iter().map(|p| p.0).collect();
+        let c: Vec<bool> = pooled.iter().map(|p| p.1).collect();
+        assert_eq!(a.aurc, aurc(&s, &c).unwrap());
+        let json = serde_json::to_value(&a).unwrap();
+        assert_eq!(json["bootstrap_unit"], "phrase_family");
+        assert_eq!(json["seed"], RQ2_BOOTSTRAP_SEED);
+    }
+
+    #[test]
+    fn aurc_family_bootstrap_refuses_one_family_and_zero_resamples() {
+        let one = vec![vec![(0.9, true), (0.1, false)], vec![]];
+        assert_eq!(
+            aurc_family_bootstrap(&one, 1, 100),
+            Err(AurcBootstrapError::TooFewFamilies)
+        );
+        assert_eq!(
+            aurc_family_bootstrap(&toy_families(), 1, 0),
+            Err(AurcBootstrapError::ZeroResamples)
+        );
+    }
 
     fn decision(is_ast: bool, confidence: f32, insert_ok: bool, abstain_ok: bool) -> Decision {
         Decision {
