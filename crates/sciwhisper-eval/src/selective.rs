@@ -338,10 +338,6 @@ pub struct RiskCoveragePoint {
 /// The full risk–coverage curve, one point per coverage level `k = 1..=n`.
 /// The mean of the `risk` column is [`aurc`]. `None` on the same inputs
 /// [`aurc`] rejects.
-#[cfg_attr(
-    not(test),
-    expect(dead_code, reason = "not yet wired into a report; tested below")
-)]
 pub fn risk_coverage_curve(scores: &[f64], correct: &[bool]) -> Option<Vec<RiskCoveragePoint>> {
     if scores.is_empty() || scores.len() != correct.len() || scores.iter().any(|s| s.is_nan()) {
         return None;
@@ -394,15 +390,7 @@ pub struct AurcBootstrap {
 }
 
 /// Frozen in `research/protocol/question-2-calibration.md`.
-#[cfg_attr(
-    not(test),
-    expect(dead_code, reason = "not yet wired into a report; tested below")
-)]
 pub const RQ2_BOOTSTRAP_SEED: u64 = 20_261_025;
-#[cfg_attr(
-    not(test),
-    expect(dead_code, reason = "not yet wired into a report; tested below")
-)]
 pub const RQ2_BOOTSTRAP_RESAMPLES: usize = 10_000;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -417,10 +405,6 @@ pub enum AurcBootstrapError {
 
 /// Each inner `Vec` is one family's `(score, correct)` pairs. Empty
 /// families are dropped up front.
-#[cfg_attr(
-    not(test),
-    expect(dead_code, reason = "not yet wired into a report; tested below")
-)]
 pub fn aurc_family_bootstrap(
     families: &[Vec<(f64, bool)>],
     seed: u64,
