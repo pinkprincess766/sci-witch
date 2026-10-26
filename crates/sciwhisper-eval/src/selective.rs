@@ -27,9 +27,7 @@ use std::collections::BTreeMap;
 use serde::Serialize;
 
 use crate::evaluate::ExampleOutcome;
-use crate::metrics::{
-    percentile_index, proportion, Pcg32, Proportion, CI95_HIGH_PERCENTILE, CI95_LOW_PERCENTILE,
-};
+use crate::metrics::{family_bootstrap, proportion, FamilyBootstrapError, Proportion};
 
 /// Thresholds the curve is reported at.
 ///
@@ -428,41 +426,36 @@ pub fn aurc_family_bootstrap(
     seed: u64,
     resamples: usize,
 ) -> Result<AurcBootstrap, AurcBootstrapError> {
-    let families: Vec<&Vec<(f64, bool)>> = families.iter().filter(|f| !f.is_empty()).collect();
-    if families.len() < 2 {
-        return Err(AurcBootstrapError::TooFewFamilies);
-    }
-    if resamples == 0 {
-        return Err(AurcBootstrapError::ZeroResamples);
-    }
-    let pooled = |chosen: &mut dyn Iterator<Item = &Vec<(f64, bool)>>| {
+    let families: Vec<Vec<(f64, bool)>> =
+        families.iter().filter(|f| !f.is_empty()).cloned().collect();
+    let pooled = |chosen: &[&[(f64, bool)]]| {
         let (mut s, mut c) = (Vec::new(), Vec::new());
         for family in chosen {
-            for &(score, right) in family {
+            for &(score, right) in *family {
                 s.push(score);
                 c.push(right);
             }
         }
         (s, c)
     };
-    let (scores, correct) = pooled(&mut families.iter().copied());
-    let point = aurc(&scores, &correct).ok_or(AurcBootstrapError::BadInput)?;
-    let mut rng = Pcg32::new(seed);
-    let k = families.len();
-    let mut values = Vec::with_capacity(resamples);
-    for _ in 0..resamples {
-        let mut draw = (0..k).map(|_| families[(rng.next_u32() as usize) % k]);
-        let (s, c) = pooled(&mut draw);
-        values.push(aurc(&s, &c).ok_or(AurcBootstrapError::BadInput)?);
-    }
-    values.sort_by(|a, b| a.partial_cmp(b).expect("aurc values are finite"));
+    let refs: Vec<&[(f64, bool)]> = families.iter().map(|f| f.as_slice()).collect();
+    let (scores, correct) = pooled(&refs);
+    let boot = family_bootstrap(&families, seed, resamples, |chosen| {
+        let (s, c) = pooled(chosen);
+        aurc(&s, &c)
+    })
+    .map_err(|e| match e {
+        FamilyBootstrapError::TooFewFamilies => AurcBootstrapError::TooFewFamilies,
+        FamilyBootstrapError::ZeroResamples => AurcBootstrapError::ZeroResamples,
+        FamilyBootstrapError::BadInput => AurcBootstrapError::BadInput,
+    })?;
     Ok(AurcBootstrap {
         examples: scores.len(),
         errors: correct.iter().filter(|r| !**r).count(),
-        families: k,
-        aurc: point,
-        ci95_low: values[percentile_index(values.len(), CI95_LOW_PERCENTILE)],
-        ci95_high: values[percentile_index(values.len(), CI95_HIGH_PERCENTILE)],
+        families: boot.families,
+        aurc: boot.point,
+        ci95_low: boot.ci95_low,
+        ci95_high: boot.ci95_high,
         ci_method: "percentile",
         bootstrap_unit: "phrase_family",
         resamples,
@@ -683,6 +676,18 @@ mod tests {
         let json = serde_json::to_value(&a).unwrap();
         assert_eq!(json["bootstrap_unit"], "phrase_family");
         assert_eq!(json["seed"], RQ2_BOOTSTRAP_SEED);
+    }
+
+    #[test]
+    fn aurc_family_bootstrap_matches_pre_refactor_output() {
+        // Bits recorded from the S8 implementation (#155) before it moved
+        // onto `family_bootstrap`.
+        let a = aurc_family_bootstrap(&toy_families(), RQ2_BOOTSTRAP_SEED, RQ2_BOOTSTRAP_RESAMPLES)
+            .unwrap();
+        assert_eq!(a.aurc.to_bits(), 0x3fc0_7027_0270_2702);
+        assert_eq!(a.ci95_low.to_bits(), 0x3f90_0000_0000_0000);
+        assert_eq!(a.ci95_high.to_bits(), 0x3fd3_f63f_63f6_3f64);
+        assert_eq!((a.examples, a.errors, a.families), (8, 3, 4));
     }
 
     #[test]

@@ -194,6 +194,100 @@ pub fn cluster_bootstrap_proportion(
     }
 }
 
+/// Why [`family_bootstrap`] gives no interval.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FamilyBootstrapError {
+    /// Fewer than two non-empty families: one cluster says nothing about
+    /// between-family variation, so no interval is reported.
+    TooFewFamilies,
+    ZeroResamples,
+    /// The metric returned `None` or a non-finite value.
+    BadInput,
+}
+
+/// Point value and percentile 95% interval from [`family_bootstrap`].
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct FamilyBootstrap {
+    pub point: f64,
+    pub ci95_low: f64,
+    pub ci95_high: f64,
+    /// Non-empty families that were resampled.
+    pub families: usize,
+    pub resamples: usize,
+    pub seed: u64,
+}
+
+/// Groups items into families by `key`, in key order (deterministic).
+#[cfg_attr(
+    not(test),
+    expect(dead_code, reason = "not yet wired into a report; tested below")
+)]
+pub fn group_by_family<T: Clone, K: Ord>(items: &[T], key: impl Fn(&T) -> K) -> Vec<Vec<T>> {
+    let mut groups: std::collections::BTreeMap<K, Vec<T>> = std::collections::BTreeMap::new();
+    for item in items {
+        groups.entry(key(item)).or_default().push(item.clone());
+    }
+    groups.into_values().collect()
+}
+
+/// Cluster (family) bootstrap for any metric.
+///
+/// Empty families are dropped. Each resample draws `k` families with
+/// replacement (`Pcg32`, index `next_u32() % k`), and `metric` sees the
+/// chosen families in draw order. The point value is `metric` on all
+/// families in input order. The interval is the nearest-rank 2.5/97.5
+/// percentile of the resampled values.
+///
+/// For a paired difference between two systems, let each item carry both
+/// outcomes and have `metric` return `m(a) - m(b)`: both sides then see the
+/// same families in every resample.
+#[cfg_attr(
+    not(test),
+    expect(dead_code, reason = "not yet wired into a report; tested below")
+)]
+pub fn family_bootstrap<T>(
+    families: &[Vec<T>],
+    seed: u64,
+    resamples: usize,
+    mut metric: impl FnMut(&[&[T]]) -> Option<f64>,
+) -> Result<FamilyBootstrap, FamilyBootstrapError> {
+    let families: Vec<&[T]> = families
+        .iter()
+        .filter(|f| !f.is_empty())
+        .map(Vec::as_slice)
+        .collect();
+    let k = families.len();
+    if k < 2 {
+        return Err(FamilyBootstrapError::TooFewFamilies);
+    }
+    if resamples == 0 {
+        return Err(FamilyBootstrapError::ZeroResamples);
+    }
+    let mut finite = |chosen: &[&[T]]| {
+        metric(chosen)
+            .filter(|v| v.is_finite())
+            .ok_or(FamilyBootstrapError::BadInput)
+    };
+    let point = finite(&families)?;
+    let mut rng = Pcg32::new(seed);
+    let mut values = Vec::with_capacity(resamples);
+    let mut draw: Vec<&[T]> = Vec::with_capacity(k);
+    for _ in 0..resamples {
+        draw.clear();
+        draw.extend((0..k).map(|_| families[(rng.next_u32() as usize) % k]));
+        values.push(finite(&draw)?);
+    }
+    values.sort_by(|a, b| a.partial_cmp(b).expect("values are finite"));
+    Ok(FamilyBootstrap {
+        point,
+        ci95_low: values[percentile_index(values.len(), CI95_LOW_PERCENTILE)],
+        ci95_high: values[percentile_index(values.len(), CI95_HIGH_PERCENTILE)],
+        families: k,
+        resamples,
+        seed,
+    })
+}
+
 /// Nearest-rank percentile on an already sorted slice.
 pub fn percentile_index(len: usize, q: f64) -> usize {
     debug_assert!(len > 0);
@@ -529,6 +623,65 @@ impl Pcg32 {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn family_bootstrap_is_deterministic_and_refuses_degenerate_input() {
+        let families = vec![vec![1.0, 2.0], vec![3.0], vec![], vec![10.0, 0.0]];
+        let mean = |fs: &[&[f64]]| {
+            let all: Vec<f64> = fs.iter().flat_map(|f| f.iter().copied()).collect();
+            (!all.is_empty()).then(|| all.iter().sum::<f64>() / all.len() as f64)
+        };
+        let a = family_bootstrap(&families, 20_261_025, 2_000, mean).unwrap();
+        let b = family_bootstrap(&families, 20_261_025, 2_000, mean).unwrap();
+        assert_eq!(a, b);
+        assert_eq!(a.families, 3);
+        assert_eq!(a.point, 16.0 / 5.0);
+        assert!(a.ci95_low <= a.point && a.point <= a.ci95_high);
+        let one = vec![vec![1.0, 2.0], vec![]];
+        assert_eq!(
+            family_bootstrap(&one, 1, 100, mean),
+            Err(FamilyBootstrapError::TooFewFamilies)
+        );
+        assert_eq!(
+            family_bootstrap(&families, 1, 0, mean),
+            Err(FamilyBootstrapError::ZeroResamples)
+        );
+        assert_eq!(
+            family_bootstrap(&families, 1, 10, |_| Some(f64::NAN)),
+            Err(FamilyBootstrapError::BadInput)
+        );
+    }
+
+    #[test]
+    fn family_bootstrap_paired_difference_shares_draws() {
+        // (system A right, system B right) per phrase.
+        let families = vec![
+            vec![(true, false), (true, true)],
+            vec![(false, false)],
+            vec![(true, false), (false, true)],
+            vec![(true, true)],
+        ];
+        let diff = |fs: &[&[(bool, bool)]]| {
+            let all: Vec<_> = fs.iter().flat_map(|f| f.iter()).collect();
+            let n = all.len() as f64;
+            let a = all.iter().filter(|p| p.0).count() as f64;
+            let b = all.iter().filter(|p| p.1).count() as f64;
+            Some((a - b) / n)
+        };
+        let r = family_bootstrap(&families, 20_261_025, 10_000, diff).unwrap();
+        assert_eq!(r.point, 1.0 / 6.0);
+        assert!(r.ci95_low <= r.point && r.point <= r.ci95_high);
+        // Per family the difference is 0.5 (family 1) or 0 (the rest), so
+        // no pooled resample can leave [-0.5, 0.5].
+        assert!(r.ci95_high <= 0.5 && r.ci95_low >= -0.5);
+    }
+
+    #[test]
+    fn group_by_family_orders_by_key() {
+        let items = [("b", 1), ("a", 2), ("b", 3)];
+        let groups = group_by_family(&items, |i| i.0);
+        assert_eq!(groups, vec![vec![("a", 2)], vec![("b", 1), ("b", 3)]]);
+    }
     use super::*;
     use sciwhisper_core::ast::{Case, Chemical, Formula, Math, Part, Species, Symbol};
     use sciwhisper_core::Node;
