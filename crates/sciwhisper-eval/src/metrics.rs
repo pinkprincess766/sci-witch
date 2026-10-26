@@ -499,13 +499,13 @@ pub fn severity_report(severities: &[Option<Severity>]) -> SeverityReport {
 
 /// Small deterministic PRNG so that bootstrap intervals reproduce exactly
 /// without pulling in a dependency.
-struct Pcg32 {
+pub(crate) struct Pcg32 {
     state: u64,
     increment: u64,
 }
 
 impl Pcg32 {
-    fn new(seed: u64) -> Self {
+    pub(crate) fn new(seed: u64) -> Self {
         let mut rng = Pcg32 {
             state: 0,
             increment: (seed << 1) | 1,
@@ -516,7 +516,7 @@ impl Pcg32 {
         rng
     }
 
-    fn next_u32(&mut self) -> u32 {
+    pub(crate) fn next_u32(&mut self) -> u32 {
         let old = self.state;
         self.state = old
             .wrapping_mul(6_364_136_223_846_793_005)
