@@ -218,10 +218,6 @@ pub struct FamilyBootstrap {
 }
 
 /// Groups items into families by `key`, in key order (deterministic).
-#[cfg_attr(
-    not(test),
-    expect(dead_code, reason = "not yet wired into a report; tested below")
-)]
 pub fn group_by_family<T: Clone, K: Ord>(items: &[T], key: impl Fn(&T) -> K) -> Vec<Vec<T>> {
     let mut groups: std::collections::BTreeMap<K, Vec<T>> = std::collections::BTreeMap::new();
     for item in items {
@@ -241,10 +237,6 @@ pub fn group_by_family<T: Clone, K: Ord>(items: &[T], key: impl Fn(&T) -> K) -> 
 /// For a paired difference between two systems, let each item carry both
 /// outcomes and have `metric` return `m(a) - m(b)`: both sides then see the
 /// same families in every resample.
-#[cfg_attr(
-    not(test),
-    expect(dead_code, reason = "not yet wired into a report; tested below")
-)]
 pub fn family_bootstrap<T>(
     families: &[Vec<T>],
     seed: u64,

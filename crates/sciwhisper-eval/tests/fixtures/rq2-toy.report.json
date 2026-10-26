@@ -1,0 +1,65 @@
+{
+  "report": "rq2-risk-coverage-v1",
+  "max_stage": 1,
+  "stages": [
+    0,
+    1
+  ],
+  "examples": 8,
+  "errors": 2,
+  "families": 4,
+  "aurc": {
+    "examples": 8,
+    "errors": 2,
+    "families": 4,
+    "aurc": 0.19821428571428568,
+    "ci95_low": 0.0,
+    "ci95_high": 0.6339285714285714,
+    "ci_method": "percentile",
+    "bootstrap_unit": "phrase_family",
+    "resamples": 10000,
+    "seed": 20261025
+  },
+  "risk_coverage": [
+    {
+      "answered": 1,
+      "coverage": 0.125,
+      "risk": 0.0
+    },
+    {
+      "answered": 2,
+      "coverage": 0.25,
+      "risk": 0.0
+    },
+    {
+      "answered": 3,
+      "coverage": 0.375,
+      "risk": 0.16666666666666666
+    },
+    {
+      "answered": 4,
+      "coverage": 0.5,
+      "risk": 0.25
+    },
+    {
+      "answered": 5,
+      "coverage": 0.625,
+      "risk": 0.3
+    },
+    {
+      "answered": 6,
+      "coverage": 0.75,
+      "risk": 0.3333333333333333
+    },
+    {
+      "answered": 7,
+      "coverage": 0.875,
+      "risk": 0.2857142857142857
+    },
+    {
+      "answered": 8,
+      "coverage": 1.0,
+      "risk": 0.25
+    }
+  ]
+}

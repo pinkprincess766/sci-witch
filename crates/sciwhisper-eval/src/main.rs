@@ -37,6 +37,7 @@ mod lattice_report;
 mod metrics;
 mod oracle;
 mod report;
+mod rq2_report;
 mod schema;
 mod selective;
 mod split;
@@ -223,6 +224,23 @@ enum Command {
         split: SplitArg,
         #[arg(long)]
         output: PathBuf,
+    },
+    /// Question 2 (plan item 7): risk–coverage curve and AURC with a
+    /// phrase-family bootstrap from per-example scores. Input format is
+    /// documented in `crates/sciwhisper-eval/src/rq2_report.rs`; train only.
+    Rq2Report {
+        /// JSON Lines: id, family_id, stage, score, correct (optional split = train).
+        #[arg(long)]
+        input: PathBuf,
+        /// Keep stages 0…s only (the voice-v2 stop stage).
+        #[arg(long)]
+        max_stage: Option<u32>,
+        #[arg(long, default_value_t = selective::RQ2_BOOTSTRAP_SEED)]
+        bootstrap_seed: u64,
+        #[arg(long, default_value_t = selective::RQ2_BOOTSTRAP_RESAMPLES)]
+        bootstrap_resamples: usize,
+        #[arg(long)]
+        output: Option<PathBuf>,
     },
     /// Diff two reports, ignoring timing.
     Compare {
@@ -626,6 +644,27 @@ fn run() -> Result<ExitCode, String> {
             std::fs::write(&output, text)
                 .map_err(|error| format!("{}: {error}", display(&output)))?;
             println!("{} lattices written to {}", lines.len(), display(&output));
+            Ok(ExitCode::SUCCESS)
+        }
+        Command::Rq2Report {
+            input,
+            max_stage,
+            bootstrap_seed,
+            bootstrap_resamples,
+            output,
+        } => {
+            let text =
+                std::fs::read_to_string(&input).map_err(|e| format!("{}: {e}", display(&input)))?;
+            let examples = rq2_report::parse(&text)?;
+            let report =
+                rq2_report::build(&examples, max_stage, bootstrap_seed, bootstrap_resamples)?;
+            let json = serde_json::to_string_pretty(&report).map_err(|e| e.to_string())?;
+            match &output {
+                Some(path) => {
+                    std::fs::write(path, format!("{json}\n")).map_err(|e| e.to_string())?
+                }
+                None => println!("{json}"),
+            }
             Ok(ExitCode::SUCCESS)
         }
         Command::Compare {

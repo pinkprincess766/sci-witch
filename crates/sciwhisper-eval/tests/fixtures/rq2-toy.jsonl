@@ -1,0 +1,12 @@
+{"id": "toy-a-s0", "family_id": "toy-a", "stage": 0, "score": 1.0, "correct": true, "split": "train"}
+{"id": "toy-a-s1", "family_id": "toy-a", "stage": 1, "score": 0.95, "correct": true, "split": "train"}
+{"id": "toy-a-s2", "family_id": "toy-a", "stage": 2, "score": 0.7, "correct": false, "split": "train"}
+{"id": "toy-b-s0", "family_id": "toy-b", "stage": 0, "score": 0.95, "correct": true}
+{"id": "toy-b-s1", "family_id": "toy-b", "stage": 1, "score": 0.95, "correct": false}
+{"id": "toy-b-s2", "family_id": "toy-b", "stage": 2, "score": 0.0, "correct": false}
+{"id": "toy-c-s0", "family_id": "toy-c", "stage": 0, "score": 1.0, "correct": true}
+{"id": "toy-c-s1", "family_id": "toy-c", "stage": 1, "score": 0.7, "correct": true}
+{"id": "toy-c-s2", "family_id": "toy-c", "stage": 2, "score": 0.7, "correct": true}
+{"id": "toy-d-s0", "family_id": "toy-d", "stage": 0, "score": 0.95, "correct": false}
+{"id": "toy-d-s1", "family_id": "toy-d", "stage": 1, "score": 0.0, "correct": true}
+{"id": "toy-d-s2", "family_id": "toy-d", "stage": 2, "score": 1.0, "correct": true}
